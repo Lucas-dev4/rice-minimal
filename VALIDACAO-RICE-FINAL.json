@@ -1,0 +1,191 @@
+{
+  "identity": "RICE //",
+  "profile": "refined",
+  "unit_tests": {
+    "passed": 27
+  },
+  "super_safety_tests": {
+    "passed": 3
+  },
+  "pty": {
+    "commands": [
+      "rice",
+      "wallpapers",
+      "supers"
+    ],
+    "unified_navigation": "passed",
+    "resize": "12x44 -> 6x24 -> 28x110 passed",
+    "single_curses_session": "verified by routing test and shared screen callbacks"
+  },
+  "session": {
+    "phase3": "passed after CLI import regression correction",
+    "phase4": "25 checks passed; see VALIDACAO-FASE4.json",
+    "hyprctl_configerrors": "empty",
+    "noctalia_config": "valid",
+    "gtk3_css": "valid",
+    "workspace_normal_bold_width_px": [
+      40,
+      40
+    ]
+  },
+  "doctor": [
+    {
+      "status": "OK",
+      "name": "Hyprland version",
+      "detail": "Hyprland 0.57.1 built from branch v0.57.1 at commit acc1aa0bfd4bd575dcb0f76c35ccf12b660a1ab9 clean ([gha] Nix: update inputs).\nDate: Tue Nov 3 09:45:48 2026\nTag: v0.57.1, commits: 7993\n\nLibraries:\nHyprgraphics: built against 0.6.0, system has 0.6.0\nHyprutils: built against 0.14.3, system has 0.14.3\n"
+    },
+    {
+      "status": "OK",
+      "name": "Hyprland Lua errors",
+      "detail": ""
+    },
+    {
+      "status": "OK",
+      "name": "Lua appearance include",
+      "detail": "/home/lucas/.config/hypr/hyprland.lua"
+    },
+    {
+      "status": "OK",
+      "name": "Waybar active",
+      "detail": "40534"
+    },
+    {
+      "status": "OK",
+      "name": "Noctalia services",
+      "detail": "{\n  \"barVisible\": false,\n  \"panelOpen\": false,\n  \"activePanelId\": null,\n  \"locked\": false\n}"
+    },
+    {
+      "status": "OK",
+      "name": "Noctalia config",
+      "detail": "✓ Config is valid"
+    },
+    {
+      "status": "OK",
+      "name": "Audio / PipeWire",
+      "detail": "PipeWire 'pipewire-0' [1.6.10, lucas@pc, cookie:3210731933]\n └─ Clients:\n        32. WirePlumber                         [1.6.10, lucas@pc, pid:880]\n        33. pipewire                            [1.6.10, lucas@pc, pid:881]\n        47. WirePlumber [client]                [1.6.10, lucas@pc, pid:880]"
+    },
+    {
+      "status": "OK",
+      "name": "NetworkManager",
+      "detail": "active"
+    },
+    {
+      "status": "OK",
+      "name": "Wayland portals",
+      "detail": "active\nactive"
+    },
+    {
+      "status": "OK",
+      "name": "UWSM graphical session",
+      "detail": "active"
+    },
+    {
+      "status": "OK",
+      "name": "Native screen locker",
+      "detail": "allow_empty_password = false\nblur_intensity = 0.5\nblurred_desktop = false\nedge_smoothness = 0.30000001192092896\nenabled = true\nfingerprint = true\ngrace_period_seconds = 0\nlock_before_suspend = true\nmonitors = []\ntint_intensity = 0.30000001192092896\ntransition = [ 'fade', 'wipe', 'disc', 'stripes', '"
+    },
+    {
+      "status": "OK",
+      "name": "matugen",
+      "detail": "/usr/bin/matugen"
+    },
+    {
+      "status": "OK",
+      "name": "waypaper",
+      "detail": "/usr/bin/waypaper"
+    },
+    {
+      "status": "OK",
+      "name": "kitty",
+      "detail": "/usr/bin/kitty"
+    },
+    {
+      "status": "OK",
+      "name": "fish",
+      "detail": "/usr/bin/fish"
+    },
+    {
+      "status": "OK",
+      "name": "nvim",
+      "detail": "/usr/bin/nvim"
+    },
+    {
+      "status": "OK",
+      "name": "Kitty opacity",
+      "detail": "0.85"
+    },
+    {
+      "status": "OK",
+      "name": "Fish syntax",
+      "detail": ""
+    },
+    {
+      "status": "OK",
+      "name": "Neovim Lua syntax",
+      "detail": ""
+    },
+    {
+      "status": "OK",
+      "name": "Super validation",
+      "detail": "52 atalhos estáticos válidos; expressões dinâmicas preservadas"
+    },
+    {
+      "status": "OK",
+      "name": "Wallpaper reference",
+      "detail": "/home/lucas/Pictures/Wallpapers/wallhaven-xek3ll.jpg"
+    },
+    {
+      "status": "OK",
+      "name": "Current wallpaper",
+      "detail": "/home/lucas/Pictures/Wallpapers/wallhaven-xek3ll.jpg"
+    },
+    {
+      "status": "OK",
+      "name": "Wallpaper / palette synchronization",
+      "detail": "/home/lucas/Pictures/Wallpapers/wallhaven-xek3ll.jpg"
+    },
+    {
+      "status": "OK",
+      "name": "Waypaper / Matugen hook",
+      "detail": "/usr/bin/python3 /home/lucas/Projetos/rice-minimal/extras/theme/theme.py wallpaper"
+    },
+    {
+      "status": "OK",
+      "name": "Palette generator",
+      "detail": "matugen 4.2 / scheme-neutral / dark"
+    },
+    {
+      "status": "OK",
+      "name": "Persistent appearance profile",
+      "detail": "refined"
+    },
+    {
+      "status": "OK",
+      "name": "Lock visual candidate",
+      "detail": "[ OK ] Native Noctalia config valid; authentication untouched"
+    },
+    {
+      "status": "WARN",
+      "name": "RICE // LOCKED activation",
+      "detail": "staged; real lock test requires confirmation"
+    },
+    {
+      "status": "OK",
+      "name": "Managed file integrity",
+      "detail": "44 files match"
+    }
+  ],
+  "lockscreen": {
+    "locker": "Noctalia 5.4.1",
+    "candidate_valid": true,
+    "active": false,
+    "real_lock_test": "pending explicit user confirmation; not executed",
+    "authentication_changed": false
+  },
+  "limitations": [
+    "No real lock/unlock trial without confirmation",
+    "No new graphical login",
+    "No FPS or latency benchmark"
+  ],
+  "backup": "/home/lucas/Projetos/rice-minimal/backups/rice-final-20261105-231618"
+}

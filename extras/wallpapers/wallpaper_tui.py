@@ -23,19 +23,19 @@ def selector(screen):
     while True:
         matches = filtered(paths, query)
         index = min(index, max(0,len(matches)-1))
-        height, _ = ui.frame(screen, f'WALLPAPERS [{len(matches):02d}] / UNIX RICE')
+        height, _ = ui.frame(screen, f'RICE // WALLPAPERS [{len(matches):02d}]')
         visible = max(1,height-7)
         start = max(0, index-visible+1)
         for row, path in enumerate(matches[start:start+visible], 2):
             position = row-2+start
             active = bool(current and path.resolve() == current.resolve())
             ui.text(screen, row, 2, f'{">" if position == index else " "} {path.name} {"*" if active else ""}',
-                    curses.A_REVERSE if position == index else 0)
+                    ui.selected() if position == index else 0)
         if not matches:
             ui.text(screen, 2, 2, '(no matching images)')
         ui.text(screen, height-4, 2, '/'+query if editing or query else message)
         ui.text(screen, height-2, 2, 'j/k: move | Enter: apply | /: search | r: random | q: quit')
-        screen.refresh()
+        ui.present(screen)
         key = screen.get_wch()
         if editing:
             if key in ('\n','\r'):
@@ -62,7 +62,7 @@ def selector(screen):
             chosen = matches[index]
             try:
                 ui.text(screen, height-4, 2, 'Applying wallpaper + colors...')
-                screen.refresh()
+                ui.present(screen)
                 result = theme.apply_choice(chosen)
                 current = theme.current_wallpaper()
                 message = 'Applied: '+chosen.name+' / '+result

@@ -7,6 +7,7 @@ from pathlib import Path
 import signal
 import subprocess
 import time
+from waybar_ipc import compatible_environment
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -28,33 +29,34 @@ def main():
                         'cached', '--restore-wallpaper'], check=True)
         if subprocess.run(['pgrep', '-x', 'waybar'], capture_output=True).returncode == 0:
             raise RuntimeError('Another Waybar is already running')
-        child = subprocess.Popen(['waybar', '-c', str(ROOT/'config/waybar/config.jsonc'),
-                                  '-s', str(ROOT/'config/waybar/style.css')])
-        def stop(*_):
-            child.terminate()
-        signal.signal(signal.SIGTERM, stop)
-        signal.signal(signal.SIGINT, stop)
-        try:
-            for _ in range(40):
-                if child.poll() is not None:
-                    raise RuntimeError('Waybar exited before becoming ready')
-                layers = subprocess.check_output(['hyprctl', '-j', 'layers'], text=True)
-                if 'waybar' in layers.lower():
-                    subprocess.run(['noctalia', 'msg', 'bar-hide'], check=True)
-                    break
-                time.sleep(0.25)
-            else:
-                raise RuntimeError('Waybar layer did not appear')
-            child.wait()
-        finally:
-            if child.poll() is None:
+        with compatible_environment() as waybar_environment:
+            child = subprocess.Popen(['waybar', '-c', str(ROOT/'config/waybar/config.jsonc'),
+                                      '-s', str(ROOT/'config/waybar/style.css')], env=waybar_environment)
+            def stop(*_):
                 child.terminate()
-                try:
-                    child.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    child.kill()
-                    child.wait()
-            subprocess.run(['noctalia', 'msg', 'bar-show'], check=False)
+            signal.signal(signal.SIGTERM, stop)
+            signal.signal(signal.SIGINT, stop)
+            try:
+                for _ in range(40):
+                    if child.poll() is not None:
+                        raise RuntimeError('Waybar exited before becoming ready')
+                    layers = subprocess.check_output(['hyprctl', '-j', 'layers'], text=True)
+                    if 'waybar' in layers.lower():
+                        subprocess.run(['noctalia', 'msg', 'bar-hide'], check=True)
+                        break
+                    time.sleep(0.25)
+                else:
+                    raise RuntimeError('Waybar layer did not appear')
+                child.wait()
+            finally:
+                if child.poll() is None:
+                    child.terminate()
+                    try:
+                        child.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        child.kill()
+                        child.wait()
+                subprocess.run(['noctalia', 'msg', 'bar-show'], check=False)
 
 if __name__ == '__main__':
     main()

@@ -13,3 +13,8 @@ referencias/
 *.log
 __pycache__/
 *.pyc
+
+# Phase 4 installation checkpoint
+.phase4-backup
+
+.rice-final-backup

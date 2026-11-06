@@ -1,3 +1,7 @@
+> **RICE // Fase 4 Final:** controle ncurses unificado, System Doctor e bloqueio nativo personalizado em validação. Consulte [RICE-FINAL.md](RICE-FINAL.md) para estado, testes e recuperação.
+
+> **Fase 4 implementada:** perfil `refined` ativo, Waybar ASCII, animações Lua, Noctalia integrado à paleta e perfis intercambiáveis. Consulte [PHASE4.md](PHASE4.md) para arquivos, testes, limitações e restauração. As seções anteriores abaixo descrevem a Fase 3.
+
 # Rice minimal — adaptive
 
 ## Fase 3 — instalada e testada

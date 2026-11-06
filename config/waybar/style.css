@@ -1,6 +1,6 @@
 @import url("/home/lucas/.local/state/rice-minimal/theme/current/colors.css");
 * {
-    font-family: monospace;
+    font-family: "DejaVu Sans Mono", monospace;
     font-size: 13px;
     background: transparent;
     background-image: none;
@@ -29,3 +29,25 @@ window#waybar, window#waybar > box, .modules-left, .modules-center, .modules-rig
 #memory { color: @rice_memory; }
 #pulseaudio { color: @rice_volume; }
 #clock { padding-right: 10px; color: @rice_clock; }
+
+/* Geometry stays constant across states and profiles. */
+#workspaces { padding: 3px 4px; }
+#workspaces button, #workspaces button:hover, #workspaces button.active {
+    padding: 0 4px;
+    margin: 0 1px;
+    min-width: 39px;
+    border: 1px solid transparent;
+    font-weight: normal;
+}
+#workspaces button.active {
+    background-color: @rice_active_bg;
+    color: @rice_active_fg;
+    border-color: @rice_active_border;
+}
+#workspaces button:hover { border-color: @rice_accent; }
+#workspaces button.urgent { border-color: @rice_urgent; }
+@import url("/home/lucas/.local/state/rice-minimal/theme/current/profile.css");
+#window, #cpu, #memory, #pulseaudio, #clock { padding-top: 1px; padding-bottom: 1px; }
+
+#workspaces button.active { font-weight: bold; }
+#workspaces button:hover { border-color: transparent; }

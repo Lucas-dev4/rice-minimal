@@ -1,0 +1,108 @@
+[
+  {
+    "test": "minimal persists",
+    "passed": true
+  },
+  {
+    "test": "minimal reuses palette",
+    "passed": true
+  },
+  {
+    "test": "minimal reload has no errors",
+    "passed": true
+  },
+  {
+    "test": "minimal survives real config reload",
+    "passed": true
+  },
+  {
+    "test": "minimal CSS duration",
+    "passed": true
+  },
+  {
+    "test": "refined persists",
+    "passed": true
+  },
+  {
+    "test": "refined reuses palette",
+    "passed": true
+  },
+  {
+    "test": "refined reload has no errors",
+    "passed": true
+  },
+  {
+    "test": "refined survives real config reload",
+    "passed": true
+  },
+  {
+    "test": "refined CSS duration",
+    "passed": true
+  },
+  {
+    "test": "wallpaper switch preserves refined",
+    "passed": true
+  },
+  {
+    "test": "wallpaper switch generated palette",
+    "passed": true
+  },
+  {
+    "test": "Noctalia receives same generated palette",
+    "passed": true
+  },
+  {
+    "test": "Waybar layer remains visible",
+    "passed": true
+  },
+  {
+    "test": "Noctalia fallback bar remains hidden",
+    "passed": true
+  },
+  {
+    "test": "real launcher opened",
+    "passed": true
+  },
+  {
+    "test": "launcher virtual keyboard input",
+    "passed": true,
+    "output": ""
+  },
+  {
+    "test": "notification toast exists",
+    "passed": true
+  },
+  {
+    "test": "temporary floating window opened",
+    "passed": true
+  },
+  {
+    "test": "real workspace transition and return",
+    "passed": true
+  },
+  {
+    "test": "Waybar legacy click accepted through Lua adapter",
+    "passed": true
+  },
+  {
+    "test": "Waybar click changes actual workspace",
+    "passed": true
+  },
+  {
+    "program": "/home/lucas/Projetos/rice-minimal/extras/rice.py",
+    "exit_code": 0,
+    "bytes_rendered": 1493
+  },
+  {
+    "test": "rice appearance submenu rendered",
+    "passed": true
+  },
+  {
+    "test": "cached login preserves selected profile",
+    "passed": true
+  },
+  {
+    "test": "final Hyprland errors empty",
+    "passed": true
+  }
+]

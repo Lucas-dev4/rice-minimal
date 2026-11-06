@@ -33,7 +33,7 @@ def wait_palette(wallpaper):
 def test_menu():
     before = (theme.STATE/'current').resolve()
     result = exercise([Path.home()/'.local/bin/rice'],[
-        (1,b'2'),(2,b'q'),(2.7,b'3'),(3,b'q'),(3.5,b'4'),(5,b'5'),(6,b'5'),(7,b'q')])
+        (.5,b'2'),(.9,b'q'),(1.2,b'4'),(1.5,b'1'),(1.8,b'q'),(2.1,b'2'),(4,b'3'),(5,b'3'),(6,b'q'),(6.3,b'q')])
     assert (theme.STATE/'current').resolve() != before, 'Menu did not regenerate'
     assert json.loads((theme.STATE/'status.json').read_text())['result'] == 'restored', 'Menu did not restore'
     return result

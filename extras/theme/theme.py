@@ -17,6 +17,7 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT/'extras'))
 STATE = Path(os.environ.get('RICE_THEME_STATE', Path.home()/'.local/state/rice-minimal/theme'))
 WAYPAPER = Path.home()/'.config/waypaper/config.ini'
 FALLBACK = dict(background='#111612', foreground='#d9dfd5', accent='#a6b898',
@@ -199,6 +200,13 @@ def generate(path):
                 generator='matugen 4.2 / scheme-neutral / dark', contrast=contrast,
                 created_ns=time.time_ns())
 
+def current_profile():
+    try:
+        profile = (STATE/'profile').read_text().strip()
+        return profile if profile in ('minimal', 'refined') else 'minimal'
+    except OSError:
+        return 'minimal'
+
 def render(palette):
     c = palette['colors']
     for value in c.values():
@@ -212,6 +220,15 @@ def render(palette):
     css = f"@define-color rice_text {c['bar_foreground']};\n@define-color rice_accent {c['bar_accent']};\n"
     for name in ('workspace','window','cpu','memory','volume','clock'):
         css += f"@define-color rice_{name} {c.get('bar_'+name,c['bar_foreground'])};\n"
+    css += f"@define-color rice_urgent {c['red']};\n"
+    refined = current_profile() == 'refined'
+    accent = c['accent']
+    ink = max((c['background'], c['foreground']), key=lambda v: ratio(v, accent))
+    css += '@define-color rice_active_bg transparent;\n'
+    css += f"@define-color rice_active_fg {c['bar_accent']};\n"
+    css += '@define-color rice_active_border transparent;\n'
+    duration = '150ms' if refined else '0ms'
+    profile_css = '#workspaces button { transition: background-color '+duration+' ease, color '+duration+' ease, border-color '+duration+' ease; }\n'
     hypr = ('hl.config({ general = { border_size = 1, col = { active_border = "rgba('+c['accent'][1:]+'ff)", '
             'inactive_border = "rgba('+c['muted'][1:]+'ff)" } } })\n')
     fish = '\n'.join(f'set -g {key} {value[1:]}' for key,value in {
@@ -230,13 +247,37 @@ def render(palette):
         'StatusLine': {'fg':c['foreground'],'bg':c['background']}, 'StatusLineNC': {'fg':c['muted'],'bg':c['background']},
         'Search': {'fg':c['background'],'bg':c['yellow']}, 'Visual': {'fg':c['background'],'bg':c['accent']},
         'ErrorMsg': {'fg':c['red']}, 'DiagnosticError': {'fg':c['red']}, 'DiagnosticWarn': {'fg':c['yellow']},
+        'FloatBorder': {'fg':c['muted'],'bg':c['background']},
+        'WinSeparator': {'fg':c['muted']},
+        'Cursor': {'fg':c['background'],'bg':c['accent']},
+        'DiagnosticInfo': {'fg':c['cyan']},
+        'DiagnosticHint': {'fg':c['muted']},
         'Pmenu': {'fg':c['foreground'],'bg':c['background']}, 'PmenuSel': {'fg':c['background'],'bg':c['accent']},
     }
     nvim = 'vim.opt.termguicolors = true\nvim.opt.background = "dark"\n'
     for name, attrs in highlights.items():
         fields = ', '.join(f'{k} = {str(v).lower() if isinstance(v,bool) else json.dumps(v)}' for k,v in attrs.items())
         nvim += f'vim.api.nvim_set_hl(0, "{name}", {{ {fields} }})\n'
-    return {'kitty.conf':kitty, 'colors.css':css, 'hyprland.lua':hypr, 'colors.fish':fish,
+    noctalia = {'dark': {
+        'mPrimary':c['accent'], 'mOnPrimary':ink,
+        'mSecondary':c['green'], 'mOnSecondary':c['background'],
+        'mTertiary':c['yellow'], 'mOnTertiary':c['background'],
+        'mError':c['red'], 'mOnError':c['background'],
+        'mSurface':c['background'], 'mOnSurface':c['foreground'],
+        'mSurfaceVariant':mix(c['background'], c['foreground'], .07),
+        'mOnSurfaceVariant':c['muted'], 'mOutline':c['muted'],
+        'mShadow':c['background'], 'mHover':c['accent'], 'mOnHover':ink,
+    }}
+    names = ('black','red','green','yellow','blue','magenta','cyan','white')
+    noctalia['dark']['terminal'] = {
+        'normal':dict(zip(names,ansi[:8])), 'bright':dict(zip(names,ansi[8:])),
+        'background':c['background'], 'foreground':c['foreground'],
+        'cursor':c['accent'], 'cursorText':c['background'],
+        'selectionBg':c['accent'], 'selectionFg':c['background'],
+    }
+    import lockscreen
+    lock_theme = lockscreen.render(palette, current_profile())
+    return {'lockscreen.toml':lock_theme, 'noctalia.json':json.dumps(noctalia,indent=2)+'\n', 'kitty.conf':kitty, 'colors.css':css, 'profile.css':profile_css, 'hyprland.lua':hypr, 'colors.fish':fish,
             'nvim.lua':nvim, 'palette.json':json.dumps(palette,indent=2)+'\n'}
 
 def link(name, target):
@@ -264,8 +305,18 @@ def publish(palette):
 
 def reload_components():
     warnings = []
+    if (STATE/'lock-enabled').exists():
+        import lockscreen
+        lockscreen.validate()
+        lockscreen.atomic(Path.home()/'.config/noctalia/rice-lock.toml', (STATE/'current/lockscreen.toml').read_text())
     if os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'):
         command(['hyprctl', 'eval', (STATE/'current/hyprland.lua').read_text()])
+    if (Path.home()/'.config/noctalia/palettes/RiceMinimal.json').exists():
+        target = Path.home()/'.config/noctalia/palettes/RiceMinimal.json'
+        temporary = target.with_name('.RiceMinimal.json.tmp')
+        temporary.write_text((STATE/'current/noctalia.json').read_text())
+        os.replace(temporary, target)
+        command(['noctalia', 'msg', 'config-reload'])
     for app, sig in (('kitty', signal.SIGUSR1), ('waybar', signal.SIGUSR2)):
         try:
             pids = command(['pgrep', '-u', str(os.getuid()), '-x', app]).split()
@@ -278,6 +329,13 @@ def reload_components():
                 pass
             except OSError as exc:
                 warnings.append(f'{app}: {exc}')
+    # Noctalia reload restores its configured bar; keep the supervisor's fallback hidden.
+    try:
+        command(['pgrep', '-u', str(os.getuid()), '-x', 'waybar'])
+    except subprocess.CalledProcessError:
+        pass
+    else:
+        command(['noctalia', 'msg', 'bar-hide'])
     return warnings
 
 def activate(palette, reload=True):
@@ -355,13 +413,19 @@ def restore_previous(reload=True):
         previous = (STATE/'previous').resolve()
         current = (STATE/'current').resolve()
         palette = json.loads((previous/'palette.json').read_text())
-        render(palette)  # Reject corrupt or untrusted color values.
-        link('current', previous.name)
+        expected = render(palette)  # Reject corrupt or untrusted color values.
+        # Palette history may belong to a different appearance profile.
+        if any(not (previous/name).is_file() or (previous/name).read_text() != value
+               for name,value in expected.items()):
+            publish(palette)
+        else:
+            link('current', previous.name)
         try:
             if reload:
                 reload_components()
         except Exception:
             link('current', current.name)
+            link('previous', previous.name)
             raise
         link('previous', current.name)
         save_status(result='restored', palette=previous.name, time_ns=time.time_ns())
@@ -373,8 +437,8 @@ def cached(restore_wallpaper=False):
         try:
             palette = json.loads((STATE/'current/palette.json').read_text())
             expected = render(palette)
-            if any((STATE/'current'/name).read_text() != value for name,value in expected.items()):
-                raise ValueError('Incomplete or outdated generated theme')
+            if any(not (STATE/'current'/name).is_file() or (STATE/'current'/name).read_text() != value for name,value in expected.items()):
+                activate(palette, reload=False)
         except (OSError, ValueError, KeyError):
             activate({'colors':FALLBACK.copy(), 'generator':'static-emergency'}, reload=False)
         if restore_wallpaper:
@@ -409,7 +473,11 @@ def main():
 
 if __name__ == '__main__':
     try:
-        main()
+        directory = Path(__file__).resolve().parent
+        sys.path[:] = [p for p in sys.path if Path(p or '.').resolve() != directory]
+        sys.path.insert(0,str(directory.parent))
+        from theme import theme as api
+        api.main()
     except Exception as exc:
         print(f'rice-theme: {exc}', file=sys.stderr)
         sys.exit(1)

@@ -1,0 +1,73 @@
+"""Read-only session diagnostics. Never generates colors, reloads or repairs."""
+import hashlib
+import json
+from pathlib import Path
+import shutil
+import subprocess
+from theme import theme
+
+
+def inspect():
+    results=[]
+    def add(status,name,detail=''):
+        results.append({'status':status,'name':name,'detail':str(detail)})
+    def command(name,args,empty=False):
+        try:
+            p=subprocess.run([str(x) for x in args],capture_output=True,text=True,timeout=8)
+            output=(p.stdout+p.stderr).strip()
+            good=p.returncode == 0 and (not output if empty else True)
+            add('OK' if good else ('FAIL' if empty and p.returncode == 0 and output else 'WARN'),name,output[:300])
+            return good,output
+        except (OSError,subprocess.SubprocessError) as exc:
+            add('WARN',name,exc)
+            return False,''
+    command('Hyprland version',['hyprctl','version'])
+    command('Hyprland Lua errors',['hyprctl','configerrors'],empty=True)
+    hypr=Path.home()/'.config/hypr/hyprland.lua'
+    add('OK' if hypr.is_file() and 'rice-appearance' in hypr.read_text() else 'FAIL','Lua appearance include',hypr)
+    command('Waybar active',['pgrep','-u',str(theme.os.getuid()),'-x','waybar'])
+    command('Noctalia services',['noctalia','msg','status'])
+    command('Noctalia config',['noctalia','config','validate'])
+    command('Audio / PipeWire',['wpctl','status'])
+    command('NetworkManager',['systemctl','is-active','NetworkManager'])
+    command('Wayland portals',['systemctl','--user','is-active','xdg-desktop-portal.service','xdg-desktop-portal-hyprland.service'])
+    command('UWSM graphical session',['systemctl','--user','is-active','graphical-session.target'])
+    command('Native screen locker',['noctalia','msg','config-get','lockscreen'])
+    for app in ('matugen','waypaper','kitty','fish','nvim'):
+        add('OK' if shutil.which(app) else 'FAIL',app,shutil.which(app) or 'missing executable')
+    command('Kitty opacity',['kitty','+runpy','from kitty.config import load_config; o=load_config("'+str(Path.home()/'.config/kitty/kitty.conf')+'"); assert o.background_opacity == 0.85; print(o.background_opacity)'])
+    command('Fish syntax',['fish','-n',Path.home()/'.config/fish/config.fish'])
+    command('Neovim Lua syntax',['luac','-p',Path.home()/'.config/nvim/init.lua'])
+    command('Super validation',['python3',theme.ROOT/'extras/supers/Supers','--check'])
+    palette=theme.read_palette()
+    path=Path(palette.get('wallpaper','/missing'))
+    add('OK' if path.is_file() else 'FAIL','Wallpaper reference',path)
+    try:
+        command_ok,current=command('Current wallpaper',['noctalia','msg','wallpaper-get'])
+        if command_ok:
+            add('OK' if Path(current).resolve() == path.resolve() else 'WARN','Wallpaper / palette synchronization',current)
+        hook=theme.waypaper_settings().get('post_command','')
+        add('OK' if 'theme.py' in hook and 'wallpaper' in hook else 'FAIL','Waypaper / Matugen hook',hook)
+        add('OK' if palette.get('generator','').startswith('matugen') else 'WARN','Palette generator',palette.get('generator'))
+        profile_file=theme.STATE/'profile'
+        value=profile_file.read_text().strip()
+        add('OK' if value in ('minimal','refined') else 'FAIL','Persistent appearance profile',value)
+    except Exception as exc:
+        add('WARN','Adaptive configuration',exc)
+    try:
+        import lockscreen
+        add('OK','Lock visual candidate',lockscreen.validate())
+        add('OK' if (theme.STATE/'lock-enabled').exists() else 'WARN','RICE // LOCKED activation','active' if (theme.STATE/'lock-enabled').exists() else 'staged; real lock test requires confirmation')
+    except Exception as exc:
+        add('WARN','Lock visual candidate',exc)
+    try:
+        hashes=json.loads((theme.ROOT/'config/integrity.json').read_text())
+        bad=[name for name,digest in hashes.items() if not (theme.ROOT/name).is_file() or hashlib.sha256((theme.ROOT/name).read_bytes()).hexdigest()!=digest]
+        add('FAIL' if bad else 'OK','Managed file integrity',', '.join(bad) or str(len(hashes))+' files match')
+    except (OSError,ValueError) as exc:
+        add('WARN','Managed file integrity',exc)
+    return results
+
+
+def lines(results):
+    return [f"[ {r['status']} ] {r['name']}"+(' — '+r['detail'] if r['detail'] else '') for r in results]

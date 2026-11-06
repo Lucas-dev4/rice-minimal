@@ -14,19 +14,24 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 
-def exercise(args, actions):
+def exercise(args, actions, size=(24,100), resizes=()):
     pid, fd = pty.fork()
     if pid == 0:
         os.environ['TERM'] = 'xterm-256color'
         os.execvp(str(args[0]), [str(a) for a in args])
-    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH',24,100,0,0))
+    fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH',*size,0,0))
     output = bytearray()
     started = time.monotonic()
     pending = list(actions)
+    resize_pending = list(resizes)
     status = None
     try:
         while time.monotonic()-started < 12:
             elapsed = time.monotonic()-started
+            while resize_pending and elapsed >= resize_pending[0][0]:
+                _,rows,columns=resize_pending.pop(0)
+                fcntl.ioctl(fd,termios.TIOCSWINSZ,struct.pack('HHHH',rows,columns,0,0))
+                os.kill(pid,signal.SIGWINCH)
             while pending and elapsed >= pending[0][0]:
                 _, keys = pending.pop(0)
                 os.write(fd, keys)

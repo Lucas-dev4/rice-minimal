@@ -14,13 +14,13 @@
     "clock"
   ],
   "hyprland/workspaces": {
-    "format": "[{id:02d}]",
+    "format": "[ {id} ]",
     "on-click": "activate",
     "sort-by-number": true
   },
   "hyprland/window": {
     "format": "| {}",
-    "max-length": 48,
+    "max-length": 36,
     "separate-outputs": true
   },
   "cpu": {
