@@ -1,0 +1,31 @@
+@import url("/home/lucas/.local/state/rice-minimal/theme/current/colors.css");
+* {
+    font-family: monospace;
+    font-size: 13px;
+    background: transparent;
+    background-image: none;
+    border: none;
+    border-radius: 0;
+    min-height: 0;
+    box-shadow: none;
+    text-shadow: none;
+    transition: none;
+    animation: none;
+}
+window#waybar, window#waybar > box, .modules-left, .modules-center, .modules-right {
+    background: transparent;
+    color: @rice_text;
+}
+#workspaces button, #workspaces button:hover, #workspaces button.active {
+    background: transparent;
+    background-image: none;
+    padding: 0 3px;
+    color: @rice_workspace;
+    box-shadow: none;
+}
+#workspaces button.active { color: @rice_accent; }
+#window { color: @rice_window; }
+#cpu { color: @rice_cpu; }
+#memory { color: @rice_memory; }
+#pulseaudio { color: @rice_volume; }
+#clock { padding-right: 10px; color: @rice_clock; }

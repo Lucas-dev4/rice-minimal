@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Rice minimal Waybar
+Comment=Waybar with Noctalia fallback
+Exec=/usr/bin/python3 /home/lucas/Projetos/rice-minimal/scripts/session.py
+OnlyShowIn=Hyprland;
+Terminal=false

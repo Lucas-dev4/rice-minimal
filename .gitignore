@@ -1,0 +1,15 @@
+backups/
+__pycache__/
+*.pyc
+nvim.log
+
+# Backups e estado local
+.phase3-backup
+
+# Repositorios externos
+referencias/
+
+# Logs e arquivos temporarios
+*.log
+__pycache__/
+*.pyc

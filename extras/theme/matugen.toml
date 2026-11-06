@@ -1,0 +1,4 @@
+# Isolated config: no wallpaper commands, application hooks or global templates.
+[config]
+
+[templates]
