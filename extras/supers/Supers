@@ -92,12 +92,12 @@ def main():
     args = parser.parse_args()
     CONFIG_PATH = str(Path(args.config).expanduser())
     if args.restore:
-        backup = Path(args.restore).expanduser().resolve()
-        target = Path(CONFIG_PATH).resolve()
-        if backup.parent != target.parent or not backup.name.startswith(target.name + '.supers-') or backup.suffix != '.bak':
-            parser.error('Use um backup .supers-*.bak do mesmo arquivo')
-        saved = safe_write(CONFIG_PATH, target.read_text(), backup.read_text())
-        print('Restaurado; estado anterior preservado em', saved)
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from shortcuts import restore
+        try:
+            print('Restaurado; estado anterior preservado em', restore(args.restore, CONFIG_PATH)['saved'])
+        except ValueError as exc:
+            parser.error(str(exc))
         return
     if args.check:
         import subprocess

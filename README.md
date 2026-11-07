@@ -132,4 +132,6 @@ Na tela Palette ficam a paleta atual e a anterior com seus wallpapers; `RESTORE 
 
 A tela Greeter compara o que foi enviado com o tema atual (`rice greeter status`), envia na hora (`rice greeter sync`) e liga ou desliga o envio automático (`rice greeter auto on|off`). O envio automático depende do arquivo `greeter-sync` no estado do tema, removido por `scripts/restore_greeter.sh`.
 
+A tela Shortcuts lista os atalhos de `binds.lua` e os do rice (somente leitura). Todos podem mudar de combinação; o comando só pode mudar quando a ação é um comando de texto, e dispatchers, funções e variáveis são preservados. Conflitos são checados no arquivo e nos binds ativos do Hyprland, e cada gravação guarda um backup. Comandos: `rice shortcuts list|check|set|backups|restore`.
+
 As cores vêm de `~/.config/noctalia/palettes/RiceMinimal.json`, trocado de forma atômica a cada mudança de paleta. Os padrões de `Process` + JSON e `FileView` foram inspirados no [SekaiPop](https://github.com/Blapples/SekaiPop) (GPL-3.0); nenhum código dele foi copiado.

@@ -10,7 +10,7 @@ FloatingWindow {
     id: window
 
     readonly property var screens: [
-        { name: "WALLPAPERS", source: "screens/WallpaperScreen.qml" }, { name: "SHORTCUTS" }, { name: "PROFILES", source: "screens/ProfilesScreen.qml" },
+        { name: "WALLPAPERS", source: "screens/WallpaperScreen.qml" }, { name: "SHORTCUTS", source: "screens/ShortcutsScreen.qml" }, { name: "PROFILES", source: "screens/ProfilesScreen.qml" },
         { name: "PALETTE", source: "screens/PaletteScreen.qml" },
         { name: "DOCTOR", source: "screens/DoctorScreen.qml" },
         { name: "BACKUPS" }, { name: "LOCK" },

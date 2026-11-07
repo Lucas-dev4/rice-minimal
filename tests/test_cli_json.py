@@ -215,6 +215,110 @@ class Greeter(Envelope):
             self.assertEqual(self.run_cli('sync','--json')[1]['error']['code'],'busy')
 
 
+class Shortcuts(Envelope):
+    TEXT = """local mainMod = "SUPER"
+local noctCall = "noctalia msg "
+local launchPrefix = "uwsm app -- "
+-- Windows
+hl.bind(mainMod .. " + Q",    hl.dsp.window.close())
+hl.bind(mainMod .. " + E",    hl.dsp.exec_cmd(launchPrefix .. FILES))
+-- Shell
+hl.bind(mainMod .. " + Tab",  hl.dsp.exec_cmd(noctCall .. "window-switcher"))
+hl.bind(mainMod .. " + Z",    hl.dsp.exec_cmd("hyprctl kill"), { locked = true })
+"""
+
+    def setUp(self):
+        super().setUp()
+        self.file = self.state/'binds.lua'
+        self.file.write_text(self.TEXT)
+        hypr = patch.object(cli.shortcuts,'live_conflict',return_value=False)
+        self.conflict = hypr.start()
+        self.addCleanup(hypr.stop)
+
+    def listing(self):
+        return self.run_cli('shortcuts','list','--json','--file',str(self.file))[1]['data']
+
+    def change(self, line, *extra):
+        data = self.listing()
+        return self.run_cli('shortcuts','set','--line',str(line),'--revision',data['revision'],*extra,'--json','--file',str(self.file))
+
+    def test_list_exposes_only_real_commands_and_their_sections(self):
+        binds = {b['key']:b for b in self.listing()['binds']}
+        self.assertIsNone(binds['SUPER + Q']['command'])
+        self.assertIsNone(binds['SUPER + E']['command'])
+        self.assertEqual(binds['SUPER + Tab']['command'],'window-switcher')
+        self.assertEqual(binds['SUPER + Tab']['section'],'Shell')
+
+    def test_command_edit_keeps_prefix_and_options(self):
+        self.change(7,'--command','launcher-toggle')
+        self.assertIn('hl.dsp.exec_cmd(noctCall .. "launcher-toggle"))',self.file.read_text())
+        self.change(8,'--command','hyprctl reload')
+        self.assertIn('hl.dsp.exec_cmd("hyprctl reload"), { locked = true })',self.file.read_text())
+
+    def test_dispatcher_and_variable_commands_are_refused_untouched(self):
+        for line in (4,5):
+            code, result = self.change(line,'--command','firefox')
+            self.assertEqual((code,result['ok']),(1,False))
+        self.assertEqual(self.file.read_text(),self.TEXT)
+
+    def test_key_edit_works_on_a_dispatcher(self):
+        self.assertEqual(self.change(4,'--key','SHIFT + Q')[0],0)
+        self.assertIn('hl.dsp.window.close()',self.file.read_text())
+        self.assertIn('" + SHIFT + Q"',self.file.read_text())
+
+    def test_conflicts_are_refused_in_the_file_and_in_the_running_session(self):
+        self.assertFalse(self.change(4,'--key','Tab')[1]['ok'])
+        self.conflict.return_value = True
+        self.assertFalse(self.change(4,'--key','BackSpace')[1]['ok'])
+        self.assertEqual(self.file.read_text(),self.TEXT)
+
+    def test_display_puts_super_first_and_keeps_key_spelling(self):
+        self.assertEqual(cli.shortcuts.display_key('mainMod .. " + SHIFT + mouse_up"'),'SUPER + SHIFT + mouse_up')
+        self.assertEqual(cli.shortcuts.display_key('mainMod .. " + ALT + BackSpace"'),'SUPER + ALT + BackSpace')
+
+    def test_editing_the_displayed_text_never_doubles_super(self):
+        self.change(4,'--key','SHIFT + SUPER + mouse_up')
+        self.assertIn('mainMod .. " + SHIFT + mouse_up"',self.file.read_text())
+
+    def test_stale_revision_is_refused(self):
+        code, result = self.run_cli('shortcuts','set','--line','4','--revision','old','--key','W','--json','--file',str(self.file))
+        self.assertEqual((code,result['error']['code']),(1,'invalid'))
+
+    def test_backup_can_be_listed_and_restored(self):
+        self.change(4,'--key','W')
+        backups = self.run_cli('shortcuts','backups','--json','--file',str(self.file))[1]['data']['backups']
+        self.assertEqual(len(backups),1)
+        self.assertTrue(self.run_cli('shortcuts','restore',backups[0]['path'],'--json','--file',str(self.file))[1]['ok'])
+        self.assertEqual(self.file.read_text(),self.TEXT)
+
+    def test_restore_refuses_unrelated_file(self):
+        self.assertFalse(self.run_cli('shortcuts','restore','/etc/passwd','--json','--file',str(self.file))[1]['ok'])
+
+    def test_check_finds_duplicates_and_bad_lua(self):
+        self.file.write_text(self.TEXT+'hl.bind(mainMod .. " + Q", hl.dsp.window.close())\n')
+        self.assertEqual(self.run_cli('shortcuts','check','--json','--file',str(self.file))[1]['data']['duplicates'],['SUPER + Q'])
+        self.file.write_text('hl.bind(')
+        self.assertFalse(self.run_cli('shortcuts','check','--json','--file',str(self.file))[1]['ok'])
+
+
+class LiveConflict(unittest.TestCase):
+    def active(self, *binds):
+        return subprocess.CompletedProcess([],0,stdout=json.dumps(list(binds)))
+
+    def test_same_key_needs_same_modifiers(self):
+        with patch.object(cli.shortcuts.subprocess,'run',return_value=self.active({'modmask':64,'key':'BackSpace','keycode':0})):
+            self.assertTrue(cli.shortcuts.live_conflict(('SUPER','BACKSPACE')))
+            self.assertFalse(cli.shortcuts.live_conflict(('ALT','SUPER','BACKSPACE')))
+
+    def test_number_row_binds_are_matched_by_keycode(self):
+        with patch.object(cli.shortcuts.subprocess,'run',return_value=self.active({'modmask':64,'key':'','keycode':10})):
+            self.assertTrue(cli.shortcuts.live_conflict(('SUPER','1')))
+
+    def test_no_session_means_no_live_conflict(self):
+        with patch.object(cli.shortcuts.subprocess,'run',side_effect=FileNotFoundError):
+            self.assertFalse(cli.shortcuts.live_conflict(('SUPER','Q')))
+
+
 class Launcher(unittest.TestCase):
     def test_second_press_closes_open_window(self):
         running = subprocess.CompletedProcess([],0,stdout='target rice\n  function close(): void\n')

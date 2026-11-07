@@ -10,8 +10,9 @@ import subprocess
 import sys
 import tempfile
 from theme import theme, profiles
+import shortcuts
 
-COMMANDS = {'status','gui','wallpaper','palette','profile','greeter','sync'}
+COMMANDS = {'status','gui','wallpaper','palette','profile','greeter','sync','shortcuts'}
 THUMBS = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'rice-minimal/thumbs'
 THUMB_SIZE = 400
 
@@ -249,6 +250,16 @@ def main(argv):
     greeter.add_parser('sync',parents=[common])
     greeter.add_parser('auto',parents=[common]).add_argument('value',choices=['on','off'])
     actions.add_parser('sync',parents=[common])
+    common.add_argument('--file',help=argparse.SUPPRESS)
+    keys=actions.add_parser('shortcuts').add_subparsers(dest='operation',required=True)
+    for operation in ('list','check','backups'):
+        keys.add_parser(operation,parents=[common])
+    change=keys.add_parser('set',parents=[common])
+    change.add_argument('--line',type=int,required=True)
+    change.add_argument('--revision',required=True)
+    change.add_argument('--key',default='')
+    change.add_argument('--command',default='')
+    keys.add_parser('restore',parents=[common]).add_argument('backup')
     args=parser.parse_args(argv)
     if args.action == 'gui':
         return gui()
@@ -270,7 +281,16 @@ def main(argv):
         elif name == 'greeter status': data=theme.greeter_status()
         elif name == 'greeter sync': data,warnings=greeter_sync()
         elif name == 'greeter auto': data=greeter_auto(args.value)
-        else: data,warnings=sync()
+        elif name == 'sync': data,warnings=sync()
+        elif name == 'shortcuts list': data=shortcuts.read(args.file)
+        elif name == 'shortcuts check': data=shortcuts.check(args.file)
+        elif name == 'shortcuts backups': data=shortcuts.backups(args.file)
+        elif name == 'shortcuts set':
+            data=shortcuts.edit(args.line,args.revision,args.key,args.command,args.file)
+            theme.log_action('shortcut','OK',data['line'])
+        else:
+            data=shortcuts.restore(args.backup,args.file)
+            theme.log_action('shortcut','OK','restored '+Path(args.backup).name)
         result={'ok':True,'action':name,'data':data,'warnings':warnings}
     except Exception as exc:
         result=failure(name,exc)
