@@ -25,6 +25,8 @@ FALLBACK = dict(background='#111612', foreground='#d9dfd5', accent='#a6b898',
                 blue='#9eafb9', magenta='#b6a4b6', cyan='#9fbcb6',
                 bar_foreground='#e8ede4', bar_accent='#c9dcc0')
 
+GREETER_SETTLE = 2  # seconds; comfortably longer than Noctalia's palette animation
+
 def command(args, **kwargs):
     return subprocess.run([str(a) for a in args], check=True, capture_output=True,
                           text=True, timeout=30, **kwargs).stdout.strip()
@@ -392,6 +394,16 @@ def set_wallpaper(path):
         time.sleep(.1)
     raise RuntimeError('Noctalia did not confirm the selected wallpaper')
 
+def sync_greeter():
+    # Noctalia animates palette changes and greeter-sync snapshots the live colors,
+    # so syncing right after config-reload would send a mid-animation blend.
+    # The login screen is cosmetic here: a failure must not fail the wallpaper change.
+    time.sleep(GREETER_SETTLE)
+    try:
+        command(['noctalia','msg','greeter-sync'])
+    except (OSError, subprocess.SubprocessError) as exc:
+        print(f'rice-theme: greeter-sync: {exc}', file=sys.stderr)
+
 def wallpaper_hook(path=None):
     # Waypaper starts its hook before finishing its own config save.
     time.sleep(.3)
@@ -401,7 +413,11 @@ def wallpaper_hook(path=None):
         if chosen is None:
             raise ValueError('Waypaper has no readable selection')
         set_wallpaper(chosen)
-        return regenerate(chosen)
+        result = regenerate(chosen)
+        # Duplicate Waypaper events land here as 'cached'; nothing new to send.
+        if result != 'cached':
+            sync_greeter()
+        return result
 
 def apply_choice(path):
     # Persist through Waypaper, then execute the very same hook synchronously.

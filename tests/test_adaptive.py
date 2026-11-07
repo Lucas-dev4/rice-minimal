@@ -76,6 +76,27 @@ class Adaptive(unittest.TestCase):
             hook.assert_called_once_with(chosen)
         self.assertEqual(filtered([chosen], 'SPACE'),[chosen])
 
+    def run_hook(self, result, sync_error=None):
+        calls = []
+        def command(args, **kwargs):
+            calls.append(args)
+            if sync_error:
+                raise sync_error
+        with patch.object(theme,'time') as clock, patch.object(theme,'selected_wallpaper',return_value=Path('/tmp/a.png')), \
+             patch.object(theme,'set_wallpaper'), patch.object(theme,'regenerate',return_value=result), \
+             patch.object(theme,'command',side_effect=command):
+            clock.sleep.side_effect = lambda seconds: calls.append('settle') if seconds == theme.GREETER_SETTLE else None
+            return theme.wallpaper_hook(), calls
+
+    def test_new_palette_syncs_greeter_and_cached_event_does_not(self):
+        sync = ['noctalia','msg','greeter-sync']
+        self.assertEqual(self.run_hook('matugen'),('matugen',['settle',sync]))
+        self.assertEqual(self.run_hook('cached'),('cached',[]))
+
+    def test_greeter_sync_failure_keeps_wallpaper_change(self):
+        for error in (subprocess.CalledProcessError(1,'noctalia'),subprocess.TimeoutExpired('noctalia',30),FileNotFoundError('noctalia')):
+            self.assertEqual(self.run_hook('matugen',error)[0],'matugen')
+
     def test_bar_text_flips_for_light_and_dark_background(self):
         from PIL import Image
         for background, expect_light in (('white',False),('black',True)):

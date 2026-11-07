@@ -1,0 +1,24 @@
+# noctalia-greeter greeter.toml — RICE //
+# Instalado em /var/lib/noctalia-greeter/greeter.toml (root:root, 0644).
+# Wallpaper e paleta nao ficam aqui: chegam pelo greeter-sync, em sync.toml.
+
+[appearance]
+scheme = "Synced"
+hide_logo = true
+scheme_selector_position = "hidden"
+power_buttons_position = "hidden"
+font_family = "DejaVu Sans Mono"
+corner_radius_scale = 0.0
+
+[auth]
+allow_empty_password = true
+
+[session]
+default = "Hyprland (uwsm-managed)"
+
+[user]
+default = "lucas"
+
+[clock]
+position = "above-panel"
+date_format = "RICE // LOGIN - %d/%m/%Y"

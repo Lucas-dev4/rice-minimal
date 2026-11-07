@@ -10,7 +10,7 @@ The isolated TOML has empty templates. Matugen never applies a wallpaper, runs u
 
 ## Event flow
 
-Waypaper GUI or `wallpapers` → save the selection through Waypaper → shared `theme.py wallpaper` hook → Noctalia applies the image → Matugen extracts colors once → generated files are validated → one atomic symlink publishes the generation → update the running components.
+Waypaper GUI or `wallpapers` → save the selection through Waypaper → shared `theme.py wallpaper` hook → Noctalia applies the image → Matugen extracts colors once → generated files are validated → one atomic symlink publishes the generation → update the running components → ask Noctalia to sync the login screen (only when the palette changed; a failure does not fail the wallpaper change).
 
 The hook takes an exclusive `flock` covering wallpaper application, generation and reload. It reads the latest saved Waypaper selection after acquiring the lock; queued duplicate events reuse the fingerprinted palette. The fingerprint includes the resolved image path, size, modification time and theme algorithm version. Menu option 4 intentionally forces regeneration. No polling, watcher or new daemon is used.
 
