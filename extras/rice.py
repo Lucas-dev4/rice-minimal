@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from theme import theme, profiles
 from wallpapers.wallpaper_tui import selector
+import cli
 import doctor
 import lockscreen
 import shortcuts
@@ -34,7 +35,10 @@ def palette_menu(screen):
             ui.page(screen,'RICE // PALETTE',[p.get('generator','unknown'),p.get('wallpaper','')]+[f'{k:20} {v}' for k,v in p['colors'].items()])
         elif choice == 1:
             with theme.locked(): message='[ OK ] '+theme.regenerate(force=True)
-        elif choice == 2: message='[ OK ] Restored: '+theme.restore_previous()
+            theme.sync_greeter()
+        elif choice == 2:
+            message='[ OK ] Restored: '+theme.restore_previous()
+            theme.sync_greeter()
 
 
 def restore_menu(screen):
@@ -48,7 +52,9 @@ def restore_menu(screen):
         elif choice == 1:
             if ui.confirm(screen,'RICE // CONFIRM','Restore previous appearance profile?'): message=profiles.previous()
         elif choice == 2:
-            if ui.confirm(screen,'RICE // CONFIRM','Restore previous adaptive palette?'): message=theme.restore_previous()
+            if ui.confirm(screen,'RICE // CONFIRM','Restore previous adaptive palette?'):
+                message=theme.restore_previous()
+                theme.sync_greeter()
         else:
             ui.page(screen,'RICE // RECOVERY',['Full restore is run from a normal terminal:', 'python3 scripts/restore_refined.py '+(theme.ROOT/'.rice-final-backup').read_text().strip(), 'It saves a rescue snapshot before restoring.','No reboot, suspend or logout is performed.'])
 
@@ -106,6 +112,7 @@ def menu(screen):
 
 
 def main():
+    if sys.argv[1:2] and sys.argv[1] in cli.COMMANDS: return cli.main(sys.argv[1:])
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action',nargs='?',choices=['doctor','lock-check','lock-trial','lock-restore'])
     parser.add_argument('--json',action='store_true')

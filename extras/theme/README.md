@@ -80,3 +80,7 @@ The restorer saves the current files before restoring originals, removes the new
 - `VALIDACAO-FASE3.json` contains the session results. No partitions, bootloader, kernel, drivers or Linux Mint were modified.
 
 Primary references checked alongside installed help and `/usr/share/hypr/stubs/hl.meta.lua`: [Matugen usage](https://github.com/InioX/matugen/wiki/Usage), [Hyprland Lua configuration](https://wiki.hypr.land/configuring/core/config-options/), [Kitty includes and reload](https://sw.kovidgoyal.net/kitty/conf/).
+
+Terminal text is the one exception to the subdued palette: Kitty's ANSI colors, Fish highlighting and `LS_COLORS`/`EZA_COLORS` use `vivid()`, which keeps each color's hue but raises saturation, and lightness only as far as a 4.5:1 contrast needs. Open Fish shells pick these up at the next prompt. Bars and Noctalia keep the subdued colors.
+
+The terminal accent comes from the image's most present hue (`image_hue`), not from Matugen's choice, which can be unrelated to what the image looks like. Hues next to red move aside so commands never read as errors, and nearly gray images get a softer accent. Palettes generated before this keep working through their Matugen accent.

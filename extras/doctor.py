@@ -33,7 +33,7 @@ def inspect():
     command('Wayland portals',['systemctl','--user','is-active','xdg-desktop-portal.service','xdg-desktop-portal-hyprland.service'])
     command('UWSM graphical session',['systemctl','--user','is-active','graphical-session.target'])
     command('Native screen locker',['noctalia','msg','config-get','lockscreen'])
-    for app in ('matugen','waypaper','kitty','fish','nvim'):
+    for app in ('matugen','waypaper','kitty','fish','nvim','qs'):
         add('OK' if shutil.which(app) else 'FAIL',app,shutil.which(app) or 'missing executable')
     command('Kitty opacity',['kitty','+runpy','from kitty.config import load_config; o=load_config("'+str(Path.home()/'.config/kitty/kitty.conf')+'"); assert o.background_opacity == 0.85; print(o.background_opacity)'])
     command('Fish syntax',['fish','-n',Path.home()/'.config/fish/config.fish'])
@@ -54,6 +54,14 @@ def inspect():
         add('OK' if value in ('minimal','refined') else 'FAIL','Persistent appearance profile',value)
     except Exception as exc:
         add('WARN','Adaptive configuration',exc)
+    try:
+        greeter=theme.greeter_status()
+        synced=greeter['colors_match'] and greeter['image_match']
+        add('OK' if synced or not greeter['staged'] else 'WARN','Greeter sync',
+            ('matches the current theme' if synced else 'differs from the current theme') if greeter['staged'] else 'nothing sent since boot')
+        add('OK' if greeter['auto_sync'] else 'WARN','Greeter automatic sync','on' if greeter['auto_sync'] else 'off')
+    except Exception as exc:
+        add('WARN','Greeter sync',exc)
     try:
         import lockscreen
         add('OK','Lock visual candidate',lockscreen.validate())

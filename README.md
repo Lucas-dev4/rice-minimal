@@ -119,3 +119,17 @@ python ~/Projetos/rice-minimal/restore.py ~/Projetos/rice-minimal/backups/202611
 Para apenas um arquivo, copie o correspondente de backups/20261105-212603/.config/ para ~/.config/. Restaure hyprland.lua junto ao módulo caso reverta o compositor. Neovim init.lua e módulo rice-minimal.lua eram novos e serão removidos pelo restaurador. O launcher supers também será removido. Links novos na pasta Wallpapers podem ser removidos individualmente; nenhum original foi movido ou apagado. Nenhum pacote foi instalado, portanto não há pacotes para remover. Backups são privados e ignorados pelo Git; não publicar diagnósticos sem revisar seu conteúdo.
 
 Nenhuma alteração em partições, bootloader, kernel, drivers ou Linux Mint. Não houve reinício, logout, alteração de shell padrão ou desativação dos serviços do Noctalia.
+
+## GUI
+
+`Super+Backspace` (ou `rice gui`) abre e fecha o `RICE // CONTROL` gráfico. Ele é feito em Quickshell, só existe enquanto a janela está aberta e não tem lógica própria: chama comandos `rice ... --json` (`extras/cli.py`), os mesmos módulos usados pela TUI. A TUI (`rice`) continua disponível como reserva.
+
+Na tela Wallpapers, `/` busca, setas ou `h`/`j`/`k`/`l` navegam, e `Enter`, duplo clique ou `APPLY` aplicam. As miniaturas ficam em `~/.cache/rice-minimal/thumbs` e podem ser apagadas à vontade. Fechar a janela durante a troca não interrompe o processo.
+
+Na tela Palette ficam a paleta atual e a anterior com seus wallpapers; `RESTORE PREVIOUS` pede um segundo clique e só fica disponível quando as cores são diferentes. A tela Profiles alterna entre Minimal e Refined. Os comandos equivalentes são `rice palette show|regenerate|restore` e `rice profile get|set|restore`, todos com `--json`.
+
+`SYNC ALL`, no rodapé, ou `rice sync`, reaplica tudo em ordem e sob uma única trava: wallpaper, paleta, candidato ou tema do bloqueio e greeter. Se a paleta estiver em cache, só recarrega os componentes, sem mexer no histórico. Cada passo vai para `~/.local/state/rice-minimal/theme/actions.jsonl`, exibido ao vivo pelo botão `LOG`, inclusive trocas feitas pelo Waypaper ou pela TUI.
+
+A tela Greeter compara o que foi enviado com o tema atual (`rice greeter status`), envia na hora (`rice greeter sync`) e liga ou desliga o envio automático (`rice greeter auto on|off`). O envio automático depende do arquivo `greeter-sync` no estado do tema, removido por `scripts/restore_greeter.sh`.
+
+As cores vêm de `~/.config/noctalia/palettes/RiceMinimal.json`, trocado de forma atômica a cada mudança de paleta. Os padrões de `Process` + JSON e `FileView` foram inspirados no [SekaiPop](https://github.com/Blapples/SekaiPop) (GPL-3.0); nenhum código dele foi copiado.

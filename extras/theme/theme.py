@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT/'extras'))
@@ -26,6 +27,9 @@ FALLBACK = dict(background='#111612', foreground='#d9dfd5', accent='#a6b898',
                 bar_foreground='#e8ede4', bar_accent='#c9dcc0')
 
 GREETER_SETTLE = 2  # seconds; comfortably longer than Noctalia's palette animation
+GREETER_STAGE = Path(os.environ.get('XDG_RUNTIME_DIR', f'/run/user/{os.getuid()}'))/'noctalia-greeter-sync'
+LOG_LIMIT = 256*1024
+TERMINAL_WORST_BACKGROUND = '#3a3a3a'  # dark terminal at 0.85 opacity over a white wallpaper
 
 def command(args, **kwargs):
     return subprocess.run([str(a) for a in args], check=True, capture_output=True,
@@ -67,11 +71,37 @@ def images():
                    if p.is_file() and p.suffix.lower() in extensions), key=lambda p: p.name.casefold())
 
 @contextmanager
-def locked():
+def locked(timeout=None):
+    # Not reentrant: flock on a second descriptor deadlocks the same process.
     STATE.mkdir(parents=True, exist_ok=True)
     with (STATE/'generation.lock').open('a') as stream:
-        fcntl.flock(stream, fcntl.LOCK_EX)
+        if timeout is None:
+            fcntl.flock(stream, fcntl.LOCK_EX)
+        else:
+            deadline = time.monotonic()+timeout
+            while True:
+                try:
+                    fcntl.flock(stream, fcntl.LOCK_EX|fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() > deadline:
+                        raise TimeoutError('Another theme change is still running') from None
+                    time.sleep(.1)
         yield
+
+def log_action(action, status, detail=''):
+    # Shared history for the GUI; losing a line must never fail the change itself.
+    path = STATE/'actions.jsonl'
+    try:
+        STATE.mkdir(parents=True, exist_ok=True)
+        with path.open('a') as stream:
+            stream.write(json.dumps({'time_ns':time.time_ns(),'action':action,'status':status,'detail':str(detail)},ensure_ascii=False)+'\n')
+        if path.stat().st_size > LOG_LIMIT:
+            temporary = path.with_name('.actions.tmp')
+            temporary.write_text('\n'.join(path.read_text().splitlines()[-500:])+'\n')
+            os.replace(temporary, path)
+    except OSError:
+        pass
 
 def read_palette():
     try:
@@ -90,6 +120,53 @@ def hexcolor(values):
 def subdued(color, cap=0.23):
     h, l, s = colorsys.rgb_to_hls(*rgb(color))
     return hexcolor(colorsys.hls_to_rgb(h, l, min(s, cap)))
+
+def vivid(color, saturation=.7, lightness=.72):
+    # Keeps the wallpaper's hue but makes it readable as a color in terminal text.
+    h, _, s = colorsys.rgb_to_hls(*rgb(color))
+    if s < .02:
+        return color
+    # Blues are darker at equal lightness, so each hue rises only as far as it needs.
+    while True:
+        candidate = hexcolor(colorsys.hls_to_rgb(h, lightness, saturation))
+        if ratio(candidate, TERMINAL_WORST_BACKGROUND) >= 4.5 or lightness >= .9:
+            return candidate
+        lightness += .01
+
+def image_hue(path):
+    # Matugen picks its most suitable color, not the most present one, which can be
+    # the opposite of what the image looks like. Weight each pixel by how colorful it is.
+    from PIL import Image
+    with Image.open(path) as image:
+        image = image.convert('RGB')
+        image.thumbnail((160, 160))
+        data = image.convert('HSV').tobytes()
+    bins = [0]*36
+    colorful = 0
+    for hue, saturation, value in zip(data[0::3], data[1::3], data[2::3]):
+        if saturation > 64 and value > 51:
+            colorful += 1
+            bins[hue*36//256] += saturation*value
+    top = max(range(36), key=lambda i: bins[i-1]+bins[i]+bins[(i+1)%36])
+    return {'hue':top*10+5, 'colorful':round(colorful/(len(data)//3), 3)}
+
+def terminal_accent(palette):
+    info = palette.get('terminal') or {}
+    hue = info.get('hue')
+    if hue is None:
+        hue = colorsys.rgb_to_hls(*rgb(palette['colors']['accent']))[0]*360
+    hue = float(hue)%360
+    # Commands must not read as errors, so hues next to red move to the closest side.
+    if hue >= 345 or hue < 3:
+        hue = 340
+    elif hue < 25:
+        hue = 25
+    # A nearly gray image has no real hue to amplify.
+    saturation = .4 if info.get('colorful', 1) < .08 else .7
+    return vivid(hexcolor(colorsys.hls_to_rgb(hue/360, .6, .6)), saturation)
+
+def sgr(color):
+    return '38;2;'+';'.join(str(round(x*255)) for x in rgb(color))
 
 def luminance(color):
     values = [v/12.92 if v <= 0.04045 else ((v+0.055)/1.055)**2.4 for v in rgb(color)]
@@ -179,7 +256,7 @@ def monitor_size():
 
 def fingerprint(path):
     stat = path.stat()
-    return hashlib.sha256(f'{path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}:neutral-v2'.encode()).hexdigest()
+    return hashlib.sha256(f'{path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}:neutral-v3'.encode()).hexdigest()
 
 def generate(path):
     raw = command(['matugen', 'image', path, '--config', ROOT/'extras/theme/matugen.toml',
@@ -198,7 +275,7 @@ def generate(path):
     if ratio(colors['foreground'], colors['background']) < 7:
         colors['foreground'] = '#e5e9df'
     contrast = bar_contrast(path, colors, monitor_size())
-    return dict(colors=colors, wallpaper=str(path.resolve()), fingerprint=fingerprint(path),
+    return dict(colors=colors, terminal=image_hue(path), wallpaper=str(path.resolve()), fingerprint=fingerprint(path),
                 generator='matugen 4.2 / scheme-neutral / dark', contrast=contrast,
                 created_ns=time.time_ns())
 
@@ -215,10 +292,16 @@ def render(palette):
         rgb(value)
     ansi = [c['background'], c['red'], c['green'], c['yellow'], c['blue'], c['magenta'], c['cyan'], c['foreground'],
             c['muted']] + [mix(c[k], c['foreground'], .2) for k in ('red','green','yellow','blue','magenta','cyan')] + [c['foreground']]
+    # Only terminal text is vivid; bars and Noctalia keep the subdued palette.
+    v = {k:vivid(c[k]) for k in ('green','yellow','blue','magenta','cyan')}
+    v['accent'] = terminal_accent(palette)
+    v['red'] = vivid('#ff4040', .95, .68)
+    terminal = [c['background'], v['red'], v['green'], v['yellow'], v['blue'], v['magenta'], v['cyan'], c['foreground'],
+                c['muted']] + [mix(v[k], '#ffffff', .2) for k in ('red','green','yellow','blue','magenta','cyan')] + [c['foreground']]
     kitty = '\n'.join(f'{k} {v}' for k,v in {
         'background':c['background'], 'foreground':c['foreground'], 'cursor':c['accent'],
         'cursor_text_color':c['background'], 'selection_background':c['accent'],
-        'selection_foreground':c['background'], **{f'color{i}':v for i,v in enumerate(ansi)}}.items())+'\n'
+        'selection_foreground':c['background'], **{f'color{i}':value for i,value in enumerate(terminal)}}.items())+'\n'
     css = f"@define-color rice_text {c['bar_foreground']};\n@define-color rice_accent {c['bar_accent']};\n"
     for name in ('workspace','window','cpu','memory','volume','clock'):
         css += f"@define-color rice_{name} {c.get('bar_'+name,c['bar_foreground'])};\n"
@@ -233,13 +316,20 @@ def render(palette):
     profile_css = '#workspaces button { transition: background-color '+duration+' ease, color '+duration+' ease, border-color '+duration+' ease; }\n'
     hypr = ('hl.config({ general = { border_size = 1, col = { active_border = "rgba('+c['accent'][1:]+'ff)", '
             'inactive_border = "rgba('+c['muted'][1:]+'ff)" } } })\n')
-    fish = '\n'.join(f'set -g {key} {value[1:]}' for key,value in {
-        'rice_prompt_color': c['accent'], 'rice_error_color': c['red'],
-        'fish_color_normal':c['foreground'], 'fish_color_command':c['accent'],
-        'fish_color_param':c['foreground'], 'fish_color_quote':c['green'],
-        'fish_color_error':c['red'], 'fish_color_comment':c['muted'],
-        'fish_color_operator':c['cyan'], 'fish_color_escape':c['yellow'],
-        'fish_color_autosuggestion':c['muted'], 'fish_color_search_match':c['yellow']}.items())+'\n'
+    types = {'di':'1;'+sgr(v['accent']), 'ln':sgr(v['cyan']), 'ex':'1;'+sgr(v['green']), 'or':sgr(v['red']),
+              'so':sgr(v['magenta']), 'pi':sgr(v['yellow']), 'bd':sgr(v['yellow']), 'cd':sgr(v['yellow'])}
+    kinds = {'im':sgr(v['magenta']), 'vi':sgr(v['magenta']), 'mu':sgr(v['cyan']), 'lo':sgr(v['cyan']),
+             'do':sgr(v['yellow']), 'co':sgr(v['red']), 'sc':sgr(v['blue'])}
+    listing = lambda values: ':'.join(f'{key}={value}' for key,value in values.items())
+    fish = '\n'.join(f"set -g {key} {value.lstrip('#')}" for key,value in {
+        'rice_prompt_color':v['accent'], 'rice_error_color':v['red'],
+        'fish_color_normal':c['foreground'], 'fish_color_command':v['accent'], 'fish_color_keyword':v['magenta'],
+        'fish_color_param':c['foreground'], 'fish_color_option':v['cyan'], 'fish_color_quote':v['green'],
+        'fish_color_error':v['red']+' --bold --underline', 'fish_color_comment':c['muted'],
+        'fish_color_operator':v['cyan'], 'fish_color_redirection':v['magenta'], 'fish_color_end':v['magenta'],
+        'fish_color_escape':v['yellow'], 'fish_color_autosuggestion':c['muted'],
+        'fish_color_search_match':v['yellow']}.items())+'\n'
+    fish += f"set -gx LS_COLORS '{listing(types)}'\nset -gx EZA_COLORS '{listing({**types,**kinds})}'\n"
     highlights = {
         'Normal': {'fg':c['foreground'], 'bg':'NONE'}, 'NormalFloat': {'fg':c['foreground'],'bg':c['background']},
         'Comment': {'fg':c['muted']}, 'Constant': {'fg':c['yellow']}, 'String': {'fg':c['green']},
@@ -394,7 +484,11 @@ def set_wallpaper(path):
         time.sleep(.1)
     raise RuntimeError('Noctalia did not confirm the selected wallpaper')
 
-def sync_greeter():
+def sync_greeter(force=False):
+    # scripts/restore_greeter.sh removes this flag to stop automatic syncing.
+    if not force and not (STATE/'greeter-sync').exists():
+        log_action('greeter','SKIP','automatic sync is off')
+        return 'disabled'
     # Noctalia animates palette changes and greeter-sync snapshots the live colors,
     # so syncing right after config-reload would send a mid-animation blend.
     # The login screen is cosmetic here: a failure must not fail the wallpaper change.
@@ -402,7 +496,27 @@ def sync_greeter():
     try:
         command(['noctalia','msg','greeter-sync'])
     except (OSError, subprocess.SubprocessError) as exc:
-        print(f'rice-theme: greeter-sync: {exc}', file=sys.stderr)
+        log_action('greeter','FAIL',getattr(exc,'stderr',None) or exc)
+        return 'failed'
+    log_action('greeter','OK','sent to the login screen')
+    return 'sent'
+
+def greeter_status():
+    # greeter-sync only acknowledges the request; the staged copy shows what was really sent.
+    status = {'auto_sync':(STATE/'greeter-sync').exists(),'staged':False,'last_sync_ns':None,
+              'image':None,'colors_match':None,'image_match':None}
+    staged = GREETER_STAGE/'sync.toml'
+    if not staged.is_file():
+        return status
+    sent = tomllib.loads(staged.read_text())['appearance']['palette']
+    colors = json.loads((STATE/'current/noctalia.json').read_text())['dark']
+    pairs = {'primary':'mPrimary','surface':'mSurface','on_surface':'mOnSurface','outline':'mOutline'}
+    image = next(GREETER_STAGE.glob('wallpaper.*'), None)
+    wallpaper = current_wallpaper()
+    status.update(staged=True, last_sync_ns=staged.stat().st_mtime_ns, image=str(image) if image else None,
+                  colors_match=all(sent.get(a,'').lower() == colors[b].lower() for a,b in pairs.items()),
+                  image_match=bool(image and wallpaper and image.read_bytes() == wallpaper.read_bytes()))
+    return status
 
 def wallpaper_hook(path=None):
     # Waypaper starts its hook before finishing its own config save.
@@ -416,8 +530,43 @@ def wallpaper_hook(path=None):
         result = regenerate(chosen)
         # Duplicate Waypaper events land here as 'cached'; nothing new to send.
         if result != 'cached':
+            log_action('wallpaper','OK',Path(chosen).name)
+            log_action('palette','WARN' if result == 'kept-last-palette' else 'OK',result)
             sync_greeter()
         return result
+
+def sync_all():
+    # One lock for the whole flow; every step below must stay unlocked.
+    steps = []
+    def step(name, status, detail=''):
+        steps.append({'step':name,'status':status,'detail':str(detail)})
+        log_action(name,status,detail)
+    try:
+        with locked(timeout=30):
+            chosen = selected_wallpaper() or current_wallpaper()
+            if chosen is None:
+                raise ValueError('No readable wallpaper was found')
+            active = current_wallpaper()
+            if not active or active.resolve() != chosen.resolve():
+                set_wallpaper(chosen)
+            step('wallpaper','OK',chosen.name)
+            result = regenerate(chosen)
+            # Nothing was published, so the running components still need refreshing.
+            if result in ('cached','kept-last-palette'):
+                reload_components()
+            step('palette','WARN' if result == 'kept-last-palette' else 'OK',result)
+            import lockscreen
+            try:
+                lockscreen.validate()
+                step('lock','OK','active' if (STATE/'lock-enabled').exists() else 'candidate updated')
+            except Exception as exc:
+                step('lock','WARN',exc)
+            result = sync_greeter(force=True)
+            steps.append({'step':'greeter','status':'OK' if result == 'sent' else 'WARN','detail':result})
+    except Exception as exc:
+        log_action('sync','FAIL',exc)
+        raise
+    return steps
 
 def apply_choice(path):
     # Persist through Waypaper, then execute the very same hook synchronously.
