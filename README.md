@@ -138,4 +138,4 @@ A tela Lock mostra uma prévia da candidata, ajusta o escurecimento e atualiza a
 
 A tela Backups lista cada backup com o tipo e o comando de restauração certo (`rice backups list`). Perfil e paleta anteriores restauram ali mesmo; a restauração completa e a do greeter ficam no terminal, porque substituem código em uso. `COPY COMMAND` copia o comando.
 
-As cores vêm de `~/.config/noctalia/palettes/RiceMinimal.json`, trocado de forma atômica a cada mudança de paleta. Os padrões de `Process` + JSON e `FileView` foram inspirados no [SekaiPop](https://github.com/Blapples/SekaiPop) (GPL-3.0); nenhum código dele foi copiado.
+As cores vêm de `~/.config/noctalia/palettes/RiceMinimal.json`, trocado de forma atômica a cada mudança de paleta.

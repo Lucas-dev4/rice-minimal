@@ -54,10 +54,12 @@ def inspect():
         add('OK' if value in ('minimal','refined') else 'FAIL','Persistent appearance profile',value)
     except Exception as exc:
         add('WARN','Adaptive configuration',exc)
-    leftovers=[str(p) for p in (Path.home()/'.config/gtk-3.0/gtk.css',Path.home()/'.config/gtk-4.0/gtk.css',
-                                Path.home()/'.config/qt5ct/qt5ct.conf',Path.home()/'.config/qt6ct/qt6ct.conf')
-               if p.is_file() and 'sekaipop' in p.read_text()]
-    add('WARN' if leftovers else 'OK','GTK / Qt theme source',', '.join(leftovers) or 'Noctalia')
+    # GTK and Qt follow the theme only through the files Noctalia regenerates.
+    sources={Path.home()/'.config/gtk-3.0/gtk.css':'noctalia.css',Path.home()/'.config/gtk-4.0/gtk.css':'noctalia.css',
+             Path.home()/'.config/qt5ct/qt5ct.conf':'colors/noctalia.conf',Path.home()/'.config/qt6ct/qt6ct.conf':'colors/noctalia.conf'}
+    imports=lambda text:[line for line in text.splitlines() if line.startswith(('@import','color_scheme_path'))]
+    stray=[str(path) for path,expected in sources.items() if path.is_file() and any(expected not in line for line in imports(path.read_text()))]
+    add('WARN' if stray else 'OK','GTK / Qt theme source',', '.join(stray) or 'Noctalia')
     try:
         greeter=theme.greeter_status()
         synced=greeter['colors_match'] and greeter['image_match']

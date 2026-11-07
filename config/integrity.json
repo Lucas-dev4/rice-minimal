@@ -1,5 +1,5 @@
 {
-  "README.md": "3b5dcd5d6111b229b9770557c66207e7cd857007e446ac19d739f758ff0f973e",
+  "README.md": "033de68c8f3968c62655c0f12e616899f4b8de2d0ce7289d8ea32463c887ccdb",
   "config/autostart/rice-minimal.desktop": "c592575a7c2e736e66bd76410b9c52775b8190c7a69f9b9369efbf593d9477d4",
   "config/fish/config.fish": "02c5b5603d2d40ab1d9a80ce11bad8b33b00c284eba9277ad87bacb35e139dc4",
   "config/greeter/greeter.toml": "9c2e1b103007acf6c391b7546dd7a89bfd5b655a6f7236456b417a5137116138",
@@ -13,7 +13,7 @@
   "config/waypaper/config.ini": "8b508c2fca6c0a48bce38c9b0fa33dda299074b1626fc65e950c4584b93c5219",
   "extras/backups.py": "02eb7ac959040b1e4d9b3ab97e6a243503dbc43bb95c73cb6e4b313357dce8f4",
   "extras/cli.py": "6ec68d19498446aee191d11f6e84ab8b65703a56141a9c4c012cb8660ae8c63b",
-  "extras/doctor.py": "9682f1bfc13da021e403eb50e2f1c26ed1c9c7cad3f0227091d17dfe45808ff3",
+  "extras/doctor.py": "a45fd19c859d004d4a08c0ed821b84c85731aa90258df176d39ca6718422b432",
   "extras/lockscreen.py": "99d9e1a1e04cdc14c7cf454d681c7ac174af8f451ac07333cfe1a693736451e9",
   "extras/rice.py": "d76e4d980492d41e318e3618bba9c857f912dceb91fa6384489b7778d6dd8123",
   "extras/shortcuts.py": "5d65b0f31e4622543a8234c68c651e77a941cb1b975349cc8a386e83d8b4f4ac",

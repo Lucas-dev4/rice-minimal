@@ -18,3 +18,9 @@ __pycache__/
 .phase4-backup
 
 .rice-final-backup
+
+# Registros locais de validacao e rascunhos
+VALIDACAO*.json
+diagnostico/
+propostas/
+super/
