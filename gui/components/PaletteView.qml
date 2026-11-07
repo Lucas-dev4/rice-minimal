@@ -26,8 +26,6 @@ Item {
         width: 190
         height: 118
         color: Theme.surfaceAlt
-        border.width: 1
-        border.color: Theme.outline
 
         Image {
             anchors.fill: parent
@@ -61,7 +59,7 @@ Item {
                     height: 22
                     color: root.colors[parent.modelData]
                     border.width: 1
-                    border.color: Theme.outline
+                    border.color: Theme.rule
                 }
                 RiceText {
                     anchors.verticalCenter: parent.verticalCenter

@@ -75,11 +75,9 @@ Item {
         onFailed: message => root.report("[ FAIL ] " + message, Theme.fail)
     }
 
-    RiceText {
+    RiceHeader {
         id: title
-        text: "RICE // LOCK SCREEN"
-        color: Theme.accent
-        font.bold: true
+        title: "RICE // LOCK SCREEN"
     }
 
     // Approximates the widget rows from lockscreen.render().

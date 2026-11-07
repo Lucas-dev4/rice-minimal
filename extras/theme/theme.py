@@ -165,6 +165,12 @@ def terminal_accent(palette):
     saturation = .4 if info.get('colorful', 1) < .08 else .7
     return vivid(hexcolor(colorsys.hls_to_rgb(hue/360, .6, .6)), saturation)
 
+def terminal_colors(palette):
+    # Only terminal text is vivid; bars and Noctalia keep the subdued palette.
+    c = palette['colors']
+    return {**{k:vivid(c[k]) for k in ('green','yellow','blue','magenta','cyan')},
+            'accent':terminal_accent(palette), 'red':vivid('#ff4040', .95, .68)}
+
 def sgr(color):
     return '38;2;'+';'.join(str(round(x*255)) for x in rgb(color))
 
@@ -292,10 +298,7 @@ def render(palette):
         rgb(value)
     ansi = [c['background'], c['red'], c['green'], c['yellow'], c['blue'], c['magenta'], c['cyan'], c['foreground'],
             c['muted']] + [mix(c[k], c['foreground'], .2) for k in ('red','green','yellow','blue','magenta','cyan')] + [c['foreground']]
-    # Only terminal text is vivid; bars and Noctalia keep the subdued palette.
-    v = {k:vivid(c[k]) for k in ('green','yellow','blue','magenta','cyan')}
-    v['accent'] = terminal_accent(palette)
-    v['red'] = vivid('#ff4040', .95, .68)
+    v = terminal_colors(palette)
     terminal = [c['background'], v['red'], v['green'], v['yellow'], v['blue'], v['magenta'], v['cyan'], c['foreground'],
                 c['muted']] + [mix(v[k], '#ffffff', .2) for k in ('red','green','yellow','blue','magenta','cyan')] + [c['foreground']]
     kitty = '\n'.join(f'{k} {v}' for k,v in {

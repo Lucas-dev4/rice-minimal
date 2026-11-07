@@ -112,19 +112,10 @@ Item {
         onFailed: message => root.report("[ FAIL ] " + message, Theme.fail)
     }
 
-    RiceText {
+    RiceHeader {
         id: title
-        text: "RICE // SUPER SHORTCUTS"
-        color: Theme.accent
-        font.bold: true
-    }
-
-    RiceText {
-        anchors.left: title.right
-        anchors.leftMargin: 16
-        anchors.verticalCenter: title.verticalCenter
-        text: root.shown.length + "/" + root.binds.length
-        color: Theme.muted
+        title: "RICE // SUPER SHORTCUTS"
+        note: root.shown.length + "/" + root.binds.length
     }
 
     RiceInput {
@@ -158,7 +149,7 @@ Item {
 
             width: ListView.view.width
             height: 26
-            color: current ? Theme.accent : hover.containsMouse ? Theme.surfaceAlt : "transparent"
+            color: hover.containsMouse && !current ? Theme.surfaceAlt : "transparent"
 
             RiceText {
                 id: key
@@ -166,9 +157,9 @@ Item {
                 x: 6
                 width: 250
                 elide: Text.ElideRight
-                text: row.modelData.key
-                color: row.current ? Theme.onAccent : Theme.text
-                font.bold: true
+                text: (row.current ? "> " : "  ") + row.modelData.key
+                color: row.current ? Theme.accent : Theme.text
+                font.bold: row.current
             }
             RiceText {
                 anchors.verticalCenter: parent.verticalCenter
@@ -178,7 +169,7 @@ Item {
                 anchors.rightMargin: 6
                 elide: Text.ElideRight
                 text: (row.modelData.editable ? "" : "[fixed] ") + (row.modelData.command ?? row.modelData.action)
-                color: row.current ? Theme.onAccent : Theme.muted
+                color: row.current ? Theme.text : Theme.muted
             }
             MouseArea {
                 id: hover

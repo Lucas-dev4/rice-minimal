@@ -46,11 +46,9 @@ Item {
         onFailed: message => root.report("[ FAIL ] " + message, Theme.fail)
     }
 
-    RiceText {
+    RiceHeader {
         id: title
-        text: "RICE // COLOR PALETTE"
-        color: Theme.accent
-        font.bold: true
+        title: "RICE // COLOR PALETTE"
     }
 
     RiceText {

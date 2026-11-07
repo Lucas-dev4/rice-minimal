@@ -39,7 +39,10 @@ FloatingWindow {
 
     RiceCommand {
         id: statusCommand
-        onSucceeded: data => window.status = data
+        onSucceeded: data => {
+            window.status = data;
+            Theme.terminal = data.terminal;
+        }
         onFailed: message => console.warn("status:", message)
     }
 
@@ -85,67 +88,86 @@ FloatingWindow {
             event.accepted = true;
         }
 
-        Rectangle {
-            id: header
-            width: parent.width
-            height: 40
-            color: "transparent"
+        Item {
+            id: sidebar
+            anchors.top: parent.top
+            anchors.bottom: footer.top
+            width: 216
 
             RiceText {
-                anchors.verticalCenter: parent.verticalCenter
-                x: 14
-                text: "RICE // CONTROL"
+                id: logo
+                x: 18
+                y: 18
                 color: Theme.accent
-                font.bold: true
+                font.pixelSize: 11
+                lineHeight: 1.1
+                text: " ____  ___ ____ _____\n|  _ \\|_ _/ ___| ____|\n| |_) || | |   |  _|\n|  _ < | | |___| |___\n|_| \\_\\___\\____|_____|"
             }
+
             RiceText {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.right: parent.right
-                anchors.rightMargin: 14
-                width: parent.width - 220
-                horizontalAlignment: Text.AlignRight
-                elide: Text.ElideLeft
-                text: (window.status.wallpaper ? (window.status.wallpaper.effective || "").split("/").pop() + "  //  " : "")
-                    + (window.status.profile || "")
+                id: tagline
+                anchors.top: logo.bottom
+                anchors.topMargin: 8
+                x: 18
+                text: "// CONTROL"
                 color: Theme.muted
             }
-            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.outline }
-        }
 
-        Column {
-            id: nav
-            anchors.top: header.bottom
-            anchors.bottom: footer.top
-            width: 200
+            Column {
+                id: nav
+                anchors.top: tagline.bottom
+                anchors.topMargin: 22
+                width: parent.width
 
-            Repeater {
-                model: window.screens
-                NavItem {
-                    required property var modelData
-                    required property int index
-                    number: index + 1
-                    label: modelData.name
-                    active: window.current === index
-                    onClicked: window.select(index)
+                Repeater {
+                    model: window.screens
+                    NavItem {
+                        required property var modelData
+                        required property int index
+                        number: index + 1
+                        label: modelData.name
+                        active: window.current === index
+                        onClicked: window.select(index)
+                    }
+                }
+            }
+
+            Column {
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 14
+                x: 18
+                width: parent.width - 30
+                spacing: 2
+
+                RiceText {
+                    width: parent.width
+                    text: "PROFILE " + (window.status.profile || "")
+                    color: Theme.muted
+                }
+                RiceText {
+                    width: parent.width
+                    elide: Text.ElideMiddle
+                    text: window.status.wallpaper ? (window.status.wallpaper.effective || "").split("/").pop() : ""
+                    color: Theme.muted
                 }
             }
         }
 
         Rectangle {
-            anchors.top: header.bottom
+            anchors.top: parent.top
             anchors.bottom: footer.top
-            anchors.left: nav.right
+            anchors.left: sidebar.right
             width: 1
-            color: Theme.outline
+            color: Theme.rule
         }
 
         Loader {
             id: screen
-            anchors.top: header.bottom
+            anchors.top: parent.top
             anchors.bottom: footer.top
-            anchors.left: nav.right
+            anchors.left: sidebar.right
             anchors.right: parent.right
-            anchors.margins: 18
+            anchors.margins: 20
             source: window.screens[window.current].source || "screens/PlaceholderScreen.qml"
             onLoaded: {
                 if (item.title !== undefined)
@@ -159,15 +181,15 @@ FloatingWindow {
             id: footer
             anchors.bottom: parent.bottom
             width: parent.width
-            height: 44
+            height: 36
             color: "transparent"
 
-            Rectangle { width: parent.width; height: 1; color: Theme.outline }
+            Rectangle { width: parent.width; height: 1; color: Theme.rule }
 
             RiceButton {
                 id: syncButton
                 anchors.verticalCenter: parent.verticalCenter
-                x: 14
+                x: 16
                 label: syncCommand.running ? "SYNCING" : "SYNC ALL"
                 enabledState: !syncCommand.running
                 onClicked: {
@@ -183,7 +205,7 @@ FloatingWindow {
                 anchors.right: logButton.left
                 anchors.rightMargin: 14
                 elide: Text.ElideRight
-                text: window.syncError ? "[ FAIL ] " + window.syncError : log.lastLine
+                text: "| " + (window.syncError ? "[ FAIL ] " + window.syncError : log.lastLine)
                 color: window.syncError ? Theme.fail : Theme.statusColor(log.lastStatus)
             }
 
@@ -191,7 +213,7 @@ FloatingWindow {
                 id: logButton
                 anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
-                anchors.rightMargin: 14
+                anchors.rightMargin: 16
                 label: log.visible ? "LOG v" : "LOG ^"
                 onClicked: log.visible = !log.visible
             }

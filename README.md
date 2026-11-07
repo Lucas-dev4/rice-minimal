@@ -124,7 +124,7 @@ Nenhuma alteração em partições, bootloader, kernel, drivers ou Linux Mint. N
 
 `Super+Backspace` (ou `rice gui`) abre e fecha o `RICE // CONTROL` gráfico. Ele é feito em Quickshell, só existe enquanto a janela está aberta e não tem lógica própria: chama comandos `rice ... --json` (`extras/cli.py`), os mesmos módulos usados pela TUI. A TUI (`rice`) continua disponível como reserva.
 
-Na tela Wallpapers, `/` busca, setas ou `h`/`j`/`k`/`l` navegam, e `Enter`, duplo clique ou `APPLY` aplicam. As miniaturas ficam em `~/.cache/rice-minimal/thumbs` e podem ser apagadas à vontade. Fechar a janela durante a troca não interrompe o processo.
+Na tela Wallpapers, `/` busca, setas ou `h`/`j`/`k`/`l` navegam, e `Enter`, duplo clique ou `APPLY` aplicam. As miniaturas ficam em `~/.cache/rice-minimal/thumbs` e podem ser apagadas à vontade. Fechar a janela durante uma ação não a interrompe: o Quickshell mata seus processos filhos ao sair, então os comandos da GUI rodam por `setsid --fork`.
 
 Na tela Palette ficam a paleta atual e a anterior com seus wallpapers; `RESTORE PREVIOUS` pede um segundo clique e só fica disponível quando as cores são diferentes. A tela Profiles alterna entre Minimal e Refined. Os comandos equivalentes são `rice palette show|regenerate|restore` e `rice profile get|set|restore`, todos com `--json`.
 

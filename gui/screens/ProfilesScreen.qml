@@ -44,11 +44,9 @@ Item {
         }
     }
 
-    RiceText {
+    RiceHeader {
         id: title
-        text: "RICE // APPEARANCE PROFILES"
-        color: Theme.accent
-        font.bold: true
+        title: "RICE // APPEARANCE PROFILES"
     }
 
     Row {
@@ -69,8 +67,8 @@ Item {
                 width: (parent.width - 14) / 2
                 height: 150
                 color: mouse.containsMouse && !active ? Theme.surfaceAlt : "transparent"
-                border.width: active ? 2 : 1
-                border.color: active ? Theme.accent : Theme.outline
+                border.width: 1
+                border.color: active ? Theme.accent : Theme.rule
 
                 Column {
                     anchors.fill: parent

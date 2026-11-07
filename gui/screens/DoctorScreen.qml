@@ -30,11 +30,9 @@ Item {
         onFailed: message => root.error = message
     }
 
-    RiceText {
+    RiceHeader {
         id: title
-        text: "RICE // SYSTEM DOCTOR"
-        color: Theme.accent
-        font.bold: true
+        title: "RICE // SYSTEM DOCTOR"
     }
 
     Row {
@@ -98,13 +96,21 @@ Item {
             color: hover.containsMouse ? Theme.surfaceAlt : "transparent"
 
             RiceText {
-                id: line
+                id: tag
                 x: 6
                 y: 5
-                width: parent.width - 12
-                text: "[ " + row.modelData.status + " ] " + row.modelData.name
-                    + (row.modelData.detail ? " — " + row.modelData.detail : "")
+                text: "[ " + row.modelData.status + " ]"
                 color: Theme.statusColor(row.modelData.status)
+                font.bold: row.modelData.status !== "OK"
+            }
+
+            RiceText {
+                id: line
+                x: 84
+                y: 5
+                width: parent.width - 90
+                text: row.modelData.name + (row.modelData.detail ? " — " + row.modelData.detail : "")
+                color: row.modelData.status === "OK" ? Theme.muted : Theme.text
                 wrapMode: row.open ? Text.Wrap : Text.NoWrap
                 elide: row.open ? Text.ElideNone : Text.ElideRight
                 maximumLineCount: row.open ? 40 : 1

@@ -23,6 +23,10 @@ def status():
     selected=theme.selected_wallpaper()
     effective=theme.current_wallpaper()
     try:
+        terminal=theme.terminal_colors(palette)
+    except (KeyError,ValueError):
+        terminal={}  # The GUI falls back to the palette colors.
+    try:
         last=json.loads((theme.STATE/'status.json').read_text())
     except (OSError,ValueError):
         last=None
@@ -30,6 +34,7 @@ def status():
             'profile':theme.current_profile(),
             'generation':(theme.STATE/'current').resolve().name,
             'generator':palette.get('generator'),
+            'terminal':terminal,
             'wallpaper':{'selected':str(selected) if selected else None,
                          'effective':str(effective) if effective else None,
                          'in_sync':bool(selected and effective and selected.resolve()==effective.resolve())},

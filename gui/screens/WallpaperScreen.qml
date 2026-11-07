@@ -99,30 +99,25 @@ Item {
         }
     }
 
-    RiceText {
+    RiceHeader {
         id: title
-        text: "RICE // WALLPAPERS"
-        color: Theme.accent
-        font.bold: true
-    }
-
-    RiceText {
-        anchors.left: title.right
-        anchors.leftMargin: 16
-        anchors.verticalCenter: title.verticalCenter
-        color: Theme.muted
-        text: root.shown.length + "/" + root.images.length
-            + (maker.running ? "  previews " + root.thumbsDone + "/" + root.thumbsTotal : "")
+        title: "RICE // WALLPAPERS"
+        note: root.shown.length + "/" + root.images.length + (maker.running ? "  previews " + root.thumbsDone + "/" + root.thumbsTotal : "")
     }
 
     Rectangle {
         anchors.right: parent.right
         anchors.verticalCenter: title.verticalCenter
-        width: 240
-        height: 28
-        color: "transparent"
-        border.width: 1
-        border.color: search.activeFocus ? Theme.accent : Theme.outline
+        width: 220
+        height: 24
+        color: Theme.surface
+
+        Rectangle {
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 1
+            color: search.activeFocus ? Theme.accent : Theme.outline
+        }
 
         TextInput {
             id: search
@@ -183,14 +178,14 @@ Item {
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 5
-                color: Theme.surfaceAlt
-                border.width: cell.selected ? 2 : 1
-                border.color: cell.selected ? Theme.accent : Theme.outline
+                color: "transparent"
+                border.width: cell.selected ? 2 : 0
+                border.color: Theme.accent
 
                 Image {
                     id: preview
                     anchors.fill: parent
-                    anchors.margins: 2
+                    anchors.margins: cell.selected ? 4 : 0
                     source: cell.thumb ? "file://" + cell.thumb : ""
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
@@ -206,17 +201,17 @@ Item {
 
                 Rectangle {
                     visible: cell.modelData.path === root.current
-                    x: 2
-                    y: 2
+                    x: cell.selected ? 4 : 0
+                    y: cell.selected ? 4 : 0
                     width: active.implicitWidth + 10
                     height: active.implicitHeight + 4
-                    color: Theme.accent
+                    color: Theme.surface
 
                     RiceText {
                         id: active
                         anchors.centerIn: parent
                         text: "[*]"
-                        color: Theme.onAccent
+                        color: Theme.accent
                         font.bold: true
                     }
                 }

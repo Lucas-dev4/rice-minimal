@@ -60,11 +60,9 @@ Item {
         onFailed: message => root.report("[ FAIL ] " + message, Theme.fail)
     }
 
-    RiceText {
+    RiceHeader {
         id: title
-        text: "RICE // LOGIN GREETER"
-        color: Theme.accent
-        font.bold: true
+        title: "RICE // LOGIN GREETER"
     }
 
     Rectangle {
@@ -74,8 +72,6 @@ Item {
         width: 400
         height: 225
         color: Theme.surfaceAlt
-        border.width: 1
-        border.color: Theme.outline
 
         Image {
             anchors.fill: parent

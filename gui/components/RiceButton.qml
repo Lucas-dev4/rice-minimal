@@ -1,24 +1,23 @@
 import QtQuick
 import qs
 
-Rectangle {
+// Like the bar's [ 1 ]: the brackets are the whole control.
+Item {
     id: root
 
     property string label: ""
     property bool enabledState: true
     signal clicked()
 
-    implicitWidth: caption.implicitWidth + 24
-    implicitHeight: 30
-    color: mouse.containsMouse && enabledState ? Theme.accent : "transparent"
-    border.color: enabledState ? Theme.accent : Theme.outline
-    border.width: 1
+    implicitWidth: caption.implicitWidth + 4
+    implicitHeight: 26
 
     RiceText {
         id: caption
         anchors.centerIn: parent
         text: "[ " + root.label + " ]"
-        color: !root.enabledState ? Theme.muted : mouse.containsMouse ? Theme.onAccent : Theme.accent
+        font.bold: mouse.containsMouse && root.enabledState
+        color: !root.enabledState ? Theme.rule : mouse.containsMouse ? Theme.accent : Theme.text
     }
 
     MouseArea {

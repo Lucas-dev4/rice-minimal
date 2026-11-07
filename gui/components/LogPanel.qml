@@ -17,8 +17,8 @@ Rectangle {
     }
 
     color: Theme.surface
-    border.width: 1
-    border.color: Theme.outline
+
+    Rectangle { width: parent.width; height: 1; color: Theme.rule }
 
     FileView {
         path: Theme.statePath + "/actions.jsonl"

@@ -13,10 +13,15 @@ Rectangle {
         input.forceActiveFocus();
     }
 
-    implicitHeight: 30
-    color: "transparent"
-    border.width: 1
-    border.color: input.activeFocus ? Theme.accent : Theme.outline
+    implicitHeight: 26
+    color: Theme.surface
+
+    Rectangle {
+        anchors.bottom: parent.bottom
+        width: parent.width
+        height: 1
+        color: input.activeFocus ? Theme.accent : Theme.outline
+    }
 
     TextInput {
         id: input
