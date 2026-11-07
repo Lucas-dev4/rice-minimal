@@ -42,9 +42,81 @@ def displays():
     return [{'name':'HDMI-A-1','width':1920,'height':1080,'scale':1}]
 
 
+def layout(monitors):
+    return sorted((m['name'],m['width'],m['height'],m.get('scale',1)) for m in monitors)
+
+
+def live_displays():
+    return json.loads(theme.command(['hyprctl','-j','monitors']))
+
+
 def capture_displays():
-    data=json.loads(theme.command(['hyprctl','-j','monitors']))
-    atomic(theme.STATE/'lock-displays.json',json.dumps(data))
+    # Rewriting an unchanged layout would needlessly invalidate the last trial.
+    data=live_displays()
+    if layout(data) != layout(displays()) or not (theme.STATE/'lock-displays.json').exists():
+        atomic(theme.STATE/'lock-displays.json',json.dumps(data))
+
+
+def tested():
+    # A trial only vouches for the monitor layout it was shown on.
+    try:
+        stamp=(theme.STATE/'lock-tested').stat().st_mtime_ns
+    except OSError:
+        return False
+    try:
+        return stamp >= (theme.STATE/'lock-displays.json').stat().st_mtime_ns
+    except OSError:
+        return True
+
+
+def status():
+    candidate=tomllib.loads((theme.STATE/'current/lockscreen.toml').read_text())['lockscreen']
+    try:
+        current=layout(live_displays()) == layout(displays())
+    except Exception:
+        current=None
+    try:
+        session=json.loads(theme.command(['noctalia','msg','status']))['locked']
+    except Exception:
+        session=None
+    return {'enabled':(theme.STATE/'lock-enabled').exists(),'tested':tested(),'dim':dim(),
+            'effective_dim':candidate['tint_intensity'],'wallpaper':candidate['wallpaper'],
+            'title':'RICE // LOCKED' if theme.current_profile() == 'refined' else 'RICE //',
+            'displays':[m['name'] for m in displays()],'layout_current':current,'session_locked':session}
+
+
+def require_palette():
+    # read_palette() silently falls back, which must not be published as a real generation.
+    if not (theme.STATE/'current/palette.json').is_file():
+        raise RuntimeError('No published palette to build the lock candidate from')
+
+
+def update():
+    require_palette()
+    with theme.locked():
+        capture_displays()
+        theme.activate(theme.read_palette())
+    return validate()
+
+
+def set_dim(level):
+    require_palette()
+    with theme.locked():
+        atomic(theme.STATE/'lock-dim',str(level))
+        theme.activate(theme.read_palette())
+    return dim()
+
+
+def activate():
+    if not tested():
+        raise RuntimeError('Run a lock trial on this monitor layout first')
+    return install()
+
+
+def run_trial():
+    message=trial()
+    atomic(theme.STATE/'lock-tested','unlocked successfully\n')
+    return message
 
 
 def effective_dim(palette):
@@ -139,13 +211,6 @@ def validate():
         raise ValueError('Wallpaper unavailable')
     theme.command(['noctalia','config','validate',path])
     return '[ OK ] Native Noctalia config valid; authentication untouched'
-
-
-def stage():
-    with theme.locked():
-        capture_displays()
-        theme.publish(theme.read_palette())
-        return validate()
 
 
 def install():

@@ -10,9 +10,10 @@ import subprocess
 import sys
 import tempfile
 from theme import theme, profiles
+import lockscreen
 import shortcuts
 
-COMMANDS = {'status','gui','wallpaper','palette','profile','greeter','sync','shortcuts'}
+COMMANDS = {'status','gui','wallpaper','palette','profile','greeter','sync','shortcuts','lock'}
 THUMBS = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'rice-minimal/thumbs'
 THUMB_SIZE = 400
 
@@ -208,6 +209,35 @@ def sync():
     return {'steps':steps},[f"{s['step']}: {s['detail']}" for s in steps if s['status'] != 'OK']
 
 
+def lock_status():
+    data=lockscreen.status()
+    return {**data,'thumb':thumb_of(data['wallpaper'])}
+
+
+def lock_trial(confirm):
+    if not confirm:
+        raise ValueError('Real locking requires --confirm')
+    # The session stays locked for as long as this waits, and the visuals restore at the end.
+    uninterruptible()
+    theme.log_action('lock','OK','trial started')
+    try:
+        message=lockscreen.run_trial()
+    except Exception as exc:
+        theme.log_action('lock','FAIL',exc)
+        raise
+    theme.log_action('lock','OK','trial finished; previous visuals restored')
+    return {'result':message}
+
+
+def lock_activate(confirm):
+    if not confirm:
+        raise ValueError('Activation requires --confirm')
+    uninterruptible()
+    backup=lockscreen.activate()
+    theme.log_action('lock','OK','RICE // LOCKED activated')
+    return {'backup':str(backup)}
+
+
 def gui():
     (theme.STATE/'actions.jsonl').touch()
     # A second press closes the open window, so the shortcut works as a toggle.
@@ -260,6 +290,12 @@ def main(argv):
     change.add_argument('--key',default='')
     change.add_argument('--command',default='')
     keys.add_parser('restore',parents=[common]).add_argument('backup')
+    lock=actions.add_parser('lock').add_subparsers(dest='operation',required=True)
+    for operation in ('status','check','update','restore'):
+        lock.add_parser(operation,parents=[common])
+    lock.add_parser('dim',parents=[common]).add_argument('level',type=int,choices=[35,55,75])
+    for operation in ('trial','activate'):
+        lock.add_parser(operation,parents=[common]).add_argument('--confirm',action='store_true')
     args=parser.parse_args(argv)
     if args.action == 'gui':
         return gui()
@@ -285,6 +321,19 @@ def main(argv):
         elif name == 'shortcuts list': data=shortcuts.read(args.file)
         elif name == 'shortcuts check': data=shortcuts.check(args.file)
         elif name == 'shortcuts backups': data=shortcuts.backups(args.file)
+        elif name == 'lock status': data=lock_status()
+        elif name == 'lock check': data={'result':lockscreen.validate()}
+        elif name == 'lock update':
+            data={'result':lockscreen.update()}
+            theme.log_action('lock','OK','candidate updated')
+        elif name == 'lock dim':
+            data={'dim':lockscreen.set_dim(args.level/100)}
+            theme.log_action('lock','OK',f'background dim {args.level}%')
+        elif name == 'lock trial': data=lock_trial(args.confirm)
+        elif name == 'lock activate': data=lock_activate(args.confirm)
+        elif name == 'lock restore':
+            data={'rescue':lockscreen.restore()}
+            theme.log_action('lock','OK','previous visuals restored')
         elif name == 'shortcuts set':
             data=shortcuts.edit(args.line,args.revision,args.key,args.command,args.file)
             theme.log_action('shortcut','OK',data['line'])

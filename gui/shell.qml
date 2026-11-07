@@ -13,7 +13,7 @@ FloatingWindow {
         { name: "WALLPAPERS", source: "screens/WallpaperScreen.qml" }, { name: "SHORTCUTS", source: "screens/ShortcutsScreen.qml" }, { name: "PROFILES", source: "screens/ProfilesScreen.qml" },
         { name: "PALETTE", source: "screens/PaletteScreen.qml" },
         { name: "DOCTOR", source: "screens/DoctorScreen.qml" },
-        { name: "BACKUPS" }, { name: "LOCK" },
+        { name: "BACKUPS" }, { name: "LOCK", source: "screens/LockScreen.qml" },
         { name: "GREETER", source: "screens/GreeterScreen.qml" }
     ]
     property int current: 0

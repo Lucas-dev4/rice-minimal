@@ -72,27 +72,23 @@ def lock_menu(screen):
                 'Candidate: '+str(theme.STATE/'current/lockscreen.toml'),
                 'Shortcut: existing Super+L; idle/suspend integration preserved'])
         elif choice == 1:
-            with theme.locked(): theme.activate(theme.read_palette())
-            message=lockscreen.validate()
+            message=lockscreen.update()
         elif choice == 2:
             level=ui.choose(screen,'RICE // BACKGROUND DIM',['Light (35%)','Balanced (55%)','Dark (75%)'])
             if level is not None:
-                with theme.locked():
-                    lockscreen.atomic(theme.STATE/'lock-dim',str((.35,.55,.75)[level]))
-                    theme.activate(theme.read_palette())
+                lockscreen.set_dim((.35,.55,.75)[level])
                 message='[ OK ] Background dim updated'
         elif choice == 3: message=lockscreen.validate()
         elif choice == 4:
             if ui.confirm(screen,'RICE // RESTORE LOCK','Restore prior lock visuals, preserving a rescue backup?'): message=lockscreen.restore()
         elif choice == 5:
             if ui.confirm(screen,'RICE // CONFIRM REAL LOCK','Locks this session. Unlock with your normal password. Previous visuals restore automatically after unlock. Recovery: see RICE-FINAL.md.'):
-                message=lockscreen.trial()
-                lockscreen.atomic(theme.STATE/'lock-tested','unlocked successfully\n')
+                message=lockscreen.run_trial()
         elif choice == 6:
-            if not (theme.STATE/'lock-tested').exists():
+            if not lockscreen.tested():
                 message='[ WARN ] Run the confirmed lock trial first; candidate remains staged.'
             elif ui.confirm(screen,'RICE // ACTIVATE LOCK','Activate the layout you reviewed in the lock trial?'):
-                message='[ OK ] Activated; backup: '+str(lockscreen.install())
+                message='[ OK ] Activated; backup: '+str(lockscreen.activate())
 
 
 def menu(screen):
@@ -127,8 +123,7 @@ def main():
     elif args.action == 'lock-restore': print(lockscreen.restore())
     elif args.action == 'lock-trial':
         if not args.confirm: parser.error('Real locking requires --confirm; read RICE-FINAL.md recovery instructions first')
-        print(lockscreen.trial())
-        lockscreen.atomic(theme.STATE/'lock-tested','unlocked successfully\n')
+        print(lockscreen.run_trial())
     else: curses.wrapper(menu)
     return 0
 

@@ -319,6 +319,72 @@ class LiveConflict(unittest.TestCase):
             self.assertFalse(cli.shortcuts.live_conflict(('SUPER','Q')))
 
 
+class Lock(Envelope):
+    def setUp(self):
+        super().setUp()
+        (self.state/'palette-a'/'palette.json').write_text('{"colors":{},"generator":"matugen"}')
+        (self.state/'palette-a'/'lockscreen.toml').write_text('[lockscreen]\ntint_intensity = 0.6\nwallpaper = "/w.png"\n')
+        self.monitors = [{'name':'HDMI-A-1','width':1920,'height':1080,'scale':1}]
+
+    def command(self, args, **kwargs):
+        if args[:2] == ['hyprctl','-j']:
+            return json.dumps(self.monitors)
+        return json.dumps({'locked':False})
+
+    def stamp(self, name, age):
+        path = self.state/name
+        path.write_text(json.dumps(self.monitors) if name.endswith('.json') else 'x')
+        os.utime(path,(1000-age,1000-age))
+
+    def test_real_lock_commands_need_explicit_confirmation(self):
+        with patch.object(cli.lockscreen,'run_trial') as trial, patch.object(cli.lockscreen,'activate') as activate:
+            self.assertFalse(self.run_cli('lock','trial','--json')[1]['ok'])
+            self.assertFalse(self.run_cli('lock','activate','--json')[1]['ok'])
+        trial.assert_not_called()
+        activate.assert_not_called()
+
+    def test_trial_survives_gui_closing_and_logs_failure(self):
+        with patch.object(cli.lockscreen,'run_trial',side_effect=RuntimeError('Lock was not confirmed')), patch.object(cli.signal,'signal') as block:
+            code, result = self.run_cli('lock','trial','--confirm','--json')
+        self.assertEqual((code,result['ok']),(1,False))
+        block.assert_any_call(cli.signal.SIGTERM,cli.signal.SIG_IGN)
+        self.assertIn('Lock was not confirmed',(self.state/'actions.jsonl').read_text())
+
+    def test_trial_is_valid_only_for_the_layout_it_saw(self):
+        self.stamp('lock-displays.json',20)
+        self.stamp('lock-tested',10)
+        self.assertTrue(cli.lockscreen.tested())
+        self.stamp('lock-displays.json',5)
+        self.assertFalse(cli.lockscreen.tested())
+        with self.assertRaises(RuntimeError):
+            cli.lockscreen.activate()
+
+    def test_same_monitors_keep_the_trial_and_new_ones_invalidate_it(self):
+        self.stamp('lock-displays.json',20)
+        self.stamp('lock-tested',10)
+        with patch.object(theme,'command',side_effect=self.command):
+            cli.lockscreen.capture_displays()
+            self.assertTrue(cli.lockscreen.tested())
+            self.monitors = [{'name':'DP-1','width':2560,'height':1440,'scale':1}]
+            cli.lockscreen.capture_displays()
+        self.assertFalse(cli.lockscreen.tested())
+
+    def test_status_reads_candidate_and_session(self):
+        with patch.object(theme,'command',side_effect=self.command):
+            data = self.run_cli('lock','status','--json')[1]['data']
+        self.assertEqual((data['effective_dim'],data['session_locked'],data['enabled']),(.6,False,False))
+
+    def test_dim_only_accepts_the_three_levels(self):
+        with patch.object(sys,'stderr',StringIO()), self.assertRaises(SystemExit):
+            cli.main(['lock','dim','10'])
+
+    def test_candidate_is_not_published_from_a_missing_palette(self):
+        (self.state/'palette-a'/'palette.json').unlink()
+        with patch.object(theme,'activate') as activate:
+            self.assertFalse(self.run_cli('lock','update','--json')[1]['ok'])
+        activate.assert_not_called()
+
+
 class Launcher(unittest.TestCase):
     def test_second_press_closes_open_window(self):
         running = subprocess.CompletedProcess([],0,stdout='target rice\n  function close(): void\n')

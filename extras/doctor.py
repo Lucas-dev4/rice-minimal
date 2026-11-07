@@ -65,7 +65,8 @@ def inspect():
     try:
         import lockscreen
         add('OK','Lock visual candidate',lockscreen.validate())
-        add('OK' if (theme.STATE/'lock-enabled').exists() else 'WARN','RICE // LOCKED activation','active' if (theme.STATE/'lock-enabled').exists() else 'staged; real lock test requires confirmation')
+        enabled=(theme.STATE/'lock-enabled').exists()
+        add('OK' if enabled else 'WARN','RICE // LOCKED activation','active' if enabled else 'tested on this layout; not activated yet' if lockscreen.tested() else 'staged; run a lock trial first')
     except Exception as exc:
         add('WARN','Lock visual candidate',exc)
     try:
