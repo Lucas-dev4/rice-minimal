@@ -136,4 +136,6 @@ A tela Shortcuts lista os atalhos de `binds.lua` e os do rice (somente leitura).
 
 A tela Lock mostra uma prévia da candidata, ajusta o escurecimento e atualiza a candidata, recapturando os monitores. `TRIAL LOCK` bloqueia de verdade e roda desacoplado da janela: fechar a GUI não interrompe o teste, e o resultado aparece no log. `ACTIVATE` só libera depois de um teste no layout atual de monitores; um layout novo invalida o teste. Senha e PAM nunca mudam. Comandos: `rice lock status|check|update|dim|trial|activate|restore`; `trial` e `activate` exigem `--confirm`. A recuperação pelo TTY continua sendo `rice lock-restore`.
 
+A tela Backups lista cada backup com o tipo e o comando de restauração certo (`rice backups list`). Perfil e paleta anteriores restauram ali mesmo; a restauração completa e a do greeter ficam no terminal, porque substituem código em uso. `COPY COMMAND` copia o comando.
+
 As cores vêm de `~/.config/noctalia/palettes/RiceMinimal.json`, trocado de forma atômica a cada mudança de paleta. Os padrões de `Process` + JSON e `FileView` foram inspirados no [SekaiPop](https://github.com/Blapples/SekaiPop) (GPL-3.0); nenhum código dele foi copiado.

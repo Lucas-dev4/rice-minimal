@@ -18,7 +18,7 @@ def settings(profile):
     refined = profile == 'refined'
     return {
         'theme.source':'custom', 'theme.custom_palette':'RiceMinimal', 'theme.mode':'dark',
-        'shell.font_family':'monospace', 'shell.corner_radius_scale':.25,
+        'shell.font_family':'DejaVu Sans Mono', 'shell.corner_radius_scale':0.0,
         'shell.animation.enabled':refined, 'shell.animation.speed':1.5,
         'shell.panel.transparency_mode':'soft', 'shell.panel.borders':True,
         'shell.panel.border_width':1.0, 'shell.panel.border_color':'outline_variant',

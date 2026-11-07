@@ -44,10 +44,9 @@ window#waybar, window#waybar > box, .modules-left, .modules-center, .modules-rig
     color: @rice_active_fg;
     border-color: @rice_active_border;
 }
-#workspaces button:hover { border-color: @rice_accent; }
 #workspaces button.urgent { border-color: @rice_urgent; }
 @import url("/home/lucas/.local/state/rice-minimal/theme/current/profile.css");
 #window, #cpu, #memory, #pulseaudio, #clock { padding-top: 1px; padding-bottom: 1px; }
 
 #workspaces button.active { font-weight: bold; }
-#workspaces button:hover { border-color: transparent; }
+#workspaces button { text-shadow: 0 0 3px @rice_workspace_halo; }

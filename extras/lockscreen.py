@@ -161,7 +161,7 @@ def render(palette,profile):
                         f'cx = {w/2}',f'cy = {h*y}',f'box_width = {min(bw,w*.85)}',f'box_height = {bh}',
                         f'placement_width = {w}',f'placement_height = {h}','rotation = 0.0',
                         '[lockscreen_widgets.widget.'+json.dumps(widget_id)+'.settings]']
-            settings=dict(settings,font_family='monospace')
+            settings=dict(settings,font_family='DejaVu Sans Mono')
             for key,value in settings.items():
                 widgets.append(key+' = '+json.dumps(value,ensure_ascii=False))
     lines += ['widget_order = '+json.dumps(order),'[lockscreen_widgets.grid]','visible = false','cell_size = 16','major_interval = 4']

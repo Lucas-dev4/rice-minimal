@@ -230,6 +230,15 @@ outline = "#888888"
     def test_error_color_stays_readable(self):
         self.assertGreaterEqual(theme.ratio(theme.vivid('#ff4040',.95,.68),theme.TERMINAL_WORST_BACKGROUND),4.5)
 
+    def test_workspace_halo_appears_only_when_contrast_is_low(self):
+        colors = dict(theme.FALLBACK, **{key:'#ffffff' for key in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')})
+        low = theme.render({'colors':colors,'generator':'test','contrast':{'modules_p10':{'workspace':3.7}}})['colors.css']
+        high = theme.render({'colors':colors,'generator':'test','contrast':{'modules_p10':{'workspace':8}}})['colors.css']
+        old = theme.render({'colors':colors,'generator':'test'})['colors.css']
+        self.assertIn('rice_workspace_halo #000000',low)
+        self.assertIn('rice_workspace_halo transparent',high)
+        self.assertIn('rice_workspace_halo transparent',old)
+
     def test_only_the_terminal_gets_vivid_colors(self):
         colors = dict(theme.FALLBACK, **{key:'#777777' for key in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')})
         files = theme.render({'colors':colors,'generator':'test'})

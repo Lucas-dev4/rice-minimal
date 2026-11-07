@@ -7,6 +7,7 @@ import sys
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from theme import theme, profiles
 from wallpapers.wallpaper_tui import selector
+import backups
 import cli
 import doctor
 import lockscreen
@@ -47,8 +48,7 @@ def restore_menu(screen):
         choice=ui.choose(screen,'RICE // RESTORE / BACKUPS',['List backups','Restore previous profile','Restore previous palette','Recovery instructions'],message)
         if choice is None: return
         if choice == 0:
-            entries=sorted(str(p.relative_to(theme.ROOT)) for p in (theme.ROOT/'backups').iterdir() if p.is_dir())
-            ui.page(screen,'RICE // BACKUPS',entries)
+            ui.page(screen,'RICE // BACKUPS',[f"{b['kind']:9}{b['name']}" for b in backups.listing()['backups']] or ['No backups yet'])
         elif choice == 1:
             if ui.confirm(screen,'RICE // CONFIRM','Restore previous appearance profile?'): message=profiles.previous()
         elif choice == 2:
@@ -56,7 +56,8 @@ def restore_menu(screen):
                 message=theme.restore_previous()
                 theme.sync_greeter()
         else:
-            ui.page(screen,'RICE // RECOVERY',['Full restore is run from a normal terminal:', 'python3 scripts/restore_refined.py '+(theme.ROOT/'.rice-final-backup').read_text().strip(), 'It saves a rescue snapshot before restoring.','No reboot, suspend or logout is performed.'])
+            full=backups.listing()['recovery']['full']
+            ui.page(screen,'RICE // RECOVERY',['Full restore is run from a normal terminal:',full or 'No full backup found.','It saves a rescue snapshot before restoring.','No reboot, suspend or logout is performed.'])
 
 
 def lock_menu(screen):

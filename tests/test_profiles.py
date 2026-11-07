@@ -41,7 +41,7 @@ class Profiles(unittest.TestCase):
             calls.append(args)
             if 'config-get' in args:
                 return '"original"'
-            if args[-2] == 'shell.font_family' and args[-1] == '"monospace"' and not failed:
+            if args[-2] == 'shell.font_family' and args[-1] == '"DejaVu Sans Mono"' and not failed:
                 failed = True
                 raise RuntimeError('simulated IPC failure')
             return ''

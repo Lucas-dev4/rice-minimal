@@ -385,6 +385,52 @@ class Lock(Envelope):
         activate.assert_not_called()
 
 
+class Backups(Envelope):
+    def setUp(self):
+        super().setUp()
+        root = patch.object(theme,'ROOT',self.state)
+        root.start()
+        self.addCleanup(root.stop)
+        self.root = self.state/'backups'
+
+    def add(self, name, *files, manifest=None):
+        path = self.root/name
+        path.mkdir(parents=True)
+        for item in files:
+            (path/item).mkdir()
+        if manifest is not None:
+            (path/'manifest.json').write_text(json.dumps(manifest))
+        return path
+
+    def listed(self):
+        return {b['name']:b for b in self.run_cli('backups','list','--json')[1]['data']['backups']}
+
+    def test_each_format_points_to_its_own_tool(self):
+        self.add('rice-final-1','project',manifest=[{'path':'/x'}])
+        self.add('phase3-1',manifest=[{'path':'/x','backup':'/y'}])
+        self.add('lock-visual-1')
+        self.add('gui-fase0-1')
+        data = self.listed()
+        self.assertIn('restore_refined.py',data['rice-final-1']['command'])
+        self.assertIn('restore.py',data['phase3-1']['command'])
+        self.assertIn('lock-restore',data['lock-visual-1']['command'])
+        self.assertEqual((data['gui-fase0-1']['kind'],data['gui-fase0-1']['command']),('snapshot',None))
+
+    def test_empty_manifest_has_nothing_to_restore(self):
+        self.add('old',manifest=[])
+        self.assertIsNone(self.listed()['old']['command'])
+
+    def test_missing_folder_is_an_empty_list_for_a_fresh_clone(self):
+        result = self.run_cli('backups','list','--json')[1]
+        self.assertEqual((result['ok'],result['data']['backups'],result['data']['recovery']['full']),(True,[],None))
+
+    def test_newest_full_backup_is_the_recovery_command(self):
+        old = self.add('rice-final-old','project')
+        os.utime(old,(1,1))
+        self.add('rice-final-new','project')
+        self.assertIn('rice-final-new',self.run_cli('backups','list','--json')[1]['data']['recovery']['full'])
+
+
 class Launcher(unittest.TestCase):
     def test_second_press_closes_open_window(self):
         running = subprocess.CompletedProcess([],0,stdout='target rice\n  function close(): void\n')

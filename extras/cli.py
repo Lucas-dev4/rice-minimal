@@ -10,10 +10,11 @@ import subprocess
 import sys
 import tempfile
 from theme import theme, profiles
+import backups
 import lockscreen
 import shortcuts
 
-COMMANDS = {'status','gui','wallpaper','palette','profile','greeter','sync','shortcuts','lock'}
+COMMANDS = {'status','gui','wallpaper','palette','profile','greeter','sync','shortcuts','lock','backups'}
 THUMBS = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'rice-minimal/thumbs'
 THUMB_SIZE = 400
 
@@ -295,6 +296,8 @@ def main(argv):
     change.add_argument('--key',default='')
     change.add_argument('--command',default='')
     keys.add_parser('restore',parents=[common]).add_argument('backup')
+    saved=actions.add_parser('backups').add_subparsers(dest='operation',required=True)
+    saved.add_parser('list',parents=[common])
     lock=actions.add_parser('lock').add_subparsers(dest='operation',required=True)
     for operation in ('status','check','update','restore'):
         lock.add_parser(operation,parents=[common])
@@ -326,6 +329,7 @@ def main(argv):
         elif name == 'shortcuts list': data=shortcuts.read(args.file)
         elif name == 'shortcuts check': data=shortcuts.check(args.file)
         elif name == 'shortcuts backups': data=shortcuts.backups(args.file)
+        elif name == 'backups list': data=backups.listing()
         elif name == 'lock status': data=lock_status()
         elif name == 'lock check': data={'result':lockscreen.validate()}
         elif name == 'lock update':

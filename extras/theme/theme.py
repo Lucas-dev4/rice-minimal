@@ -306,6 +306,10 @@ def render(palette):
         'cursor_text_color':c['background'], 'selection_background':c['accent'],
         'selection_foreground':c['background'], **{f'color{i}':value for i,value in enumerate(terminal)}}.items())+'\n'
     css = f"@define-color rice_text {c['bar_foreground']};\n@define-color rice_accent {c['bar_accent']};\n"
+    # No single color can stay readable on a mixed strip, so a halo steps in only then.
+    workspace = (palette.get('contrast') or {}).get('modules_p10',{}).get('workspace',99)
+    halo = '#000000' if luminance(c.get('bar_workspace',c['foreground'])) > .4 else '#ffffff'
+    css += f"@define-color rice_workspace_halo {'transparent' if workspace >= 4.5 else halo};\n"
     for name in ('workspace','window','cpu','memory','volume','clock'):
         css += f"@define-color rice_{name} {c.get('bar_'+name,c['bar_foreground'])};\n"
     css += f"@define-color rice_urgent {c['red']};\n"
