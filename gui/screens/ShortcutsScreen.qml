@@ -70,8 +70,11 @@ Item {
     readonly property bool commandEditable: !!selected && selected.editable && selected.command !== null
     // A phrase such as "aumentar o som" in COMANDO becomes the real command when saved.
     readonly property bool noctPrefix: !!selected && /noctCall\s*\.\./.test(selected.action)
-    readonly property var phrase: commandEditable && draft.command !== (selected ? selected.command : "")
-        ? Words.translate(draft.command, noctPrefix) : null
+    // A fixed action (dispatcher, function) can be replaced by a command or a phrase.
+    readonly property bool fixedAction: !!selected && selected.editable && selected.command === null
+    readonly property bool replacing: fixedAction && draft.command.trim() !== "" && draft.command !== selected.action
+    readonly property var phrase: (commandEditable && draft.command !== selected.command) || replacing
+        ? Words.translate(draft.command, noctPrefix && !replacing) : null
 
     function reload() { reader.call(["shortcuts", "list", "--json"]); }
 
@@ -81,12 +84,12 @@ Item {
             return;
         }
         const i = info(selected);
-        draft = { key: selected.key, command: selected.command || "", desc: i.desc, group: i.group };
+        draft = { key: selected.key, command: selected.command !== null ? selected.command : selected.action, desc: i.desc, group: i.group };
         armedSave = false;
         // Typing into a field replaces its binding, so the fields are refilled explicitly.
         descField.text = i.desc;
         // Computed here: commandEditable may still hold the previous row's value.
-        commandField.text = selected.editable && selected.command !== null ? draft.command : selected.action;
+        commandField.text = draft.command;
     }
 
     function move(step) {
@@ -135,10 +138,12 @@ Item {
         const command = phrase ? phrase.command : draft.command;
         if (commandEditable && command !== b.command)
             args.push("--command", command);
+        if (replacing)
+            args.push("--command", command, "--replace");
         if (noteChanged) {
             const next = Object.assign({}, notes);
             // A command edit changes the action text; the note follows it.
-            const action = args.indexOf("--command") >= 0 ? b.action.replace(b.command, command) : b.action;
+            const action = args.indexOf("--command") >= 0 ? (replacing ? 'hl.dsp.exec_cmd("' + command + '")' : b.action.replace(b.command, command)) : b.action;
             delete next[b.action];
             const note = {};
             if (draft.desc !== auto[0]) note.desc = draft.desc;
@@ -598,21 +603,22 @@ Item {
                 id: commandField
                 width: parent.width
                 label: "COMANDO"
-                text: root.commandEditable ? root.draft.command : (root.selected ? root.selected.action : "")
-                editable: root.commandEditable
+                text: root.draft.command
+                editable: root.commandEditable || root.fixedAction
                 keyTarget: root.keyTarget
                 onEdited: root.setDraft("command", text)
             }
             RiceText {
                 width: parent.width
-                visible: root.commandEditable
+                visible: root.commandEditable || root.fixedAction
                 wrapMode: Text.Wrap
                 font.pixelSize: Theme.small
                 topPadding: -6
                 color: !root.phrase ? Theme.faint : root.phrase.error ? Theme.red : Theme.ok
-                text: !root.phrase ? "dica: escreva uma frase — " + Words.phraseExamples().join(", ")
+                text: (!root.phrase ? (root.replacing ? "→ comando: " + root.draft.command : "dica: escreva uma frase — " + Words.phraseExamples().join(", "))
                     : root.phrase.error ? "⚠ " + root.phrase.error
-                    : "→ " + root.phrase.say + "  ·  salva como: " + root.phrase.command
+                    : "→ " + root.phrase.say + "  ·  salva como: " + root.phrase.command)
+                    + (root.replacing ? "\nsubstitui a ação atual (" + Words.describe(root.selected)[0] + ")" : "")
             }
 
             Column {
@@ -652,7 +658,7 @@ Item {
                 visible: text !== ""
                 text: !root.selected ? "" : !root.selected.editable
                     ? "Atalho do rice: edite config/hypr/rice-integration.lua. Descrição e grupo podem mudar."
-                    : !root.commandEditable ? "Ação fixa: só a combinação pode mudar." : ""
+                    : root.fixedAction && !root.replacing ? "Ação do Hyprland: escreva um comando ou uma frase para trocá-la." : ""
             }
         }
 

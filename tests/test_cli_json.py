@@ -307,6 +307,11 @@ hl.bind(mainMod .. " + Z",    hl.dsp.exec_cmd("hyprctl kill"), { locked = true }
             self.assertEqual((code,result['ok']),(1,False))
         self.assertEqual(self.file.read_text(),self.TEXT)
 
+    def test_replace_turns_a_dispatcher_into_a_plain_command(self):
+        self.assertEqual(self.change(4,'--command','noctalia msg volume-down','--replace')[0],0)
+        self.assertIn('hl.bind(mainMod .. " + Q",    hl.dsp.exec_cmd("noctalia msg volume-down"))',self.file.read_text())
+        self.assertEqual(self.file.read_text().count('\n'),self.TEXT.count('\n'))
+
     def test_key_edit_works_on_a_dispatcher(self):
         self.assertEqual(self.change(4,'--key','SHIFT + Q')[0],0)
         self.assertIn('hl.dsp.window.close()',self.file.read_text())

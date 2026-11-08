@@ -65,7 +65,7 @@ def live_conflict(key):
     return any(b.get('modmask') == mask and (b.get('key','').upper() == name or (code and b.get('keycode') == code)) for b in active)
 
 
-def plan_edit(bind, binds, key='', command=''):
+def plan_edit(bind, binds, key='', command='', replace=False):
     replacement = bind['raw_line']
     if key:
         new_key = backend.format_lua_key(re.sub(r'\b(super|mainmod)\s*\+\s*','',key,flags=re.IGNORECASE))
@@ -77,14 +77,15 @@ def plan_edit(bind, binds, key='', command=''):
     if command:
         # Anything else is a dispatcher or a variable that a plain command would silently replace.
         match = EXEC.match(bind['action_clean'])
-        if not match:
+        if not match and not replace:
             raise ValueError('This action is not a plain command; only its combination can change')
-        prefix = match[1]+' .. ' if match[1] else ''
+        # replace: the whole action (a dispatcher, a function) becomes this plain command.
+        prefix = match[1]+' .. ' if match and match[1] else ''
         replacement = replacement.replace(bind['action_clean'],'hl.dsp.exec_cmd('+prefix+backend.lua_string(command)+')',1)
     return replacement
 
 
-def edit(line, revision, key='', command='', path=None):
+def edit(line, revision, key='', command='', path=None, replace=False):
     target = Path(path or backend.CONFIG_PATH)
     original = target.read_text()
     if hashlib.sha256(original.encode()).hexdigest() != revision:
@@ -96,7 +97,7 @@ def edit(line, revision, key='', command='', path=None):
     if bind is None:
         raise ValueError('That line is not an editable shortcut')
     lines = original.splitlines(True)
-    lines[line] = plan_edit(bind,binds,key,command)
+    lines[line] = plan_edit(bind,binds,key,command,replace)
     return {'backup':str(backend.safe_write(target,original,''.join(lines))),'line':lines[line].strip()}
 
 
