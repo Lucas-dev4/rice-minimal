@@ -68,6 +68,10 @@ Item {
     readonly property var visibleIds: entries.filter(e => e.bind).map(e => idOf(e.bind))
     readonly property var selected: byId(currentId)
     readonly property bool commandEditable: !!selected && selected.editable && selected.command !== null
+    // A phrase such as "aumentar o som" in COMANDO becomes the real command when saved.
+    readonly property bool noctPrefix: !!selected && /noctCall\s*\.\./.test(selected.action)
+    readonly property var phrase: commandEditable && draft.command !== (selected ? selected.command : "")
+        ? Words.translate(draft.command, noctPrefix) : null
 
     function reload() { reader.call(["shortcuts", "list", "--json"]); }
 
@@ -124,12 +128,17 @@ Item {
         const before = args.length;
         if (b.editable && Words.normal(draft.key) !== Words.normal(b.key))
             args.push("--key", draft.key);
-        if (commandEditable && draft.command !== b.command)
-            args.push("--command", draft.command);
+        if (phrase && phrase.error) {
+            Status.say("[ FAIL ] " + phrase.error, Theme.red);
+            return;
+        }
+        const command = phrase ? phrase.command : draft.command;
+        if (commandEditable && command !== b.command)
+            args.push("--command", command);
         if (noteChanged) {
             const next = Object.assign({}, notes);
             // A command edit changes the action text; the note follows it.
-            const action = args.indexOf("--command") >= 0 ? b.action.replace(b.command, draft.command) : b.action;
+            const action = args.indexOf("--command") >= 0 ? b.action.replace(b.command, command) : b.action;
             delete next[b.action];
             const note = {};
             if (draft.desc !== auto[0]) note.desc = draft.desc;
@@ -593,6 +602,17 @@ Item {
                 editable: root.commandEditable
                 keyTarget: root.keyTarget
                 onEdited: root.setDraft("command", text)
+            }
+            RiceText {
+                width: parent.width
+                visible: root.commandEditable
+                wrapMode: Text.Wrap
+                font.pixelSize: Theme.small
+                topPadding: -6
+                color: !root.phrase ? Theme.faint : root.phrase.error ? Theme.red : Theme.ok
+                text: !root.phrase ? "dica: escreva uma frase — " + Words.phraseExamples().join(", ")
+                    : root.phrase.error ? "⚠ " + root.phrase.error
+                    : "→ " + root.phrase.say + "  ·  salva como: " + root.phrase.command
             }
 
             Column {

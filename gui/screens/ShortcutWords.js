@@ -63,6 +63,107 @@ function workspaceText(target, moving) {
     return verb + (moving ? "workspace " : "Ir para workspace ") + target;
 }
 
+// ---- plain Portuguese in the COMANDO field -------------------------------------------
+// A phrase becomes a real command when saved. `noct` is a `noctalia msg` subcommand (it
+// shows the OSD), `cmd` a plain program. Matching ignores accents, articles, word order
+// and verb forms (aumenta / aumentar / subir / mais).
+var PHRASES = [
+    { say: "Aumentar o som", key: "aumentar som", noct: "volume-up", group: "SHELL" },
+    { say: "Diminuir o som", key: "diminuir som", noct: "volume-down", group: "SHELL" },
+    { say: "Mutar o som", key: "mutar som", alt: ["mutar"], noct: "volume-mute", group: "SHELL" },
+    { say: "Mutar o microfone", key: "microfone mutar", noct: "mic-mute", group: "SHELL" },
+    { say: "Aumentar o brilho", key: "aumentar brilho", noct: "brightness-up", group: "SHELL" },
+    { say: "Diminuir o brilho", key: "brilho diminuir", noct: "brightness-down", group: "SHELL" },
+    { say: "Tocar/pausar música", key: "musica tocar", alt: ["tocar", "musica pausar", "pausar"], noct: "media toggle", group: "SHELL" },
+    { say: "Próxima música", key: "musica proxima", alt: ["proxima"], noct: "media next", group: "SHELL" },
+    { say: "Música anterior", key: "anterior musica", alt: ["anterior"], noct: "media previous", group: "SHELL" },
+    { say: "Captura de tela", key: "print", alt: ["print tela"], noct: "screenshot-fullscreen", group: "SHELL" },
+    { say: "Captura de uma área", key: "area print", alt: ["print recorte", "print regiao"], noct: "screenshot-region", group: "SHELL" },
+    { say: "Captura da janela", key: "janela print", noct: "screenshot-window", group: "SHELL" },
+    { say: "Bloquear tela", key: "bloquear tela", alt: ["bloquear"], noct: "session lock", group: "SHELL" },
+    { say: "Liga/desliga Wi-Fi", key: "wifi", noct: "wifi-toggle", group: "SHELL" },
+    { say: "Liga/desliga Bluetooth", key: "bluetooth", noct: "bluetooth-toggle", group: "SHELL" },
+    { say: "Não perturbe", key: "nao perturbe", noct: "notification-dnd-toggle", group: "SHELL" },
+    { say: "Luz noturna", key: "luz noturna", noct: "nightlight-toggle", group: "SHELL" },
+    { say: "Notificações", key: "notificacoes", noct: "panel-toggle control-center notifications", group: "SHELL" },
+    { say: "Histórico do clipboard", key: "clipboard", alt: ["area transferencia"], noct: "panel-toggle clipboard", group: "SHELL" },
+    { say: "Seletor de emoji", key: "emoji", noct: "panel-toggle launcher /emo", group: "SHELL" },
+    { say: "Abrir launcher", key: "launcher", alt: ["abrir launcher"], noct: "panel-toggle launcher", group: "SHELL" },
+    { say: "Abrir navegador", key: "abrir navegador", alt: ["navegador", "abrir firefox", "firefox"], cmd: "firefox", group: "APPS" },
+    { say: "Abrir terminal", key: "abrir terminal", alt: ["terminal"], cmd: "kitty", group: "APPS" },
+    { say: "Abrir arquivos", key: "abrir arquivos", alt: ["arquivos"], cmd: "kitty --class yazi -e yazi", group: "APPS" },
+    { say: "Conta-gotas de cor", key: "cor seletor", alt: ["conta-gotas cor", "contagotas cor", "conta gotas cor"], cmd: "hyprpicker -a -n", group: "APPS" }
+];
+var STOP = ["o", "a", "os", "as", "do", "da", "dos", "das", "de", "um", "uma", "e", "para", "pra", "no", "na", "ao", "em"];
+var SAME = {
+    aumentar: ["aumenta", "aumente", "subir", "sobe", "suba", "mais", "up"],
+    diminuir: ["diminui", "diminua", "abaixar", "abaixa", "baixar", "baixa", "descer", "desce", "menos", "down"],
+    som: ["volume", "audio"],
+    mutar: ["muta", "mute", "silenciar", "silencia", "mudo"],
+    microfone: ["mic"],
+    musica: ["midia", "video", "faixa"],
+    tocar: ["toca", "play", "continuar", "toggle"],
+    pausar: ["pausa", "pause", "parar"],
+    proxima: ["proximo", "avancar", "pular", "next"],
+    anterior: ["voltar", "volta", "previous"],
+    print: ["captura", "capturar", "screenshot", "printar", "foto"],
+    tela: ["monitor"],
+    area: ["selecao"],
+    bloquear: ["bloqueia", "travar", "trava", "lock"],
+    abrir: ["abre", "abra", "iniciar"],
+    wifi: ["wi-fi", "internet", "rede"],
+    clipboard: ["copiados"],
+    notificacoes: ["notificacao"],
+    cor: ["cores"],
+    emoji: ["emojis"]
+};
+var ALIAS = (function () {
+    var out = {};
+    for (var word in SAME) { out[word] = word; SAME[word].forEach(function (w) { out[w] = word; }); }
+    return out;
+})();
+// Words that only switch something on or off: "ligar wifi" is the same toggle as "wifi".
+var TOGGLE = ["ligar", "liga", "desligar", "desliga", "ativar", "ativa", "desativar", "desativa", "alternar"];
+
+function phraseKey(text) {
+    return String(text).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .split(/[^a-z0-9\/-]+/).filter(function (w) { return w && STOP.indexOf(w) < 0 && TOGGLE.indexOf(w) < 0; })
+        .map(function (w) { return ALIAS[w] || w; }).sort().join(" ");
+}
+
+function findPhrase(text) {
+    var key = phraseKey(text);
+    if (!key) return null;
+    for (var i = 0; i < PHRASES.length; i++) {
+        var p = PHRASES[i];
+        var keys = [p.key].concat(p.alt || []).map(phraseKey);
+        if (keys.indexOf(key) >= 0) return p;
+    }
+    return null;
+}
+
+// What a COMANDO entry really saves. `noctPrefix`: the bind already prepends `noctalia msg`.
+// { command, say } for a phrase, { error } when it cannot fit this bind, null for a raw command.
+function translate(text, noctPrefix) {
+    var p = findPhrase(text);
+    if (!p) return null;
+    if (p.noct) return { command: noctPrefix ? p.noct : "noctalia msg " + p.noct, say: p.say };
+    if (noctPrefix) return { error: "este atalho chama o Noctalia; \"" + p.say + "\" precisa de um atalho de app (ex.: ◆ B, ◆ P)" };
+    return { command: p.cmd, say: p.say };
+}
+
+// The reverse, for the description of a saved bind.
+function phraseFor(command) {
+    var c = String(command || "").trim().replace(/^noctalia msg\s+/, "");
+    for (var i = 0; i < PHRASES.length; i++)
+        if (PHRASES[i].noct === c || PHRASES[i].cmd === c) return [PHRASES[i].say, PHRASES[i].group];
+    return null;
+}
+
+function phraseExamples() {
+    return ["aumentar o som", "diminuir o som", "mutar", "pausar música", "próxima música", "print da tela", "abrir navegador"];
+}
+
 // [description, group] for one bind.
 function describe(bind) {
     var a = bind.action || "";
@@ -94,12 +195,13 @@ function describe(bind) {
             "panel-toggle clipboard": ["Histórico do clipboard", "SHELL"],
             "panel-toggle control-center notifications": ["Notificações", "SHELL"]
         };
-        return known[what] || ["Shell: " + what, "SHELL"];
+        return known[what] || phraseFor(what) || ["Shell: " + what, "SHELL"];
     }
     if (/exec_cmd/.test(a)) {
         if (/TERMINAL/.test(a)) return ["Abrir terminal", "APPS"];
         if (/EDITOR/.test(a)) return ["Abrir editor", "APPS"];
         if (/CALCULATOR/.test(a)) return ["Abrir calculadora", "APPS"];
+        if (bind.command && phraseFor(bind.command)) return phraseFor(bind.command);
         if (bind.command && /hyprpicker/.test(bind.command)) return ["Conta-gotas de cor", "APPS"];
         if (bind.command) return ["Abrir " + program(bind.command), "APPS"];
     }
