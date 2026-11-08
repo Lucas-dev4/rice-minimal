@@ -185,7 +185,7 @@ def ratio(a, b):
 def mix(a, b, amount):
     return hexcolor(x*(1-amount)+y*amount for x, y in zip(rgb(a), rgb(b)))
 
-def bar_contrast(path, colors, size=(1920, 1080)):
+def bar_contrast(path, colors, size=(1920, 1080), tints=None):
     """Sample the visible top strip after cover scaling; never poll the screen."""
     from PIL import Image, ImageOps
     with Image.open(path) as image:
@@ -209,9 +209,10 @@ def bar_contrast(path, colors, size=(1920, 1080)):
     h, _, _ = colorsys.rgb_to_hls(*rgb(colors['accent']))
     candidates = [light,dark,'#f2f4ee','#101510'] + [
         hexcolor(colorsys.hls_to_rgb(h,l/100,.08)) for l in range(0,101,4)]
-    def choose(scoring):
+    tints = tints or {}
+    def choose(scoring, tint=None):
         foreground = max(candidates, key=scoring)
-        accent = subdued(colors['accent'])
+        accent = tint or subdued(colors['accent'])
         # Retain the wallpaper hue as far as the sampled background allows.
         for amount in (0,.2,.4,.6,.8,1):
             candidate = mix(accent,foreground,amount)
@@ -242,8 +243,9 @@ def bar_contrast(path, colors, size=(1920, 1080)):
         x1 = max(x0+1,min(width,round(right*width/screen_width)))
         pixels = [luminance(hexcolor(v/255 for v in p)) for p in strip.crop((x0,0,x1,strip.height)).get_flattened_data()]
         regional = scorer(pixels)
-        fg,ac = choose(regional)
-        colors['bar_'+name] = ac if name == 'clock' else fg
+        fg,ac = choose(regional, tints.get(name))
+        # Each module keeps its own hue, darkened or lightened only as far as legibility needs.
+        colors['bar_'+name] = ac if name == 'clock' or (name in tints and name != 'workspace') else fg
         if name == 'workspace':
             colors['bar_accent'] = ac
         metrics[name] = round(regional(colors['bar_'+name]),2)
@@ -262,7 +264,7 @@ def monitor_size():
 
 def fingerprint(path):
     stat = path.stat()
-    return hashlib.sha256(f'{path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}:neutral-v3'.encode()).hexdigest()
+    return hashlib.sha256(f'{path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}:neutral-v4'.encode()).hexdigest()
 
 def generate(path):
     raw = command(['matugen', 'image', path, '--config', ROOT/'extras/theme/matugen.toml',
@@ -280,8 +282,12 @@ def generate(path):
         colors[key] = subdued(mix(FALLBACK[key], colors['accent'], .18), .25)
     if ratio(colors['foreground'], colors['background']) < 7:
         colors['foreground'] = '#e5e9df'
-    contrast = bar_contrast(path, colors, monitor_size())
-    return dict(colors=colors, terminal=image_hue(path), wallpaper=str(path.resolve()), fingerprint=fingerprint(path),
+    terminal = image_hue(path)
+    accent = terminal_accent({'colors':colors,'terminal':terminal})
+    tints = {'workspace':accent, 'clock':accent, 'cpu':vivid(colors['green']),
+             'memory':vivid(colors['yellow']), 'volume':vivid(colors['cyan'])}
+    contrast = bar_contrast(path, colors, monitor_size(), tints)
+    return dict(colors=colors, terminal=terminal, wallpaper=str(path.resolve()), fingerprint=fingerprint(path),
                 generator='matugen 4.2 / scheme-neutral / dark', contrast=contrast,
                 created_ns=time.time_ns())
 
@@ -307,9 +313,10 @@ def render(palette):
         'selection_foreground':c['background'], **{f'color{i}':value for i,value in enumerate(terminal)}}.items())+'\n'
     css = f"@define-color rice_text {c['bar_foreground']};\n@define-color rice_accent {c['bar_accent']};\n"
     # No single color can stay readable on a mixed strip, so a halo steps in only then.
-    workspace = (palette.get('contrast') or {}).get('modules_p10',{}).get('workspace',99)
-    halo = '#000000' if luminance(c.get('bar_workspace',c['foreground'])) > .4 else '#ffffff'
-    css += f"@define-color rice_workspace_halo {'transparent' if workspace >= 4.5 else halo};\n"
+    measured = (palette.get('contrast') or {}).get('modules_p10',{})
+    for name in ('workspace','cpu','memory','volume','clock'):
+        halo = '#000000' if luminance(c.get('bar_'+name,c['foreground'])) > .4 else '#ffffff'
+        css += f"@define-color rice_{name}_halo {'transparent' if measured.get(name,99) >= 4.5 else halo};\n"
     for name in ('workspace','window','cpu','memory','volume','clock'):
         css += f"@define-color rice_{name} {c.get('bar_'+name,c['bar_foreground'])};\n"
     css += f"@define-color rice_urgent {c['red']};\n"

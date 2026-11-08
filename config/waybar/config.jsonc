@@ -19,21 +19,21 @@
     "sort-by-number": true
   },
   "hyprland/window": {
-    "format": "| {}",
+    "format": "<span alpha='40%'>|</span> {}",
     "max-length": 36,
     "separate-outputs": true
   },
   "cpu": {
-    "format": "CPU {usage:02d}% |",
+    "format": "CPU {usage:02d}% <span alpha='40%'>|</span>",
     "interval": 5
   },
   "memory": {
-    "format": "RAM {used:0.1f}G |",
+    "format": "RAM {used:0.1f}G <span alpha='40%'>|</span>",
     "interval": 10
   },
   "pulseaudio": {
-    "format": "VOL {volume}% |",
-    "format-muted": "VOL mute |",
+    "format": "VOL {volume}% <span alpha='40%'>|</span>",
+    "format-muted": "VOL mute <span alpha='40%'>|</span>",
     "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
     "on-scroll-up": "wpctl set-volume -l 1 @DEFAULT_AUDIO_SINK@ 2%+",
     "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"

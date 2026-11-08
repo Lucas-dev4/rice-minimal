@@ -50,3 +50,7 @@ window#waybar, window#waybar > box, .modules-left, .modules-center, .modules-rig
 
 #workspaces button.active { font-weight: bold; }
 #workspaces button { text-shadow: 0 0 3px @rice_workspace_halo; }
+#cpu { text-shadow: 0 0 3px @rice_cpu_halo; }
+#memory { text-shadow: 0 0 3px @rice_memory_halo; }
+#pulseaudio { text-shadow: 0 0 3px @rice_volume_halo; }
+#clock { text-shadow: 0 0 3px @rice_clock_halo; }

@@ -239,6 +239,24 @@ outline = "#888888"
         self.assertIn('rice_workspace_halo transparent',high)
         self.assertIn('rice_workspace_halo transparent',old)
 
+    def test_bar_modules_keep_their_hue_on_dark_and_turn_readable_on_white(self):
+        from PIL import Image
+        tints = {'cpu':'#86ea93','memory':'#eadc86','volume':'#86dbea','clock':'#ea86a7','workspace':'#ea86a7'}
+        hue = lambda color: theme.colorsys.rgb_to_hls(*theme.rgb(color))[0]
+        for background in ('#000000','#ffffff'):
+            image = self.state/'bar.png'
+            Image.new('RGB',(400,225),background).save(image)
+            colors = theme.FALLBACK.copy()
+            with patch.object(theme,'command',side_effect=OSError):
+                metrics = theme.bar_contrast(image,colors,(1920,1080),tints)['modules_p10']
+            for name in ('cpu','memory','volume','clock'):
+                self.assertGreaterEqual(metrics[name],4.5,(background,name))
+            if background == '#000000':
+                self.assertEqual(colors['bar_cpu'],tints['cpu'])
+                self.assertNotEqual(colors['bar_cpu'],colors['bar_memory'])
+            else:
+                self.assertAlmostEqual(hue(colors['bar_cpu']),hue(tints['cpu']),delta=.05)
+
     def test_only_the_terminal_gets_vivid_colors(self):
         colors = dict(theme.FALLBACK, **{key:'#777777' for key in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')})
         files = theme.render({'colors':colors,'generator':'test'})
