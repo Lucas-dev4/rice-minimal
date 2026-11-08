@@ -16,7 +16,7 @@ FloatingWindow {
         { name: "PROFILES", source: "screens/ProfilesScreen.qml", hints: [] },
         { name: "PALETTE", source: "screens/PaletteScreen.qml", hints: [] },
         { name: "DOCTOR", source: "screens/DoctorScreen.qml", hints: [] },
-        { name: "BACKUPS", source: "screens/BackupsScreen.qml", hints: [["jk", "move"], ["esc", "quit"]] },
+        { name: "BACKUPS", source: "screens/BackupsScreen.qml", hints: [] },
         { name: "LOCK", source: "screens/LockScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
         { name: "GREETER", source: "screens/GreeterScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] }
     ]

@@ -52,7 +52,8 @@ Item {
             for (const r of issues) out.push({ item: r });
         }
         for (const g of groupOrder) {
-            const rows = results.filter(r => groupOf(r.name) === g && issues.indexOf(r) < 0);
+            // By status, not identity: var lists may be copies.
+            const rows = results.filter(r => groupOf(r.name) === g && r.status !== "WARN" && r.status !== "FAIL");
             if (!rows.length) continue;
             const ok = rows.filter(r => r.status === "OK").length;
             const shut = closed.indexOf(g) >= 0;
