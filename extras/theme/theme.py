@@ -316,6 +316,46 @@ def render(palette):
     cliamp = '# RICE // minimal: generated on every palette change.\n' + ''.join(
         f'{key} = "{value}"\n' for key,value in (('accent',v['accent']),('bright_fg',c['foreground']),
         ('fg',c['muted']),('green',v['green']),('yellow',v['yellow']),('red',v['red'])))
+    # yazi: its default theme already uses ANSI colors; only the fixed blues change.
+    a, bg, muted = v['accent'], c['background'], c['muted']
+    yazi = f'''# RICE // minimal: generated on every palette change; edits are overwritten.
+[mgr]
+cwd = {{ fg = "{a}" }}
+border_style = {{ fg = "{muted}" }}
+
+[tabs]
+active = {{ fg = "{a}", bold = true }}
+inactive = {{ fg = "{muted}" }}
+
+[mode]
+normal_main = {{ fg = "{bg}", bg = "{a}", bold = true }}
+normal_alt = {{ fg = "{a}" }}
+
+[indicator]
+current = {{ fg = "{bg}", bg = "{a}" }}
+parent = {{ fg = "{a}", bold = true }}
+
+# filetype has no prepend: the full preset list (yazi 26.9.1), only the folder color changes.
+[filetype]
+rules = [
+\t{{ mime = "**/image/*", fg = "yellow" }},
+\t{{ mime = "**/{{audio,video}}/*", fg = "magenta" }},
+\t{{ mime = "**/application/{{zip,rar,7z*,tar,gzip,xz,zstd,bzip*,lzma,compress,archive,cpio,arj,xar,ms-cab*}}", fg = "red" }},
+\t{{ mime = "**/application/{{pdf,doc,rtf}}", fg = "cyan" }},
+\t{{ mime = "vfs/{{absent,stale}}", fg = "gray" }},
+\t{{ url = "*", is = "orphan", bg = "red" }},
+\t{{ url = "*", is = "exec", fg = "green" }},
+\t{{ url = "*", is = "dummy", bg = "red" }},
+\t{{ url = "*/", is = "dummy", bg = "red" }},
+\t{{ url = "*/", fg = "{a}" }},
+]
+
+[icon]
+prepend_conds = [
+\t{{ if = "dir & hovered", text = "\ue5fe", fg = "{bg}" }},
+\t{{ if = "dir", text = "\ue5ff", fg = "{a}" }},
+]
+'''
     kitty = '\n'.join(f'{k} {v}' for k,v in {
         'background':c['background'], 'foreground':c['foreground'], 'cursor':c['accent'],
         'cursor_text_color':c['background'], 'selection_background':c['accent'],
@@ -393,7 +433,7 @@ def render(palette):
     import lockscreen
     lock_theme = lockscreen.render(palette, current_profile())
     return {'lockscreen.toml':lock_theme, 'noctalia.json':json.dumps(noctalia,indent=2)+'\n', 'kitty.conf':kitty, 'colors.css':css, 'profile.css':profile_css, 'hyprland.lua':hypr, 'colors.fish':fish,
-            'nvim.lua':nvim, 'colors-wal.vim':wal, 'cliamp.toml':cliamp, 'palette.json':json.dumps(palette,indent=2)+'\n'}
+            'nvim.lua':nvim, 'colors-wal.vim':wal, 'cliamp.toml':cliamp, 'yazi-theme.toml':yazi, 'palette.json':json.dumps(palette,indent=2)+'\n'}
 
 def link(name, target):
     temporary = STATE/f'.{name}-{time.time_ns()}'
@@ -438,9 +478,10 @@ def reload_components():
         temporary.write_text((STATE/'current/noctalia.json').read_text())
         os.replace(temporary, target)
         command(['noctalia', 'msg', 'config-reload'])
-    # Terminal apps that read a theme file: Neovim (pywal.nvim) and cliamp.
+    # Terminal apps that read a theme file: Neovim (pywal.nvim), cliamp and yazi.
     for name, target in (('colors-wal.vim', Path.home()/'.cache/wal/colors-wal.vim'),
-                         ('cliamp.toml', Path.home()/'.config/cliamp/themes/rice.toml')):
+                         ('cliamp.toml', Path.home()/'.config/cliamp/themes/rice.toml'),
+                         ('yazi-theme.toml', Path.home()/'.config/yazi/theme.toml')):
         target.parent.mkdir(parents=True, exist_ok=True)
         temporary = target.with_name('.'+target.name+'.tmp')
         temporary.write_text((STATE/'current'/name).read_text())

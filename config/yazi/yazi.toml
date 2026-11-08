@@ -1,0 +1,18 @@
+#:schema https://yazi-rs.github.io/schemas/yazi.json
+# yazi — RICE // minimal. Cores: o tema padrão usa as cores ANSI do Kitty,
+# então já segue o wallpaper e o fundo transparente.
+
+[mgr]
+ratio          = [ 1, 4, 3 ]
+sort_by        = "natural"       # arquivo2 antes de arquivo10
+sort_dir_first = true            # pastas primeiro
+linemode       = "size"          # tamanho à direita de cada arquivo
+show_hidden    = false           # "." mostra/esconde ocultos
+show_symlink   = true
+scrolloff      = 5
+
+[opener]
+# Enter num arquivo de texto abre no Neovim, dentro do mesmo terminal.
+edit = [
+	{ run = "nvim %s", desc = "Neovim", block = true, for = "unix" },
+]

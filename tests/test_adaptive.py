@@ -283,6 +283,17 @@ outline = "#888888"
         self.assertEqual(set(data),{'accent','bright_fg','fg','green','yellow','red'})
         self.assertTrue(all(len(value) == 7 and value.startswith('#') for value in data.values()))
 
+    def test_yazi_theme_is_valid_toml_using_the_terminal_accent(self):
+        import tomllib
+        colors = dict(theme.FALLBACK,**{k:'#777777' for k in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')})
+        files = theme.render({'colors':colors,'generator':'test'})
+        data = tomllib.loads(files['yazi-theme.toml'])
+        accent = theme.terminal_accent({'colors':colors})
+        self.assertEqual(data['indicator']['current']['bg'],accent)
+        rules = data['filetype']['rules']
+        self.assertEqual((rules[-1]['url'],rules[-1]['fg']),('*/',accent))
+        self.assertEqual(len(rules),10)
+
     def test_only_the_terminal_gets_vivid_colors(self):
         colors = dict(theme.FALLBACK, **{key:'#777777' for key in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')})
         files = theme.render({'colors':colors,'generator':'test'})

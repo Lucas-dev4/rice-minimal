@@ -147,3 +147,7 @@ As cores vêm de `~/.config/noctalia/palettes/RiceMinimal.json`, trocado de form
 ## cliamp
 
 Player de música no terminal (`bjarneo/cliamp`, MIT), instalado do binário oficial em `~/.local/bin/cliamp` depois de conferir o `checksums.txt` da release. `config/cliamp/config.toml` é a configuração inicial: tema `rice` e navegador de arquivos em `~/Músicas`. O rice gera `~/.config/cliamp/themes/rice.toml` com as cores vivas do terminal a cada troca de wallpaper, sem cor de fundo; o tema vale na próxima abertura. Atualize com `cliamp upgrade`.
+
+## yazi
+
+Gerenciador de arquivos no terminal, instalado pelo pacote `yazi` do Arch, com `7zip` e `zoxide`. `Super+E` abre o yazi num Kitty (classe `yazi`) no lugar do Dolphin; a variável `FILE_MANAGER` continua `dolphin` para quem a usa. `config/yazi/yazi.toml` põe pastas primeiro, ordenação natural, tamanho dos arquivos e abre texto no Neovim. O rice gera `~/.config/yazi/theme.toml` a cada troca de wallpaper: só os azuis fixos do tema padrão (seleção, pastas, modo, abas) passam para o tom do terminal; o resto usa as cores ANSI do Kitty. No Fish, `y` abre o yazi e, ao sair, deixa o terminal na pasta onde você estava; `config/fish/conf.d/zoxide.fish` liga o `z`.
