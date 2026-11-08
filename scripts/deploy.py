@@ -4,32 +4,43 @@ import datetime
 import configparser
 import json
 from pathlib import Path
+import io
 import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 HOME = Path.home()
 
-def matches(source, target):
+def hook_installed(command):
+    return 'extras/theme/theme.py' in command and command.rstrip().endswith(' wallpaper')
+
+def desired(source, target):
+    """New content for target, or None when it already does what the rice needs."""
     if not target.exists():
-        return False
+        return source.read_bytes()
     if source.suffix != '.ini':
-        return target.read_bytes() == source.read_bytes()
-    # Waypaper adds defaults and abbreviates HOME after its first GUI run.
-    # Preserve that valid generated configuration instead of reinstalling it.
-    expected, current = configparser.ConfigParser(), configparser.ConfigParser()
+        return None if target.read_bytes() == source.read_bytes() else source.read_bytes()
+    # Waypaper rewrites its config with the user's wallpaper and many extra keys.
+    # Only the hook is the rice's; every other value already there is the user's.
+    expected, current = (configparser.ConfigParser(interpolation=None) for _ in range(2))
+    for parser in (expected, current):
+        parser.optionxform = str
     expected.read(source)
     current.read(target)
+    changed = False
     for section in expected.sections():
+        if not current.has_section(section):
+            current.add_section(section)
         for key, value in expected.items(section):
             actual = current.get(section, key, fallback=None)
-            if actual is None:
-                return False
-            if key in {'folder', 'wallpaper'}:
-                actual, value = str(Path(actual).expanduser()), str(Path(value).expanduser())
-            if actual != value:
-                return False
-    return True
+            if actual is None or (key == 'post_command' and not hook_installed(actual)):
+                current.set(section, key, value)
+                changed = True
+    if not changed:
+        return None
+    text = io.StringIO()
+    current.write(text)
+    return text.getvalue().encode()
 
 def main():
     hypr = HOME/'.config/hypr/hyprland.lua'
@@ -43,8 +54,8 @@ def main():
     plan = [(ROOT/'config/waypaper/config.ini', HOME/'.config/waypaper/config.ini'),
             (ROOT/'config/hypr/rice-integration.lua', HOME/'.config/hypr/config/rice-integration.lua'),
             (ROOT/'config/autostart/rice-minimal.desktop', HOME/'.config/autostart/rice-minimal.desktop')]
-    changes = [(target, source.read_bytes()) for source, target in plan
-               if not matches(source, target)]
+    changes = [(target, data) for source, target in plan
+               if (data := desired(source, target)) is not None]
     if 'require("config.rice-integration")' not in original:
         changes.append((hypr, (original+'\nrequire("config.rice-integration")\n').encode()))
     if not changes:

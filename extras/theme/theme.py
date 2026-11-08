@@ -405,7 +405,13 @@ def publish(palette):
     Gtk.CssProvider().load_from_data((folder/'colors.css').read_bytes())
     previous = (STATE/'current').resolve() if (STATE/'current').exists() else None
     if previous:
-        link('previous', previous.name)
+        # Profile and lock changes republish the same colors; keep the real previous palette.
+        try:
+            same = json.loads((previous/'palette.json').read_text()).get('colors') == palette.get('colors')
+        except (OSError, ValueError):
+            same = False
+        if not same:
+            link('previous', previous.name)
     link('current', folder.name)
     return previous
 

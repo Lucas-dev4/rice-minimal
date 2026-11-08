@@ -105,7 +105,7 @@ Após instalar, falta concluir em sessão acessível:
 2. Testar `code --version`, `nvim --headless '+checkhealth' +qa`, Kitty e a interface Waypaper.
 3. Testar a Waybar com `waybar -c ~/Projetos/rice-minimal/config/waybar/config.jsonc -s ~/Projetos/rice-minimal/config/waybar/style.css`; usar `noctalia msg bar-hide` para ocultar somente sua barra, preservando o daemon. `noctalia msg bar-show` restaura. Só persistir autostart após confirmar a barra funcionando.
 4. Confirmar como desativar apenas o wallpaper do Noctalia na versão instalada antes de iniciar Hyprpaper. Copiar configuração do Waypaper com backup, testar seleção e `waypaper --restore`, conferir IPC da versão Hyprpaper 0.8.5 e somente então persistir o restore via UWSM/XDG autostart. Não executar dois backends.
-5. Super+Return já abre Kitty. Super+T já abre outro editor; Super+Shift+W já abre o seletor Noctalia. Preservá-los. Candidatos adicionais: Super+Ctrl+Alt+C (code), +W (Waypaper), +B (Waybar), +S (Kitty executando supers). Sem colisão literal no binds.lua inspecionado; validar binds em runtime antes de adicionar. Estes candidatos NÃO estão aplicados.
+5. Super+Return já abre Kitty. Super+T já abre outro editor. Preservá-los. Candidatos adicionais: Super+Ctrl+Alt+C (code), +W (Waypaper), +B (Waybar), +S (Kitty executando supers). Sem colisão literal no binds.lua inspecionado; validar binds em runtime antes de adicionar. Estes candidatos NÃO estão aplicados.
 6. `hyprctl reload` seguido de `hyprctl configerrors`, sem reiniciar ou encerrar a sessão.
 
 ## Restaurar a implementação

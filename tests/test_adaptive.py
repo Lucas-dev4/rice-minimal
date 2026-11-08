@@ -257,6 +257,16 @@ outline = "#888888"
             else:
                 self.assertAlmostEqual(hue(colors['bar_cpu']),hue(tints['cpu']),delta=.05)
 
+    def test_republishing_the_same_colors_keeps_the_real_previous_palette(self):
+        self.publish('#111111')
+        older = (self.state/'current').resolve()
+        self.publish('#222222')
+        self.assertEqual((self.state/'previous').resolve(),older)
+        self.publish('#222222')
+        self.assertEqual((self.state/'previous').resolve(),older)
+        self.publish('#333333')
+        self.assertNotEqual((self.state/'previous').resolve(),older)
+
     def test_only_the_terminal_gets_vivid_colors(self):
         colors = dict(theme.FALLBACK, **{key:'#777777' for key in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')})
         files = theme.render({'colors':colors,'generator':'test'})

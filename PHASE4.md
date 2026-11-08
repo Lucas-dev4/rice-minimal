@@ -46,7 +46,7 @@ Cada geração contém `colors.css`, `profile.css`, `kitty.conf`, `colors.fish`,
 
 O login continua usando a paleta em cache e o supervisor existente, sem Matugen na inicialização. O include `config.rice-appearance` é carregado por último no Hyprland. Nenhuma sessão ou computador foi reiniciado.
 
-Use os caminhos existentes de wallpaper (`waypaper`/`wallpapers`). Alterar a imagem diretamente pelo IPC ou por outro painel do Noctalia não chama o hook do Waypaper; nesse caso execute `rice` → `[4] Regenerate colors`. Não foi adicionado um observador permanente para esse caminho alternativo.
+Troque o wallpaper pela GUI (`Super+Backspace`), por `wallpapers` ou pelo Waypaper; todos passam pelo mesmo hook. O atalho do painel de wallpaper do Noctalia foi removido porque contornava o hook. Uma troca feita direto pelo IPC do Noctalia continua fora do hook; nesse caso use `SYNC ALL`.
 
 ## Compatibilidade Waybar 0.15 / Hyprland Lua
 
