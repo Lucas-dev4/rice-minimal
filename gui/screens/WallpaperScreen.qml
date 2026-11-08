@@ -37,6 +37,8 @@ Item {
         if (!selected || applier.running)
             return;
         Status.start("applying");
+        // The new wallpaper is built in ASCII while the backend applies it.
+        reveal.play(thumbs[selected.path] || selected.thumb || selected.path, selected.path);
         applier.call(["wallpaper", "apply", selected.path, "--json"]);
     }
 
@@ -106,13 +108,14 @@ Item {
         id: applier
         onSucceeded: (data, warnings) => {
             Status.stop();
+            reveal.finish();
             root.current = data.effective || root.current;
             if (warnings.length > 0)
                 Status.say("[ WARN ] " + warnings.join("; "), Theme.yel);
             else
                 Status.say("[ OK ] " + root.stem(data.effective.split("/").pop()) + " applied", Theme.ok);
         }
-        onFailed: message => { Status.stop(); Status.say("[ FAIL ] " + message, Theme.red); }
+        onFailed: message => { Status.stop(); reveal.cancel(); Status.say("[ FAIL ] " + message, Theme.red); }
     }
 
     Process {
@@ -362,6 +365,13 @@ Item {
             GradientStop { position: 0; color: Qt.alpha(Theme.bg, 0) }
             GradientStop { position: 1; color: Theme.bg }
         }
+    }
+
+    AsciiReveal {
+        id: reveal
+        anchors.fill: grid
+        // A little past the cards, so the cursor corners stay hidden.
+        anchors.margins: 2
     }
 
     // name │ resolution │ format │ size                APPLY ⏎
