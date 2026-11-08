@@ -53,6 +53,19 @@ class Install(unittest.TestCase):
         self.assertEqual(install.plan(), {})
         self.assertEqual(seed.read_text(), 'theme = "mine"\n')
 
+    def test_theme_names_change_only_their_own_lines(self):
+        env = self.home/'.config/uwsm/env'
+        env.parent.mkdir(parents=True)
+        env.write_text('export EDITOR=nvim\nexport XCURSOR_THEME="Bibata"\nexport XCURSOR_SIZE=24\n')
+        env.chmod(0o600)
+        qt = self.home/'.config/qt6ct/qt6ct.conf'
+        qt.parent.mkdir(parents=True)
+        qt.write_text('[Appearance]\ncolor_scheme_path=/x/noctalia.conf\nicon_theme=breeze\nstyle=Fusion\n')
+        changes = install.plan()
+        self.assertEqual(changes[env], ('export EDITOR=nvim\nexport XCURSOR_THEME="Adwaita"\nexport XCURSOR_SIZE=24\n', 0o600))
+        self.assertIn('icon_theme=Adwaita\nstyle=Fusion', changes[qt][0])
+        self.assertNotIn(self.home/'.config/gtk-3.0/settings.ini', changes)  # absent files are not created
+
     def test_hyprland_requires_are_added_once(self):
         hypr = self.home/'.config/hypr/hyprland.lua'
         hypr.parent.mkdir(parents=True)

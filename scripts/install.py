@@ -48,6 +48,22 @@ SEEDS = [('config/cliamp/config.toml', '.config/cliamp/config.toml')]
 LAUNCHERS = [('rice', 'extras/rice.py'), ('supers', 'extras/supers/Supers'),
              ('wallpapers', 'extras/wallpapers/wallpaper_tui.py')]
 HYPR_MODULES = ['rice-minimal', 'rice-integration', 'rice-adaptive', 'rice-appearance']
+# Minimal, nearly monochrome themes that ship with the system (adwaita-icon-theme).
+ICON_THEME = 'Adwaita'
+CURSOR_THEME = 'Adwaita'
+# Existing files where the themes are named: (file, [(pattern, replacement)]).
+THEME_KEYS = [
+    ('.config/uwsm/env', [(r'^export HYPRCURSOR_THEME=.*$', f'export HYPRCURSOR_THEME="{CURSOR_THEME}"'),
+                          (r'^export XCURSOR_THEME=.*$', f'export XCURSOR_THEME="{CURSOR_THEME}"')]),
+    ('.icons/default/index.theme', [(r'^Inherits=.*$', f'Inherits={CURSOR_THEME}')]),
+    ('.local/share/icons/default/index.theme', [(r'^Inherits=.*$', f'Inherits={CURSOR_THEME}')]),
+    ('.config/gtk-3.0/settings.ini', [(r'^gtk-icon-theme-name=.*$', f'gtk-icon-theme-name={ICON_THEME}'),
+                                      (r'^gtk-cursor-theme-name=.*$', f'gtk-cursor-theme-name={CURSOR_THEME}')]),
+    ('.config/gtk-4.0/settings.ini', [(r'^gtk-icon-theme-name=.*$', f'gtk-icon-theme-name={ICON_THEME}'),
+                                      (r'^gtk-cursor-theme-name=.*$', f'gtk-cursor-theme-name={CURSOR_THEME}')]),
+    ('.config/qt5ct/qt5ct.conf', [(r'^icon_theme=.*$', f'icon_theme={ICON_THEME}')]),
+    ('.config/qt6ct/qt6ct.conf', [(r'^icon_theme=.*$', f'icon_theme={ICON_THEME}')]),
+]
 
 
 def render(text):
@@ -122,6 +138,13 @@ def plan():
             text = re.sub(r'^color_scheme_path=.*$', f'color_scheme_path={HOME}/.config/{qt}/colors/noctalia.conf',
                           path.read_text(), flags=re.M)
             files[path] = (text, 0o644)
+    for relative, rules in THEME_KEYS:
+        path = HOME/relative
+        if path.exists():
+            text = files[path][0] if path in files else path.read_text()
+            for pattern, replacement in rules:
+                text = re.sub(pattern, lambda _: replacement, text, flags=re.M)
+            files[path] = (text, path.stat().st_mode & 0o777)
     return {path: (text, mode) for path, (text, mode) in files.items()
             if read(path) != text or (path.stat().st_mode & 0o777) != mode}
 
@@ -195,7 +218,10 @@ def post_install():
         palette.parent.mkdir(parents=True, exist_ok=True)
         palette.write_text((STATE/'current/noctalia.json').read_text())
         steps.append('OK  Noctalia palette RiceMinimal')
+    run('GNOME/GTK4 icon theme', ['gsettings', 'set', 'org.gnome.desktop.interface', 'icon-theme', ICON_THEME])
+    run('GNOME/GTK4 cursor theme', ['gsettings', 'set', 'org.gnome.desktop.interface', 'cursor-theme', CURSOR_THEME])
     if os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'):
+        run('cursor in this session', ['hyprctl', 'setcursor', CURSOR_THEME, os.environ.get('XCURSOR_SIZE', '24')])
         run('sync running session', [sys.executable, str(ROOT/'extras/rice.py'), 'sync', '--json'])
     return steps
 

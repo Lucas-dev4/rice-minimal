@@ -154,7 +154,7 @@ Gerenciador de arquivos no terminal, instalado pelo pacote `yazi` do Arch, com `
 
 ## Instalar e restaurar
 
-`python3 scripts/install.py` lista o que mudaria para deixar o sistema igual ao repositório (Hyprland, Fish, Kitty, Neovim, yazi, cliamp, Waypaper, atalhos de terminal e Qt); com `--apply`, valida cada arquivo, salva um backup em `backups/install-*` e grava tudo, desfazendo o que já tinha gravado se algo falhar. Os caminhos são gerados para o usuário e a pasta atuais. O doctor avisa quando um arquivo instalado se afasta do repositório. Pacotes e a tela de login (sudo) ficam de fora.
+`python3 scripts/install.py` lista o que mudaria para deixar o sistema igual ao repositório (Hyprland, Fish, Kitty, Neovim, yazi, cliamp, Waypaper, atalhos de terminal e Qt); com `--apply`, valida cada arquivo, salva um backup em `backups/install-*` e grava tudo, desfazendo o que já tinha gravado se algo falhar. Os caminhos são gerados para o usuário e a pasta atuais. O doctor avisa quando um arquivo instalado se afasta do repositório. Pacotes e a tela de login (sudo) ficam de fora. Ele também fixa ícones e cursor no Adwaita (já incluso no sistema, quase monocromático) no ambiente da sessão, no GTK 3/4, no Qt 5/6, no XWayland e no gsettings; o cursor da sessão aberta troca na hora, e apps já abertos pegam os ícones ao reabrir.
 
 `python3 scripts/restore.py backups/<nome>` mostra o que um backup restauraria; com `--apply`, confere o backup inteiro antes de mexer em qualquer coisa, salva o estado atual num backup de resgate (que o mesmo comando restaura) e volta tudo se algo falhar. O código do projeto nunca é restaurado por ele: isso é papel do git. A tela de login tem o próprio restaurador, `sudo sh /var/backups/rice-greeter/restore.sh`.
 
