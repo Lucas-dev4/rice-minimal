@@ -263,14 +263,33 @@ def monitor_size():
     except (OSError, ValueError, KeyError, IndexError, subprocess.SubprocessError):
         return 1920, 1080
 
+# Matugen schemes offered by the GUI; the choice is kept in STATE/scheme.
+SCHEMES = ('scheme-neutral', 'scheme-tonal-spot', 'scheme-vibrant', 'scheme-expressive')
+
+def scheme():
+    try:
+        value = (STATE/'scheme').read_text().strip()
+        return value if value in SCHEMES else SCHEMES[0]
+    except OSError:
+        return SCHEMES[0]
+
+def set_scheme(value):
+    if value not in SCHEMES:
+        raise ValueError('Unknown scheme: '+value)
+    temporary = STATE/'.scheme.tmp'
+    temporary.write_text(value+'\n')
+    temporary.replace(STATE/'scheme')
+
 def fingerprint(path):
     stat = path.stat()
-    return hashlib.sha256(f'{path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}:neutral-v4'.encode()).hexdigest()
+    # The default keeps its old tag, so palettes made before schemes existed stay cached.
+    tag = 'neutral-v4' if scheme() == SCHEMES[0] else scheme()+'-v4'
+    return hashlib.sha256(f'{path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}:{tag}'.encode()).hexdigest()
 
 def generate(path):
     raw = command(['matugen', 'image', path, '--config', ROOT/'extras/theme/matugen.toml',
                    '--dry-run', '--json', 'hex', '--mode', 'dark',
-                   '--type', 'scheme-neutral', '--source-color-index', '0', '--quiet'])
+                   '--type', scheme(), '--source-color-index', '0', '--quiet'])
     data = json.loads(raw)['colors']
     def color(name):
         return subdued(data[name]['dark']['color'])
@@ -289,7 +308,7 @@ def generate(path):
              'memory':vivid(colors['yellow']), 'volume':vivid(colors['cyan'])}
     contrast = bar_contrast(path, colors, monitor_size(), tints)
     return dict(colors=colors, terminal=terminal, wallpaper=str(path.resolve()), fingerprint=fingerprint(path),
-                generator='matugen 4.2 / scheme-neutral / dark', contrast=contrast,
+                generator=f'matugen 4.2 / {scheme()} / dark', contrast=contrast,
                 created_ns=time.time_ns())
 
 def current_profile():

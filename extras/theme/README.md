@@ -3,8 +3,12 @@
 Installed dependency: Matugen **4.2.0-1.1**, matching CachyOS's available package. No packages were installed. CLI syntax was checked against the installed binary and exercised with real images:
 
 ```sh
-matugen image IMAGE --config extras/theme/matugen.toml --dry-run --json hex --mode dark --type scheme-neutral --source-color-index 0 --quiet
+matugen image IMAGE --config extras/theme/matugen.toml --dry-run --json hex --mode dark --type SCHEME --source-color-index 0 --quiet
 ```
+
+`SCHEME` is kept in `~/.local/state/rice-minimal/theme/scheme` (default `scheme-neutral`; also
+`scheme-tonal-spot`, `scheme-vibrant`, `scheme-expressive`). `rice palette regenerate --scheme vibrant`
+changes it, and later wallpaper changes keep it. Restoring a palette restores its scheme.
 
 The isolated TOML has empty templates. Matugen never applies a wallpaper, runs user hooks or overwrites global application themes. Its dark neutral colors are desaturated further; ANSI colors retain subdued distinctions. Basic terminal foreground/background contrast is checked. Transparency makes actual contrast depend on the image beneath the window.
 

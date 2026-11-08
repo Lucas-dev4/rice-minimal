@@ -173,6 +173,33 @@ class Palette(Envelope):
         self.assertEqual(len(result['warnings']),1)
         sync.assert_not_called()
 
+    def test_scheme_is_kept_and_unknown_ones_are_refused(self):
+        self.assertEqual(theme.scheme(),'scheme-neutral')
+        theme.set_scheme('scheme-vibrant')
+        self.assertEqual(theme.scheme(),'scheme-vibrant')
+        with self.assertRaises(ValueError):
+            theme.set_scheme('scheme-made-up')
+        (self.state/'scheme').write_text('garbage\n')
+        self.assertEqual(theme.scheme(),'scheme-neutral')
+
+    def test_default_scheme_keeps_the_old_fingerprint(self):
+        import hashlib
+        image = self.state/'a.png'
+        image.write_bytes(b'x')
+        stat = image.stat()
+        old = hashlib.sha256(f'{image.resolve()}:{stat.st_size}:{stat.st_mtime_ns}:neutral-v4'.encode()).hexdigest()
+        self.assertEqual(theme.fingerprint(image),old)
+        theme.set_scheme('scheme-expressive')
+        self.assertNotEqual(theme.fingerprint(image),old)
+
+    def test_regenerate_with_scheme_saves_it_or_rolls_it_back(self):
+        with patch.object(theme,'regenerate',return_value='matugen 4.2 / scheme-vibrant / dark'), patch.object(theme,'sync_greeter'), patch.object(cli.signal,'signal'):
+            self.assertTrue(self.run_cli('palette','regenerate','--scheme','vibrant','--json')[1]['ok'])
+        self.assertEqual(theme.scheme(),'scheme-vibrant')
+        with patch.object(theme,'regenerate',return_value='kept-last-palette'), patch.object(theme,'sync_greeter'), patch.object(cli.signal,'signal'):
+            self.run_cli('palette','regenerate','--scheme','expressive','--json')
+        self.assertEqual(theme.scheme(),'scheme-vibrant')
+
 
 class Profile(Envelope):
     def set_profile(self, name, previous=None):

@@ -131,6 +131,20 @@ def thumb_of(wallpaper):
     return str(thumb) if thumb.exists() else None
 
 
+def generated_colors():
+    """The colors Waybar and Kitty really use, read from the active generation (for previews)."""
+    import re
+    current=theme.STATE/'current'
+    def read(name):
+        try:
+            return (current/name).read_text()
+        except OSError:
+            return ''
+    waybar=dict(re.findall(r'@define-color\s+rice_(\w+)\s+([#\w]+);',read('colors.css')))
+    kitty=dict(re.findall(r'^(background|foreground|cursor|color\d+)\s+(#[0-9a-fA-F]{6})\s*$',read('kitty.conf'),re.M))
+    return {'waybar':waybar,'kitty':kitty}
+
+
 def palette_show():
     palette=theme.read_palette()
     try:
@@ -145,14 +159,27 @@ def palette_show():
             'emergency':str(palette.get('generator')).startswith('static'),
             'wallpaper':palette.get('wallpaper'),'thumb':thumb_of(palette.get('wallpaper')),
             'colors':palette['colors'],'previous':summary,
+            'scheme':theme.scheme().removeprefix('scheme-'),'schemes':[s.removeprefix('scheme-') for s in theme.SCHEMES],
+            # The whole rice (Kitty, Waybar, Noctalia) is built for dark; light is not offered.
+            'mode':'dark','modes':['dark'],
+            **generated_colors(),
             # Profile and lock changes also move `previous`, often to identical colors.
             'can_restore':bool(before and before.get('colors') != palette['colors'])}
 
 
-def palette_regenerate():
+def palette_regenerate(scheme=None):
     uninterruptible()
     with theme.locked():
-        result=theme.regenerate(force=True)
+        before=theme.scheme()
+        if scheme:
+            theme.set_scheme(scheme if scheme.startswith('scheme-') else 'scheme-'+scheme)
+        try:
+            result=theme.regenerate(force=True)
+        except Exception:
+            theme.set_scheme(before)
+            raise
+        if result == 'kept-last-palette':
+            theme.set_scheme(before)
     if result == 'kept-last-palette':
         theme.log_action('palette','WARN',result)
         return {'result':result},['Color generation failed; the last palette was kept']
@@ -167,6 +194,10 @@ def palette_restore():
         raise ValueError('The previous palette has the same colors as the current one')
     uninterruptible()
     generation=theme.restore_previous()
+    # Later wallpaper changes keep the scheme of the palette that is now active.
+    used=next((part.strip() for part in str(theme.read_palette().get('generator','')).split('/') if part.strip() in theme.SCHEMES),None)
+    if used:
+        theme.set_scheme(used)
     theme.log_action('palette','OK','restored '+generation)
     theme.sync_greeter()
     warnings=[]
@@ -314,6 +345,8 @@ def main(argv):
     palette=actions.add_parser('palette').add_subparsers(dest='operation',required=True)
     for operation in ('show','regenerate','restore'):
         palette.add_parser(operation,parents=[common])
+    # The scheme chosen here is kept for later wallpaper changes too.
+    palette.choices['regenerate'].add_argument('--scheme',choices=[s.removeprefix('scheme-') for s in theme.SCHEMES])
     profile=actions.add_parser('profile').add_subparsers(dest='operation',required=True)
     profile.add_parser('get',parents=[common])
     profile.add_parser('set',parents=[common]).add_argument('name',choices=['minimal','refined'])
@@ -354,7 +387,7 @@ def main(argv):
         elif name == 'wallpaper list': data=wallpaper_list()
         elif name == 'wallpaper apply': data,warnings=wallpaper_apply(args.path)
         elif name == 'palette show': data=palette_show()
-        elif name == 'palette regenerate': data,warnings=palette_regenerate()
+        elif name == 'palette regenerate': data,warnings=palette_regenerate(args.scheme)
         elif name == 'palette restore': data,warnings=palette_restore()
         elif name == 'profile get': data=profile_get()
         elif name == 'profile set': data,warnings=profile_set(args.name)
