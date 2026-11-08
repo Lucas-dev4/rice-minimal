@@ -11,7 +11,7 @@ FloatingWindow {
     id: window
 
     readonly property var screens: [
-        { name: "WALLPAPERS", source: "screens/WallpaperScreen.qml", hints: [["hjkl", "move"], ["⏎", "apply"], ["/", "search"]] },
+        { name: "WALLPAPERS", source: "screens/WallpaperScreen.qml", hints: [] },
         { name: "SHORTCUTS", source: "screens/ShortcutsScreen.qml", hints: [["jk", "move"], ["⏎", "edit"], ["/", "search"]] },
         { name: "PROFILES", source: "screens/ProfilesScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
         { name: "PALETTE", source: "screens/PaletteScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
@@ -41,6 +41,12 @@ FloatingWindow {
         function close(): void { Qt.quit(); }
         function open(index: int): void { window.select(index); }
         function toggleLog(): void { log.visible = !log.visible; }
+        function shot(path: string): void { content.grabToImage(result => result.saveToFile(path)); }
+        function key(name: string): void {
+            const named = { Return: Qt.Key_Return, Escape: Qt.Key_Escape, Left: Qt.Key_Left, Right: Qt.Key_Right, Up: Qt.Key_Up, Down: Qt.Key_Down, Slash: Qt.Key_Slash };
+            const code = named[name] || name.toUpperCase().charCodeAt(0);
+            window.handle({ key: code, text: named[name] ? "" : name, modifiers: name.length === 1 && name !== name.toLowerCase() ? Qt.ShiftModifier : 0, accepted: false });
+        }
     }
 
     RiceCommand {
@@ -82,7 +88,12 @@ FloatingWindow {
         anchors.fill: parent
         focus: true
 
-        Keys.onPressed: event => {
+        Keys.onPressed: event => window.handle(event)
+    }
+
+    // Test hook: `qs ipc -p gui call rice key l` reaches only this window, never the focused one.
+    function handle(event) {
+        {
             if (boot.visible) {
                 boot.finish();
                 event.accepted = true;
@@ -105,7 +116,13 @@ FloatingWindow {
                 return;
             event.accepted = true;
         }
+    }
 
+    Item {
+        id: content
+        anchors.fill: parent
+        // Solid background, so window grabs look like the screen.
+        Rectangle { anchors.fill: parent; color: Theme.bg }
         // ================= SIDEBAR =================
         Rectangle {
             id: sidebar
@@ -311,7 +328,8 @@ FloatingWindow {
                 anchors.left: leftBlocks.right
                 anchors.right: hintBlock.left
                 label: typed.shown
-                textColor: window.syncError ? Theme.red : Theme.statusColor(log.lastStatus)
+                textColor: window.syncError ? Theme.red : Status.busy ? Theme.accent
+                         : Status.message ? Status.color : Theme.statusColor(log.lastStatus)
                 separator: false
                 elide: true
             }
@@ -383,13 +401,37 @@ FloatingWindow {
         }
     }
 
+    // A new log entry replaces any short message from a screen.
+    Connections {
+        target: log
+        function onLastLineChanged() { Status.message = ""; }
+    }
+
+    // While something runs, an ASCII bar fills to 15/16 and waits for the result.
+    QtObject {
+        id: progress
+        property int filled: 0
+        readonly property string text: Theme.motion
+            ? Status.busy + " [" + "#".repeat(filled) + "-".repeat(16 - filled) + "]"
+            : "[ .. ] " + Status.busy
+    }
+    Timer {
+        running: Status.busy !== ""
+        interval: 30
+        repeat: true
+        onRunningChanged: progress.filled = 0
+        onTriggered: if (progress.filled < 15) progress.filled++
+    }
+
     // The last log line is typed out, one character every 12 ms.
     QtObject {
         id: typed
-        readonly property string full: window.syncError ? "[ FAIL ] " + window.syncError : log.lastLine
+        readonly property string full: window.syncError ? "[ FAIL ] " + window.syncError
+            : Status.busy ? progress.text
+            : Status.message || log.lastLine
         property int count: 0
-        readonly property string shown: Theme.motion ? full.slice(0, count) : full
-        onFullChanged: { count = 0; typer.restart(); }
+        readonly property string shown: Theme.motion && !Status.busy ? full.slice(0, count) : full
+        onFullChanged: if (!Status.busy) { count = 0; typer.restart(); }
     }
     Timer {
         id: typer

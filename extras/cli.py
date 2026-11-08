@@ -71,6 +71,16 @@ def make_thumb(path):
     return target
 
 
+def image_size(path):
+    # Only the header is read; the GUI shows it next to the name.
+    from PIL import Image  # lazy, like make_thumb
+    try:
+        with Image.open(path) as image:
+            return list(image.size)
+    except Exception:
+        return None
+
+
 def wallpaper_list():
     current=theme.current_wallpaper()
     resolved=current.resolve() if current else None
@@ -78,7 +88,8 @@ def wallpaper_list():
     for path in theme.images():
         thumb=thumb_path(path)
         images.append({'path':str(path),'name':path.name,'active':path.resolve()==resolved,
-                       'thumb':str(thumb) if thumb.exists() else None})
+                       'thumb':str(thumb) if thumb.exists() else None,
+                       'bytes':path.stat().st_size,'size':image_size(path)})
     return {'folder':str(theme.library()[0]),'current':str(current) if current else None,'images':images}
 
 

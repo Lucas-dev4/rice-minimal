@@ -88,6 +88,15 @@ class Wallpapers(Envelope):
             data = self.run_cli('wallpaper','list','--json')[1]['data']
         self.assertEqual([i['active'] for i in data['images']],[True,False])
 
+    def test_list_reports_resolution_and_size_and_survives_a_broken_image(self):
+        with patch.object(theme,'current_wallpaper',return_value=None), patch.object(theme,'library',return_value=(self.folder,False)):
+            good, broken = self.run_cli('wallpaper','list','--json')[1]['data']['images']
+        from PIL import Image
+        with Image.open(self.image) as image:
+            self.assertEqual(good['size'],list(image.size))
+        self.assertEqual(good['bytes'],self.image.stat().st_size)
+        self.assertIsNone(broken['size'])
+
     def test_thumbs_stream_skip_cached_and_report_broken_image(self):
         from PIL import Image
         first = self.thumbs()
