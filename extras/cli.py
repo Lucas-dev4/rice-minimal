@@ -371,7 +371,8 @@ def main(argv):
     lock=actions.add_parser('lock').add_subparsers(dest='operation',required=True)
     for operation in ('status','check','update','restore'):
         lock.add_parser(operation,parents=[common])
-    lock.add_parser('dim',parents=[common]).add_argument('level',type=int,choices=[35,55,75])
+    # 35 is the TUI's light level; the GUI slider moves from 55 to 85 in steps of 5.
+    lock.add_parser('dim',parents=[common]).add_argument('level',type=int,choices=[35,*range(55,90,5)])
     for operation in ('trial','activate'):
         lock.add_parser(operation,parents=[common]).add_argument('--confirm',action='store_true')
     args=parser.parse_args(argv)

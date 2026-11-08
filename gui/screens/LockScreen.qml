@@ -3,76 +3,87 @@ import Quickshell
 import qs
 import qs.components
 
+// LW // LOCK — visual only: password and PAM are never touched.
+// The preview mirrors lockscreen.render(): the wallpaper, the dim and the password field alone.
 Item {
     id: root
 
+    property Item keyTarget: null
     property var info: ({})
-    property string message: ""
-    property color messageColor: Theme.muted
-    readonly property bool busy: worker.running || trialRunning
+    property int dim: 55
     property bool trialRunning: false
-    readonly property var levels: [{ label: "LIGHT", value: 35 }, { label: "BALANCED", value: 55 }, { label: "DARK", value: 75 }]
+    property bool armedTrial: false
+    property bool armedRestore: false
+    property bool armedActivate: false
 
-    function report(text, color) {
-        message = text;
-        messageColor = color;
-    }
+    readonly property bool busy: worker.running || trialRunning
+    readonly property var presets: [["LIGHT", 55], ["BALANCED", 60], ["DARK", 75]]
+    readonly property var hints: [["hl", "dim"], ["t", "trial"]]
 
-    function refresh() {
-        reader.call(["lock", "status", "--json"]);
-    }
-
-    function run(args, text) {
-        report("[ RUNNING ] " + text, Theme.muted);
+    function refresh() { reader.call(["lock", "status", "--json"]); }
+    function run(args, label) {
+        if (worker.running) return;
+        Status.start(label);
         worker.call(args);
     }
-
+    // Saved when the slider stops moving, not on every step.
+    function setDim(value) {
+        dim = Math.max(55, Math.min(85, Math.round(value / 5) * 5));
+        save.restart();
+    }
     // Detached so that closing this window cannot interrupt a locked session.
     function trial() {
         trialRunning = true;
-        report("[ RUNNING ] Locking; unlock with your normal password", Theme.warn);
+        Status.say("[ .. ] trial lock — desbloqueie com sua senha normal", Theme.accent);
         Quickshell.execDetached(Theme.rice.concat(["lock", "trial", "--confirm"]));
     }
+    function confirm(flag, action) {
+        if (root[flag]) { root[flag] = false; action(); }
+        else { root[flag] = true; disarm.restart(); }
+    }
+    function externalChange() { settle.restart(); }
 
-    function externalChange() {
-        settle.restart();
+    function handleKey(event) {
+        switch (event.key) {
+        case Qt.Key_Left: case Qt.Key_H: setDim(dim - 5); return true;
+        case Qt.Key_Right: case Qt.Key_L: setDim(dim + 5); return true;
+        case Qt.Key_T: if (!busy && info.session_locked === false) confirm("armedTrial", trial); return true;
+        }
+        return false;
     }
 
     Component.onCompleted: refresh()
-
+    Timer { id: settle; interval: 400; onTriggered: root.refresh() }
+    Timer { id: disarm; interval: 3000; onTriggered: { root.armedTrial = false; root.armedRestore = false; root.armedActivate = false; } }
     Timer {
-        id: settle
-        interval: 400
-        onTriggered: root.refresh()
+        id: save
+        interval: 600
+        onTriggered: if (Math.round((root.info.dim || 0) * 100) !== root.dim) root.run(["lock", "dim", String(root.dim), "--json"], "dim " + root.dim + "%")
     }
 
     RiceCommand {
         id: reader
         onSucceeded: data => {
             root.info = data;
+            if (!save.running && !worker.running)
+                root.dim = Math.round((data.dim || 0.55) * 100);
             if (root.trialRunning && data.session_locked === false && !trialGrace.running) {
                 root.trialRunning = false;
-                root.report("Trial finished; see the log", Theme.muted);
+                Status.say("[ OK ] trial terminado — veja o LOG");
             }
         }
-        onFailed: message => root.report("[ FAIL ] " + message, Theme.fail)
+        onFailed: message => Status.say("[ FAIL ] " + message, Theme.red)
     }
-
     // The session takes a moment to lock after the detached command starts.
-    Timer {
-        id: trialGrace
-        interval: 6000
-        running: root.trialRunning
-        onTriggered: root.refresh()
-    }
-
+    Timer { id: trialGrace; interval: 6000; running: root.trialRunning; onTriggered: root.refresh() }
     RiceCommand {
         id: worker
         onSucceeded: data => {
-            root.report("[ OK ] " + (data.result || "Done").replace("[ OK ] ", ""), Theme.ok);
+            Status.stop();
+            Status.say("[ OK ] " + String(data.result || "lock visuals updated").replace("[ OK ] ", ""));
             root.refresh();
         }
-        onFailed: message => root.report("[ FAIL ] " + message, Theme.fail)
+        onFailed: message => { Status.stop(); Status.say("[ FAIL ] " + message, Theme.red); }
     }
 
     RiceHeader {
@@ -80,145 +91,197 @@ Item {
         title: "LW // LOCK"
     }
 
-    // Mirrors lockscreen.render(): the password field alone, centered.
+    // ================= PREVIEW =================
     Rectangle {
         id: preview
         anchors.top: title.bottom
-        anchors.topMargin: 16
-        width: 480
-        height: 270
-        clip: true
-        color: Theme.surface
+        anchors.topMargin: 14
+        anchors.bottom: foot.top
+        anchors.bottomMargin: 12
+        anchors.left: parent.left
+        anchors.right: panel.left
+        anchors.rightMargin: 20
+        color: Theme.raise
         border.width: 1
-        border.color: Theme.outline
+        border.color: Theme.line
+        clip: true
 
         Image {
             anchors.fill: parent
-            source: root.info.thumb ? "file://" + root.info.thumb : ""
+            anchors.margins: 1
+            source: root.info.wallpaper ? "file://" + root.info.wallpaper : ""
+            sourceSize.width: 900
             fillMode: Image.PreserveAspectCrop
             asynchronous: true
         }
+        // Live dim, while dragging too.
         Rectangle {
             anchors.fill: parent
-            color: Theme.surface
-            opacity: root.info.effective_dim || 0
+            color: Theme.bg
+            opacity: root.dim / 100
+            Behavior on opacity { NumberAnimation { duration: Theme.tMed } }
         }
         Rectangle {
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height * .5 - height / 2
-            width: 120
-            height: 22
-            color: Theme.surfaceAlt
+            anchors.centerIn: parent
+            width: 180
+            height: 26
+            color: Qt.alpha(Theme.bg, 0.6)
             border.width: 1
-            border.color: Theme.outline
-
-            RiceText {
-                anchors.centerIn: parent
-                text: "password"
-                color: Theme.muted
-                font.pixelSize: 11
-            }
+            border.color: Qt.alpha(Theme.fg, 0.25)
+            RiceText { anchors.centerIn: parent; text: "password"; color: Theme.dim; font.pixelSize: Theme.small }
+        }
+        RiceText {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 10
+            text: "prévia — o bloqueio real mostra só o campo de senha"
+            color: Qt.alpha(Theme.fg, 0.45)
+            font.pixelSize: 10
         }
     }
 
-    Column {
-        anchors.top: preview.top
-        anchors.left: preview.right
-        anchors.leftMargin: 20
+    // ================= PANEL =================
+    Rectangle {
+        id: panel
+        anchors.top: title.bottom
+        anchors.topMargin: 14
+        anchors.bottom: foot.top
+        anchors.bottomMargin: 12
         anchors.right: parent.right
-        spacing: 10
+        width: 320
+        color: Theme.panel
+        border.width: 1
+        border.color: Theme.line
 
-        RiceText {
-            text: (root.info.enabled ? "[ OK ] Active" : "[ -- ] Not active; candidate only")
-            color: root.info.enabled ? Theme.ok : Theme.muted
-        }
-        RiceText {
-            text: (root.info.tested ? "[ OK ] Trial passed on this layout" : "[ WARN ] Trial needed")
-            color: root.info.tested ? Theme.ok : Theme.warn
-        }
-        RiceText {
-            text: (root.info.layout_current === false ? "[ WARN ] Monitors changed; press UPDATE" : "[ OK ] Layout: " + (root.info.displays || []).join(", "))
-            color: root.info.layout_current === false ? Theme.warn : Theme.ok
-        }
-        RiceText {
-            text: "Dim: minimum " + Math.round((root.info.dim || 0) * 100) + "%, effective " + Math.round((root.info.effective_dim || 0) * 100) + "%"
-            color: Theme.muted
-        }
-        RiceText {
-            width: parent.width
-            wrapMode: Text.Wrap
-            text: "Visual only: password and PAM are never changed."
-            color: Theme.muted
+        component Check: Row {
+            property string status: "OK"
+            property string text: ""
+            spacing: 10
+            RiceText {
+                text: parent.status === "OK" ? "[ OK ]" : parent.status === "NA" ? "[ -- ]" : "[" + parent.status + "]"
+                color: parent.status === "NA" ? Theme.dim : Theme.statusColor(parent.status)
+            }
+            RiceText { text: parent.text; width: 230; wrapMode: Text.Wrap }
         }
 
-        Row {
-            spacing: 8
+        Column {
+            x: 16
+            y: 16
+            width: parent.width - 32
+            spacing: 6
 
-            Repeater {
-                model: root.levels
-                RiceButton {
-                    required property var modelData
-                    label: (Math.round((root.info.dim || 0) * 100) === modelData.value ? "* " : "") + modelData.label
-                    enabledState: !root.busy
-                    onClicked: root.run(["lock", "dim", String(modelData.value), "--json"], "updating dim")
+            RiceText { text: "STATUS"; color: Theme.faint; font.pixelSize: Theme.small; font.letterSpacing: 1.5; bottomPadding: 4 }
+            Check { status: root.info.enabled ? "OK" : "NA"; text: root.info.enabled ? "Active" : "Not active; candidate only" }
+            Check { status: root.info.tested ? "OK" : "WARN"; text: root.info.tested ? "Trial passed on this layout" : "Trial needed" }
+            Check {
+                status: root.info.layout_current === false ? "WARN" : "OK"
+                text: root.info.layout_current === false ? "Monitors changed; press UPDATE" : "Layout: " + (root.info.displays || []).join(", ")
+            }
+            Check { status: "NA"; text: "Dim: mínimo " + root.dim + "%, efetivo " + Math.round((root.info.effective_dim || 0) * 100) + "%" }
+
+            Item { width: 1; height: 14 }
+            Row {
+                spacing: 6
+                RiceText { text: "DIM"; color: Theme.faint; font.pixelSize: Theme.small; font.letterSpacing: 1.5 }
+                RiceText { text: root.dim + "%"; color: Theme.accent; font.pixelSize: Theme.small }
+            }
+
+            // Slider 55..85, step 5.
+            Item {
+                id: slider
+                width: parent.width
+                height: 22
+                readonly property real fraction: (root.dim - 55) / 30
+                Rectangle { y: 10; width: parent.width; height: 2; color: Theme.line2 }
+                Rectangle { y: 10; width: slider.fraction * parent.width; height: 2; color: Theme.accent }
+                Rectangle {
+                    x: slider.fraction * (parent.width - width)
+                    y: 4
+                    width: 10
+                    height: 14
+                    color: Theme.accent
+                    Behavior on x { NumberAnimation { duration: Theme.tFast; easing.type: Theme.ease } }
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    function pick(x) { root.setDim(55 + Math.max(0, Math.min(1, x / width)) * 30); }
+                    onPressed: mouse => pick(mouse.x)
+                    onPositionChanged: mouse => { if (pressed) pick(mouse.x); }
+                    onReleased: root.keyTarget.forceActiveFocus()
                 }
             }
+            Row {
+                spacing: 6
+                topPadding: 4
+                Repeater {
+                    model: root.presets
+                    Chip {
+                        required property var modelData
+                        label: modelData[0]
+                        on: root.dim === modelData[1]
+                        onClicked: root.setDim(modelData[1])
+                    }
+                }
+            }
+            RiceText {
+                width: parent.width
+                topPadding: 12
+                wrapMode: Text.Wrap
+                text: "visual only — senha e PAM nunca são alterados."
+                color: Theme.faint
+                font.pixelSize: Theme.small
+            }
+            RiceText {
+                width: parent.width
+                topPadding: 8
+                visible: root.armedTrial
+                wrapMode: Text.Wrap
+                text: "⚠ isto bloqueia a sessão de verdade. Desbloqueie com sua senha normal. Se a tela falhar: Ctrl+Alt+F3, entre e rode: rice lock-restore"
+                color: Theme.yel
+                font.pixelSize: Theme.small
+            }
         }
     }
 
-    RiceText {
-        anchors.bottom: actions.top
-        anchors.bottomMargin: 10
-        width: parent.width
-        wrapMode: Text.Wrap
-        visible: trialButton.armed
-        text: "[ WARN ] This really locks the session. Unlock with your normal password. If the screen fails: Ctrl+Alt+F3, log in, then run: rice lock-restore"
-        color: Theme.warn
-    }
-
+    // ================= FOOTER =================
     Item {
-        id: actions
+        id: foot
         anchors.bottom: parent.bottom
         width: parent.width
-        height: 66
-
-        RiceText {
-            width: parent.width
-            elide: Text.ElideRight
-            text: root.message
-            color: root.messageColor
-        }
-
+        height: trialButton.height + 10
+        Rectangle { width: parent.width; height: 1; color: Theme.line }
         Row {
             anchors.bottom: parent.bottom
+            anchors.bottomMargin: 4
+            spacing: 6
+            RiceText { text: "●"; color: root.info.enabled ? Theme.ok : Theme.dim }
+            RiceText { text: root.info.enabled ? "ACTIVE" : "CANDIDATE"; color: Theme.dim }
+        }
+        Row {
             anchors.right: parent.right
-            spacing: 10
-
-            RiceButton {
-                label: "CHECK"
-                enabledState: !root.busy
-                onClicked: root.run(["lock", "check", "--json"], "validating")
-            }
-            RiceButton {
-                label: "UPDATE"
-                enabledState: !root.busy
-                onClicked: root.run(["lock", "update", "--json"], "updating candidate")
-            }
-            ConfirmButton {
-                action: "RESTORE VISUALS"
+            anchors.bottom: parent.bottom
+            spacing: 8
+            AccentButton { ghost: true; label: "CHECK"; enabledState: !root.busy; onClicked: root.run(["lock", "check", "--json"], "validating") }
+            AccentButton {
+                ghost: true
+                label: root.armedRestore ? "CONFIRM?" : "RESTORE VISUALS"
                 enabledState: !root.busy && root.info.enabled === true
-                onConfirmed: root.run(["lock", "restore", "--json"], "restoring")
+                onClicked: root.confirm("armedRestore", () => root.run(["lock", "restore", "--json"], "restoring"))
             }
-            ConfirmButton {
+            AccentButton { ghost: true; label: "UPDATE"; enabledState: !root.busy; onClicked: root.run(["lock", "update", "--json"], "updating candidate") }
+            AccentButton {
+                ghost: true
+                visible: !root.info.enabled
+                label: root.armedActivate ? "CONFIRM?" : "ACTIVATE"
+                enabledState: !root.busy && root.info.tested === true
+                onClicked: root.confirm("armedActivate", () => root.run(["lock", "activate", "--confirm", "--json"], "activating"))
+            }
+            AccentButton {
                 id: trialButton
-                action: "TRIAL LOCK"
+                label: root.armedTrial ? "CONFIRM?" : root.trialRunning ? "LOCKED…" : "TRIAL LOCK"
                 enabledState: !root.busy && root.info.session_locked === false
-                onConfirmed: root.trial()
-            }
-            ConfirmButton {
-                action: root.info.enabled ? "ACTIVE" : "ACTIVATE"
-                enabledState: !root.busy && root.info.tested === true && !root.info.enabled
-                onConfirmed: root.run(["lock", "activate", "--confirm", "--json"], "activating")
+                onClicked: root.confirm("armedTrial", root.trial)
             }
         }
     }

@@ -420,9 +420,13 @@ class Lock(Envelope):
             data = self.run_cli('lock','status','--json')[1]['data']
         self.assertEqual((data['effective_dim'],data['session_locked'],data['enabled']),(.6,False,False))
 
-    def test_dim_only_accepts_the_three_levels(self):
-        with patch.object(sys,'stderr',StringIO()), self.assertRaises(SystemExit):
-            cli.main(['lock','dim','10'])
+    def test_dim_accepts_the_slider_steps_and_nothing_else(self):
+        for level in ('10','50','57','90'):
+            with patch.object(sys,'stderr',StringIO()), self.assertRaises(SystemExit):
+                cli.main(['lock','dim',level])
+        with patch.object(cli.lockscreen,'set_dim',return_value=.65) as set_dim:
+            self.assertTrue(self.run_cli('lock','dim','65','--json')[1]['ok'])
+        set_dim.assert_called_once_with(.65)
 
     def test_candidate_is_not_published_from_a_missing_palette(self):
         (self.state/'palette-a'/'palette.json').unlink()
