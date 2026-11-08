@@ -630,6 +630,9 @@ def reveal(path):
         ready = Path(os.environ.get('XDG_RUNTIME_DIR', '/tmp'))/'rice-reveal.ready'
         ready.unlink(missing_ok=True)
         env = dict(os.environ, RICE_REVEAL_IMAGE=str(target), RICE_REVEAL_READY=str(ready))
+        # The GUI runs on the software renderer and its children inherit it; the reveal is a
+        # GPU shader and draws nothing there, leaving only the black cover.
+        env.pop('QT_QUICK_BACKEND', None)
         subprocess.Popen(['qs','-n','-p',str(REVEAL)], env=env, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         for _ in range(15):

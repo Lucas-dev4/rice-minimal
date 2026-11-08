@@ -83,7 +83,14 @@ ShellRoot {
                 }
 
                 function tryBuild() {
-                    if (!covered || photo.status !== Image.Ready || build.running || art.visible) return;
+                    if (!covered || photo.status !== Image.Ready || build.running || art.visible || photo.visible) return;
+                    // Without a GPU the shader draws nothing: show the picture plainly instead.
+                    if (art.GraphicsInfo.api === GraphicsInfo.Software) {
+                        crop.hideSource = false;
+                        photo.visible = true;
+                        plain.start();
+                        return;
+                    }
                     crop.scheduleUpdate();
                     art.visible = true;
                     build.start();
@@ -95,6 +102,12 @@ ShellRoot {
                 id: cover
                 NumberAnimation { target: stage; property: "opacity"; to: 1; duration: 140; easing.type: Easing.OutCubic }
                 ScriptAction { script: { if (ready.path) ready.setText("1\n"); stage.covered = true; stage.tryBuild(); } }
+            }
+            SequentialAnimation {
+                id: plain
+                PauseAnimation { duration: 600 }
+                NumberAnimation { target: stage; property: "opacity"; to: 0; duration: 400; easing.type: Easing.OutCubic }
+                ScriptAction { script: Qt.quit() }
             }
             SequentialAnimation {
                 id: build
