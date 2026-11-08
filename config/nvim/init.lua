@@ -10,7 +10,7 @@
 local opt = vim.opt
 
 opt.number = true             -- número das linhas
-opt.relativenumber = true     -- números relativos ajudam a pular linhas (5j, 3k)
+opt.relativenumber = false    -- números fixos
 opt.cursorline = true         -- destaca a linha do cursor
 opt.signcolumn = "yes"        -- coluna lateral fixa: o texto não "pula"
 opt.scrolloff = 6             -- mantém linhas visíveis acima/abaixo do cursor
@@ -21,7 +21,7 @@ opt.shortmess:append("I")     -- sem tela de boas-vindas
 opt.showmode = false          -- o modo já aparece na lualine
 opt.undofile = true           -- desfazer continua funcionando depois de fechar
 opt.swapfile = false          -- o autosave já protege o trabalho
-opt.updatetime = 300
+opt.updatetime = 1000         -- 1 s parado digitando dispara o autosave
 opt.ignorecase = true         -- busca sem diferenciar maiúsculas...
 opt.smartcase = true          -- ...a não ser que você digite uma maiúscula
 opt.splitright = true
@@ -190,6 +190,8 @@ vim.api.nvim_create_user_command("RiceTheme", apply_theme, { desc = "Recarrega a
 -- -----------------------------------------------------------------------------
 -- 5. Autosave
 -- -----------------------------------------------------------------------------
+-- Salva ao sair do modo inserção, ao trocar de buffer ou de janela, depois de
+-- qualquer edição no modo normal e após 1 s parado digitando (sem sair do insert).
 -- Salva só arquivos reais, com nome, alterados e graváveis.
 local function autosave(buf)
 	local bo = vim.bo[buf]
@@ -199,7 +201,7 @@ local function autosave(buf)
 	end
 end
 
-vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave" }, {
+vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave", "FocusLost", "TextChanged", "CursorHoldI" }, {
 	group = vim.api.nvim_create_augroup("RiceAutosave", { clear = true }),
 	callback = function(args) autosave(args.buf) end,
 })
@@ -278,7 +280,7 @@ map("x", "<C-y>", "<Esc><C-r>", { desc = "Refazer" })
 map({ "n", "i", "x" }, "<C-s>", "<Cmd>update<CR>", { desc = "Salvar" })
 map({ "n", "i", "x" }, "<C-q>", "<Cmd>confirm qa<CR>", { desc = "Sair" })
 
--- Alt+j / Alt+k: move a linha (ou a seleção) sem mexer na indentação,
+-- Alt+↑ / Alt+↓: move a linha (ou a seleção) sem mexer na indentação,
 -- para não deslocar rótulos de Assembly. Use :Org para arrumar depois.
 local function move_line(dir)
 	local lnum = vim.fn.line(".")
@@ -290,13 +292,205 @@ local function move_line(dir)
 	vim.api.nvim_win_set_cursor(0, { vim.fn.line("."), col })
 end
 
-map({ "n", "i" }, "<A-j>", function() move_line(1) end, { desc = "Mover linha para baixo" })
-map({ "n", "i" }, "<A-k>", function() move_line(-1) end, { desc = "Mover linha para cima" })
-map("x", "<A-j>", ":<C-u>silent! '<,'>move '>+1<CR>gv", { desc = "Mover seleção para baixo", silent = true })
-map("x", "<A-k>", ":<C-u>silent! '<,'>move '<-2<CR>gv", { desc = "Mover seleção para cima", silent = true })
+map({ "n", "i" }, "<A-Down>", function() move_line(1) end, { desc = "Mover linha para baixo" })
+map({ "n", "i" }, "<A-Up>", function() move_line(-1) end, { desc = "Mover linha para cima" })
+map("x", "<A-Down>", ":<C-u>silent! '<,'>move '>+1<CR>gv", { desc = "Mover seleção para baixo", silent = true })
+map("x", "<A-Up>", ":<C-u>silent! '<,'>move '<-2<CR>gv", { desc = "Mover seleção para cima", silent = true })
+
+-- Shift+setas: seleção. Para cima/baixo seleciona linhas inteiras.
+-- No modo inserção, <C-o> abre a seleção e o Esc volta para o insert.
+map("n", "<S-Up>", "Vk", { desc = "Selecionar linha acima" })
+map("n", "<S-Down>", "Vj", { desc = "Selecionar linha abaixo" })
+map("n", "<S-Left>", "vh", { desc = "Selecionar à esquerda" })
+map("n", "<S-Right>", "vl", { desc = "Selecionar à direita" })
+map("i", "<S-Up>", "<C-o>Vk", { desc = "Selecionar linha acima" })
+map("i", "<S-Down>", "<C-o>Vj", { desc = "Selecionar linha abaixo" })
+map("i", "<S-Left>", "<C-o>vh", { desc = "Selecionar à esquerda" })
+map("i", "<S-Right>", "<C-o>vl", { desc = "Selecionar à direita" })
+map("x", "<S-Up>", "k", { desc = "Estender seleção para cima" })
+map("x", "<S-Down>", "j", { desc = "Estender seleção para baixo" })
+map("x", "<S-Left>", "h", { desc = "Estender seleção à esquerda" })
+map("x", "<S-Right>", "l", { desc = "Estender seleção à direita" })
 
 -- -----------------------------------------------------------------------------
--- 8. Terminal externo (sem terminal embutido)
+-- 8. Pares automáticos: ( [ { ' "
+-- -----------------------------------------------------------------------------
+local closing = { ["("] = ")", ["["] = "]", ["{"] = "}", ['"'] = '"', ["'"] = "'" }
+
+-- Caracteres antes e depois do cursor.
+local function around()
+	local col = vim.api.nvim_win_get_cursor(0)[2]
+	local line = vim.api.nvim_get_current_line()
+	return line:sub(col, col), line:sub(col + 1, col + 1)
+end
+
+-- <C-g>U mantém o desfazer e o "." funcionando depois de mover o cursor.
+local right, left = "<C-g>U<Right>", "<C-g>U<Left>"
+
+for open, close in pairs(closing) do
+	map("i", open, function()
+		local before, after = around()
+		if open == close then
+			if after == close then return right end      -- pula a aspa que já fecha
+			if before:match("[%w]") then return open end  -- it's, don't: só um apóstrofo
+		end
+		if after:match("[%w]") then return open end      -- antes de uma palavra, não fecha
+		return open .. close .. left
+	end, { expr = true, desc = "Par automático " .. open .. close })
+end
+
+-- Digitar o fechamento quando ele já está à direita só passa por cima.
+for _, close in ipairs({ ")", "]", "}" }) do
+	map("i", close, function()
+		local _, after = around()
+		return after == close and right or close
+	end, { expr = true })
+end
+
+-- Backspace entre um par vazio apaga os dois.
+map("i", "<BS>", function()
+	local before, after = around()
+	return closing[before] == after and after ~= "" and "<BS><Del>" or "<BS>"
+end, { expr = true })
+
+-- Enter entre { } abre um bloco com a linha do meio já indentada.
+map("i", "<CR>", function()
+	local before, after = around()
+	return (before == "{" and after == "}") and "<CR><Esc>O" or "<CR>"
+end, { expr = true })
+
+-- -----------------------------------------------------------------------------
+-- 9. Ctrl+R: compila e roda o arquivo, saída num painel à direita
+-- -----------------------------------------------------------------------------
+-- Não é um terminal: o programa não recebe teclado (a entrada fica vazia).
+local run = { buf = nil, win = nil, job = nil }
+local build = vim.fn.stdpath("cache") .. "/rice-run"
+
+local function has(tool) return vim.fn.executable(tool) == 1 end
+
+-- Passos (comandos em sequência) para o arquivo atual, ou nil e um motivo.
+local function steps_for(file)
+	local ft, bin = vim.bo.filetype, build .. "/" .. vim.fn.fnamemodify(file, ":t:r")
+	local text = table.concat(vim.api.nvim_buf_get_lines(0, 0, -1, false), "\n")
+	if ft == "c" then
+		return { { "gcc", "-std=c17", "-Wall", "-Wextra", "-g", file, "-o", bin, "-lm" }, { bin } }
+	elseif ft == "cpp" then
+		return { { "g++", "-std=c++20", "-Wall", "-Wextra", "-g", file, "-o", bin }, { bin } }
+	elseif ft == "nasm" then
+		if not has("nasm") then return nil, "nasm não está instalado: sudo pacman -S nasm" end
+		-- Com "global main" o programa usa a libc e é ligado pelo gcc; com _start, pelo ld.
+		local link = text:match("global%s+main") and { "gcc", "-no-pie", bin .. ".o", "-o", bin } or { "ld", bin .. ".o", "-o", bin }
+		return { { "nasm", "-f", "elf64", "-g", "-F", "dwarf", file, "-o", bin .. ".o" }, link, { bin } }
+	elseif ft == "asm" then
+		local start = text:match("_start") and { "-nostdlib", "-static" } or {}
+		if has("aarch64-linux-gnu-gcc") and has("qemu-aarch64") and (text:match("%f[%w]x[0-9]+%f[^%w]") or text:match("svc")) then
+			return { vim.list_extend({ "aarch64-linux-gnu-gcc", "-static", file, "-o", bin }, start), { "qemu-aarch64", bin } }
+		elseif text:match("svc") or text:match("%f[%w]x[0-9]+,") then
+			return nil, "ARM precisa de aarch64-linux-gnu-gcc e qemu-user (qemu-aarch64)"
+		end
+		return { vim.list_extend({ "gcc", file, "-o", bin }, start), { bin } }
+	elseif ft == "python" then return { { "python3", file } }
+	elseif ft == "lua" then return { { "lua", file } }
+	elseif ft == "sh" or ft == "bash" then return { { "bash", file } }
+	end
+	return nil, "sem regra para rodar arquivos do tipo '" .. (ft ~= "" and ft or "?") .. "'"
+end
+
+-- Abre (ou reaproveita) o painel à direita sem tirar o foco do código.
+local function panel()
+	if not (run.buf and vim.api.nvim_buf_is_valid(run.buf)) then
+		run.buf = vim.api.nvim_create_buf(false, true)
+		vim.bo[run.buf].bufhidden = "hide"
+		vim.api.nvim_buf_set_name(run.buf, "[saida]")
+		-- q fecha o painel e para o programa, se ainda estiver rodando.
+		vim.keymap.set("n", "q", function()
+			if run.job then vim.fn.jobstop(run.job) end
+			if run.win and vim.api.nvim_win_is_valid(run.win) then vim.api.nvim_win_close(run.win, true) end
+		end, { buffer = run.buf, desc = "Fechar a saída" })
+	end
+	if not (run.win and vim.api.nvim_win_is_valid(run.win)) then
+		local code = vim.api.nvim_get_current_win()
+		vim.cmd("botright vsplit")
+		run.win = vim.api.nvim_get_current_win()
+		vim.api.nvim_win_set_buf(run.win, run.buf)
+		vim.api.nvim_win_set_width(run.win, math.max(40, math.floor(vim.o.columns * 0.35)))
+		for option, value in pairs({ number = false, relativenumber = false, signcolumn = "no",
+			wrap = true, list = false, cursorline = false, winfixwidth = true }) do
+			vim.wo[run.win][option] = value
+		end
+		vim.api.nvim_set_current_win(code)
+	end
+	vim.bo[run.buf].modifiable = true
+	vim.api.nvim_buf_set_lines(run.buf, 0, -1, false, {})
+end
+
+local ns = vim.api.nvim_create_namespace("rice-run")
+
+local function write(lines, group)
+	if not vim.api.nvim_buf_is_valid(run.buf) then return end
+	local first = vim.api.nvim_buf_line_count(run.buf)
+	if first == 1 and vim.api.nvim_buf_get_lines(run.buf, 0, 1, false)[1] == "" then first = 0 end
+	vim.api.nvim_buf_set_lines(run.buf, first, -1, false, lines)
+	if group then
+		for i = first, first + #lines - 1 do
+			vim.api.nvim_buf_set_extmark(run.buf, ns, i, 0, { line_hl_group = group })
+		end
+	end
+	if run.win and vim.api.nvim_win_is_valid(run.win) then
+		vim.api.nvim_win_set_cursor(run.win, { vim.api.nvim_buf_line_count(run.buf), 0 })
+	end
+end
+
+local function run_file()
+	local file = vim.api.nvim_buf_get_name(0)
+	if file == "" then return vim.notify("Salve o arquivo antes de rodar", vim.log.levels.WARN) end
+	vim.cmd("silent! update")
+	local steps, reason = steps_for(file)
+	if run.job then vim.fn.jobstop(run.job) end
+	panel()
+	if not steps then return write({ "[ !! ] " .. reason }, "WarningMsg") end
+	vim.fn.mkdir(build, "p")
+	local started = vim.uv.hrtime()
+
+	local function step(index)
+		local cmd = steps[index]
+		-- Mostra só os nomes dos arquivos; o caminho completo não cabe no painel.
+		local shown = vim.tbl_map(function(arg)
+			return (arg == file or arg:find(build, 1, true) == 1) and vim.fn.fnamemodify(arg, ":t") or arg
+		end, cmd)
+		write({ "$ " .. table.concat(shown, " ") }, "Comment")
+		local function output(_, data)
+			if data then
+				if data[#data] == "" then table.remove(data) end
+				if #data > 0 then write(data) end
+			end
+		end
+		run.job = vim.fn.jobstart(cmd, {
+			cwd = vim.fn.fnamemodify(file, ":h"),
+			on_stdout = output,
+			on_stderr = output,
+			on_exit = function(_, code)
+				run.job = nil
+				if code == 0 and index < #steps then return step(index + 1) end
+				local ms = (vim.uv.hrtime() - started) / 1e6
+				write({ "", string.format("[ %s ] saiu com %d em %.2f s", code == 0 and "OK" or "FAIL", code, ms / 1000) },
+					code == 0 and "DiagnosticOk" or "DiagnosticError")
+			end,
+		})
+		if run.job <= 0 then
+			run.job = nil
+			write({ "[ FAIL ] não foi possível executar " .. cmd[1] }, "DiagnosticError")
+		else
+			vim.fn.chanclose(run.job, "stdin")  -- o programa recebe entrada vazia
+		end
+	end
+	step(1)
+end
+
+map({ "n", "i", "x" }, "<C-r>", run_file, { desc = "Compilar e rodar o arquivo" })
+
+-- -----------------------------------------------------------------------------
+-- 10. Terminal externo (sem terminal embutido)
 -- -----------------------------------------------------------------------------
 -- Ctrl+T abre um Kitty separado em ~/Vscode; a pasta é criada se não existir.
 local function external_terminal()
