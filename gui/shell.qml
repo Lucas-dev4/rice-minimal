@@ -12,7 +12,7 @@ FloatingWindow {
 
     readonly property var screens: [
         { name: "WALLPAPERS", source: "screens/WallpaperScreen.qml", hints: [] },
-        { name: "SHORTCUTS", source: "screens/ShortcutsScreen.qml", hints: [["jk", "move"], ["⏎", "edit"], ["/", "search"]] },
+        { name: "SHORTCUTS", source: "screens/ShortcutsScreen.qml", hints: [] },
         { name: "PROFILES", source: "screens/ProfilesScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
         { name: "PALETTE", source: "screens/PaletteScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
         { name: "DOCTOR", source: "screens/DoctorScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
@@ -44,8 +44,14 @@ FloatingWindow {
         function shot(path: string): void { content.grabToImage(result => result.saveToFile(path)); }
         function key(name: string): void {
             const named = { Return: Qt.Key_Return, Escape: Qt.Key_Escape, Left: Qt.Key_Left, Right: Qt.Key_Right, Up: Qt.Key_Up, Down: Qt.Key_Down, Slash: Qt.Key_Slash };
-            const code = named[name] || name.toUpperCase().charCodeAt(0);
-            window.handle({ key: code, text: named[name] ? "" : name, modifiers: name.length === 1 && name !== name.toLowerCase() ? Qt.ShiftModifier : 0, accepted: false });
+            // "SUPER+SHIFT+X" style: modifiers before the last token.
+            const parts = name.length > 1 && name.indexOf("+") > 0 ? name.split("+") : [name];
+            const last = parts.pop();
+            const flags = { SUPER: Qt.MetaModifier, CONTROL: Qt.ControlModifier, ALT: Qt.AltModifier, SHIFT: Qt.ShiftModifier };
+            let modifiers = last.length === 1 && last !== last.toLowerCase() && parts.length === 0 ? Qt.ShiftModifier : 0;
+            for (const m of parts) modifiers |= flags[m] || 0;
+            const code = named[last] || last.toUpperCase().charCodeAt(0);
+            window.handle({ key: code, text: named[last] ? "" : last, modifiers: modifiers, accepted: false });
         }
     }
 
