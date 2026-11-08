@@ -376,7 +376,7 @@ end, { expr = true })
 -- 9. Ctrl+R: compila e roda o arquivo, saída num painel à direita
 -- -----------------------------------------------------------------------------
 -- Não é um terminal: o teclado do programa vem da caixa de entrada (Alt+I).
-local run = { buf = nil, win = nil, job = nil, input_win = nil }
+local run = { buf = nil, win = nil, job = nil, input_win = nil, last_file = nil }
 local build = vim.fn.stdpath("cache") .. "/rice-run"
 local inputs = vim.fn.stdpath("state") .. "/rice-run"
 
@@ -385,10 +385,37 @@ local function input_path(file)
 	return inputs .. "/" .. vim.fn.fnamemodify(file, ":t") .. "-" .. vim.fn.sha256(file):sub(1, 12) .. ".in"
 end
 
+-- Acha um buffer pelo caminho exato. vim.fn.bufnr() trata o nome como padrão:
+-- em "[saida]", os colchetes casariam com qualquer letra s, a, i ou d.
+local function find_buf(path)
+	for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+		if vim.api.nvim_buf_get_name(buf) == path then return buf end
+	end
+	return -1
+end
+
+-- O arquivo de código a rodar: o dono da caixa de entrada, o buffer atual se for
+-- um arquivo de verdade ou, no painel de saída, o último arquivo de código usado.
+local function code_file()
+	if vim.b.rice_target then return vim.b.rice_target end
+	local name = vim.api.nvim_buf_get_name(0)
+	if vim.bo.buftype == "" and name ~= "" then return name end
+	return run.last_file
+end
+
+vim.api.nvim_create_autocmd("BufEnter", {
+	callback = function(args)
+		local name = vim.api.nvim_buf_get_name(args.buf)
+		if vim.bo[args.buf].buftype == "" and name ~= "" and not vim.b[args.buf].rice_target then
+			run.last_file = name
+		end
+	end,
+})
+
 -- O texto da entrada: do buffer aberto (mesmo sem salvar) ou do disco.
 local function input_text(file)
 	local path = input_path(file)
-	local buf = vim.fn.bufnr(path)
+	local buf = find_buf(path)
 	local lines = buf ~= -1 and vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 		or (vim.fn.filereadable(path) == 1 and vim.fn.readfile(path) or {})
 	local text = table.concat(lines, "\n")
@@ -477,11 +504,11 @@ local function write(lines, group)
 end
 
 local function run_file()
-	-- Dentro da caixa de entrada, Ctrl+R roda o arquivo de código dela.
-	local buf = vim.b.rice_target and vim.fn.bufnr(vim.b.rice_target) or vim.api.nvim_get_current_buf()
-	if buf == -1 then buf = vim.fn.bufadd(vim.b.rice_target); vim.fn.bufload(buf) end
-	local file = vim.api.nvim_buf_get_name(buf)
-	if file == "" then return vim.notify("Salve o arquivo antes de rodar", vim.log.levels.WARN) end
+	local file = code_file()
+	if not file then return vim.notify("Salve o arquivo antes de rodar", vim.log.levels.WARN) end
+	local buf = find_buf(file)
+	if buf == -1 then buf = vim.fn.bufadd(file); vim.fn.bufload(buf) end
+	run.last_file = file
 	vim.cmd("silent! update")
 	vim.api.nvim_buf_call(buf, function() vim.cmd("silent! update") end)
 	local steps, reason = steps_for(file, buf)
@@ -492,8 +519,10 @@ local function run_file()
 	vim.fn.mkdir(build, "p")
 	local started = vim.uv.hrtime()
 	if stdin then
-		local count = select(2, stdin:gsub("\n", ""))
-		write({ string.format("< entrada: %d linha%s", count, count == 1 and "" or "s") }, "Comment")
+		-- Mostra o que vai para o programa; strtrans deixa caracteres invisíveis à vista.
+		local lines = vim.split(stdin, "\n", { trimempty = true })
+		local shown = vim.fn.strtrans(lines[1] or ""):sub(1, 40)
+		write({ string.format("< entrada: %s%s", shown, #lines > 1 and string.format("  (+%d linhas)", #lines - 1) or "") }, "Comment")
 	end
 
 	local function step(index)
@@ -542,8 +571,8 @@ local function toggle_input()
 		run.input_win = nil
 		return
 	end
-	local file = vim.b.rice_target or vim.api.nvim_buf_get_name(0)
-	if file == "" then return vim.notify("Salve o arquivo antes de criar a entrada", vim.log.levels.WARN) end
+	local file = code_file()
+	if not file then return vim.notify("Abra um arquivo de código antes de criar a entrada", vim.log.levels.WARN) end
 	vim.fn.mkdir(inputs, "p")
 	-- A entrada sempre fica abaixo da saída, na mesma coluna. Sozinha numa coluna,
 	-- fixar a altura dela empurraria as linhas que sobram para a linha de comando.
