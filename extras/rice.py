@@ -113,10 +113,14 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action',nargs='?',choices=['doctor','lock-check','lock-trial','lock-restore'])
     parser.add_argument('--json',action='store_true')
+    parser.add_argument('--stream',action='store_true',help='doctor: one JSON line per check, as each finishes')
     parser.add_argument('--confirm',action='store_true',help='Explicit consent for a real lock trial')
     args=parser.parse_args()
     if args.action == 'doctor':
         import json
+        if args.stream:
+            result=doctor.inspect(lambda item: print(json.dumps(item,ensure_ascii=False),flush=True))
+            return int(any(r['status']=='FAIL' for r in result))
         result=doctor.inspect()
         print(json.dumps(result,indent=2,ensure_ascii=False) if args.json else '\n'.join(doctor.lines(result)))
         return int(any(r['status']=='FAIL' for r in result))

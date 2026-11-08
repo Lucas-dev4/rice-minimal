@@ -7,10 +7,13 @@ import subprocess
 from theme import theme
 
 
-def inspect():
+def inspect(report=None):
+    """report, when given, receives each result as soon as it is known (rice doctor --stream)."""
     results=[]
     def add(status,name,detail=''):
         results.append({'status':status,'name':name,'detail':str(detail)})
+        if report:
+            report(results[-1])
     def command(name,args,empty=False):
         try:
             p=subprocess.run([str(x) for x in args],capture_output=True,text=True,timeout=8)

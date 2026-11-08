@@ -113,4 +113,13 @@ polkit_agent = true
         for forbidden in ('config-set','config-reload','regenerate','session lock','wallpaper-set'):
             self.assertNotIn(forbidden,joined)
 
+    def test_doctor_stream_reports_every_result_in_order(self):
+        def run(args,**kwargs):
+            return type('P',(),{'returncode':0,'stdout':'','stderr':''})()
+        seen=[]
+        with patch.object(doctor.subprocess,'run',side_effect=run),patch.object(lockscreen,'validate',return_value='candidate valid'):
+            results=doctor.inspect(seen.append)
+        self.assertEqual(seen,results)
+        self.assertGreater(len(results),20)
+
 if __name__ == '__main__': unittest.main()
