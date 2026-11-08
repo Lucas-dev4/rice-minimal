@@ -220,6 +220,22 @@ vim.api.nvim_create_autocmd("TextChangedI", {
 })
 
 -- -----------------------------------------------------------------------------
+-- 5b. Modo inserção ao entrar
+-- -----------------------------------------------------------------------------
+-- Abrir o Neovim, um arquivo ou voltar para uma janela editável já entra no insert.
+-- Janelas especiais (saída, ajuda, lazy) ficam no modo normal.
+vim.api.nvim_create_autocmd({ "VimEnter", "BufEnter", "WinEnter" }, {
+	callback = function(args)
+		local bo = vim.bo[args.buf]
+		if bo.buftype == "" and bo.modifiable and not bo.readonly then
+			vim.cmd.startinsert()
+		elseif bo.buftype ~= "" then
+			vim.cmd.stopinsert()  -- saída, ajuda e afins não recebem digitação
+		end
+	end,
+})
+
+-- -----------------------------------------------------------------------------
 -- 6. :Org — reindenta o arquivo inteiro com TAB real
 -- -----------------------------------------------------------------------------
 -- Converte a indentação de cada linha para TABs.
@@ -376,7 +392,7 @@ end, { expr = true })
 -- 9. Ctrl+R: compila e roda o arquivo, saída num painel à direita
 -- -----------------------------------------------------------------------------
 -- Não é um terminal: o teclado do programa vem da caixa de entrada (Alt+I).
-local run = { buf = nil, win = nil, job = nil, input_win = nil, last_file = nil }
+local run = { buf = nil, win = nil, job = nil, input_win = nil, last_file = nil, code_win = nil }
 local build = vim.fn.stdpath("cache") .. "/rice-run"
 local inputs = vim.fn.stdpath("state") .. "/rice-run"
 
@@ -396,6 +412,14 @@ end
 
 -- O arquivo de código a rodar: o dono da caixa de entrada, o buffer atual se for
 -- um arquivo de verdade ou, no painel de saída, o último arquivo de código usado.
+-- Arquivos de entrada são reconhecidos pela pasta: ao abrir um, o Neovim avisa
+-- que entrou no buffer antes de ele ser marcado como entrada.
+local function is_code(buf)
+	local name = vim.api.nvim_buf_get_name(buf)
+	return vim.bo[buf].buftype == "" and name ~= "" and not vim.b[buf].rice_target
+		and name:sub(1, #inputs + 1) ~= inputs .. "/"
+end
+
 local function code_file()
 	if vim.b.rice_target then return vim.b.rice_target end
 	local name = vim.api.nvim_buf_get_name(0)
@@ -403,14 +427,39 @@ local function code_file()
 	return run.last_file
 end
 
-vim.api.nvim_create_autocmd("BufEnter", {
+vim.api.nvim_create_autocmd({ "BufEnter", "WinEnter" }, {
 	callback = function(args)
-		local name = vim.api.nvim_buf_get_name(args.buf)
-		if vim.bo[args.buf].buftype == "" and name ~= "" and not vim.b[args.buf].rice_target then
-			run.last_file = name
+		if is_code(args.buf) then
+			run.last_file = vim.api.nvim_buf_get_name(args.buf)
+			run.code_win = vim.api.nvim_get_current_win()
 		end
 	end,
 })
+
+-- Coluna da direita: entrada em cima (maior) e saída embaixo (40%).
+-- Só ajusta alturas com as duas na mesma coluna; sozinha, a janela ocupa tudo.
+local function balance()
+	if run.win and vim.api.nvim_win_is_valid(run.win) and run.input_win and vim.api.nvim_win_is_valid(run.input_win) then
+		local total = vim.api.nvim_win_get_height(run.win) + vim.api.nvim_win_get_height(run.input_win)
+		vim.api.nvim_win_set_height(run.win, math.max(5, math.floor(total * 0.4)))
+	end
+end
+
+-- Trocas internas de janela sem eventos: passar pela saída (que tira do insert)
+-- no meio do caminho não pode decidir o modo da janela onde o cursor termina.
+local function quietly(fn)
+	local saved = vim.o.eventignore
+	vim.o.eventignore = "all"
+	local ok, err = pcall(fn)
+	vim.o.eventignore = saved
+	if not ok then error(err) end
+end
+
+-- Divide sem eventos: a janela nova nasce mostrando o código e seria tomada por ele.
+local function new_column()
+	vim.cmd("noautocmd botright vsplit")
+	vim.api.nvim_win_set_width(0, math.max(40, math.floor(vim.o.columns * 0.35)))
+end
 
 -- O texto da entrada: do buffer aberto (mesmo sem salvar) ou do disco.
 local function input_text(file)
@@ -464,26 +513,27 @@ local function panel()
 			if run.win and vim.api.nvim_win_is_valid(run.win) then vim.api.nvim_win_close(run.win, true) end
 		end, { buffer = run.buf, desc = "Fechar a saída" })
 	end
-	if not (run.win and vim.api.nvim_win_is_valid(run.win)) then
+	if not (run.win and vim.api.nvim_win_is_valid(run.win)) then quietly(function()
 		local code = vim.api.nvim_get_current_win()
 		if run.input_win and vim.api.nvim_win_is_valid(run.input_win) then
-			-- Com a entrada aberta, a saída fica logo acima dela.
+			-- Com a entrada aberta, a saída fica logo abaixo dela.
 			vim.api.nvim_set_current_win(run.input_win)
-			vim.cmd("aboveleft split")
+			vim.cmd("noautocmd belowright split")
 		else
-			vim.cmd("botright vsplit")
-			vim.api.nvim_win_set_width(0, math.max(40, math.floor(vim.o.columns * 0.35)))
+			new_column()
 		end
 		run.win = vim.api.nvim_get_current_win()
 		vim.api.nvim_win_set_buf(run.win, run.buf)
+		balance()
 		for option, value in pairs({ number = false, relativenumber = false, signcolumn = "no",
 			wrap = true, list = false, cursorline = false, winfixwidth = true }) do
 			vim.wo[run.win][option] = value
 		end
 		vim.api.nvim_set_current_win(code)
-	end
+	end) end
 	vim.bo[run.buf].modifiable = true
 	vim.api.nvim_buf_set_lines(run.buf, 0, -1, false, {})
+	vim.bo[run.buf].modifiable = false
 end
 
 local ns = vim.api.nvim_create_namespace("rice-run")
@@ -492,7 +542,9 @@ local function write(lines, group)
 	if not vim.api.nvim_buf_is_valid(run.buf) then return end
 	local first = vim.api.nvim_buf_line_count(run.buf)
 	if first == 1 and vim.api.nvim_buf_get_lines(run.buf, 0, 1, false)[1] == "" then first = 0 end
+	vim.bo[run.buf].modifiable = true    -- a saída só muda por aqui; ninguém digita nela
 	vim.api.nvim_buf_set_lines(run.buf, first, -1, false, lines)
+	vim.bo[run.buf].modifiable = false
 	if group then
 		for i = first, first + #lines - 1 do
 			vim.api.nvim_buf_set_extmark(run.buf, ns, i, 0, { line_hl_group = group })
@@ -567,34 +619,72 @@ map({ "n", "i", "x" }, "<C-r>", run_file, { desc = "Compilar e rodar o arquivo" 
 -- Alt+I abre (ou fecha) a caixa de entrada do arquivo atual, abaixo da saída.
 local function toggle_input()
 	if run.input_win and vim.api.nvim_win_is_valid(run.input_win) then
-		vim.api.nvim_win_close(run.input_win, true)
+		local was_here = vim.api.nvim_get_current_win() == run.input_win
+		quietly(function()
+			vim.api.nvim_win_close(run.input_win, true)
+			-- Fechada de dentro, volta para o código em vez de cair na saída.
+			if was_here and run.code_win and vim.api.nvim_win_is_valid(run.code_win) then
+				vim.api.nvim_set_current_win(run.code_win)
+			end
+		end)
 		run.input_win = nil
+		if was_here then vim.cmd.startinsert() end
 		return
 	end
 	local file = code_file()
 	if not file then return vim.notify("Abra um arquivo de código antes de criar a entrada", vim.log.levels.WARN) end
 	vim.fn.mkdir(inputs, "p")
-	-- A entrada sempre fica abaixo da saída, na mesma coluna. Sozinha numa coluna,
-	-- fixar a altura dela empurraria as linhas que sobram para a linha de comando.
-	if not (run.win and vim.api.nvim_win_is_valid(run.win)) then
-		panel()
-	end
-	vim.api.nvim_set_current_win(run.win)
-	vim.cmd("belowright split")
+	-- A entrada fica em cima da saída, na mesma coluna; sem saída, ocupa a coluna toda.
+	quietly(function()
+		if run.win and vim.api.nvim_win_is_valid(run.win) then
+			vim.api.nvim_set_current_win(run.win)
+			vim.cmd("aboveleft split")
+		else
+			new_column()
+		end
+	end)
 	run.input_win = vim.api.nvim_get_current_win()
 	vim.cmd("edit " .. vim.fn.fnameescape(input_path(file)))
 	local buf = vim.api.nvim_get_current_buf()
 	vim.b[buf].rice_target = file
 	vim.bo[buf].filetype = "text"
-	vim.api.nvim_win_set_height(run.input_win, 8)
 	vim.wo[run.input_win].number = false
 	vim.wo[run.input_win].signcolumn = "no"
-	vim.wo[run.input_win].winfixheight = true
-	vim.wo[run.input_win].winbar = " entrada de " .. vim.fn.fnamemodify(file, ":t") .. "  (Ctrl+R roda, q fecha)"
-	vim.keymap.set("n", "q", toggle_input, { buffer = buf, desc = "Fechar a entrada" })
+	vim.wo[run.input_win].winbar = " entrada: " .. vim.fn.fnamemodify(file, ":t")
+	balance()
+	vim.cmd.startinsert()
 end
 
 map({ "n", "i", "x" }, "<A-i>", toggle_input, { desc = "Caixa de entrada do Ctrl+R" })
+
+-- Alt+1 código, Alt+2 entrada, Alt+3 saída (de cima para baixo na coluna).
+-- Se a janela não existe, o atalho cria. Na saída, sai do modo inserção.
+local function go(which)
+	if which == 1 then
+		local win = run.code_win
+		if not (win and vim.api.nvim_win_is_valid(win)) then
+			for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+				if is_code(vim.api.nvim_win_get_buf(w)) then win = w break end
+			end
+		end
+		if win then vim.api.nvim_set_current_win(win); vim.cmd.startinsert() end
+	elseif which == 2 then
+		if run.input_win and vim.api.nvim_win_is_valid(run.input_win) then
+			vim.api.nvim_set_current_win(run.input_win)
+			vim.cmd.startinsert()
+		else
+			toggle_input()
+		end
+	else
+		if not (run.win and vim.api.nvim_win_is_valid(run.win)) then panel() end
+		vim.api.nvim_set_current_win(run.win)
+		vim.cmd.stopinsert()
+	end
+end
+
+for i = 1, 3 do
+	map({ "n", "i", "x" }, "<A-" .. i .. ">", function() go(i) end, { desc = ({ "Ir para o código", "Ir para a entrada", "Ir para a saída" })[i] })
+end
 
 -- -----------------------------------------------------------------------------
 -- 10. Terminal externo (sem terminal embutido)
