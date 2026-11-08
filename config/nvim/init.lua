@@ -321,8 +321,6 @@ local function move_line(dir)
 	vim.api.nvim_win_set_cursor(0, { vim.fn.line("."), col })
 end
 
-map({ "n", "i" }, "<A-Down>", function() move_line(1) end, { desc = "Mover linha para baixo" })
-map({ "n", "i" }, "<A-Up>", function() move_line(-1) end, { desc = "Mover linha para cima" })
 map("x", "<A-Down>", ":<C-u>silent! '<,'>move '>+1<CR>gv", { desc = "Mover seleção para baixo", silent = true })
 map("x", "<A-Up>", ":<C-u>silent! '<,'>move '<-2<CR>gv", { desc = "Mover seleção para cima", silent = true })
 
@@ -616,7 +614,18 @@ end
 
 map({ "n", "i", "x" }, "<C-r>", run_file, { desc = "Compilar e rodar o arquivo" })
 
--- Alt+I abre (ou fecha) a caixa de entrada do arquivo atual, abaixo da saída.
+-- Carrega na caixa a entrada de um arquivo de código.
+local function show_input(file)
+	vim.api.nvim_win_call(run.input_win, function()
+		vim.cmd("edit " .. vim.fn.fnameescape(input_path(file)))
+		local buf = vim.api.nvim_get_current_buf()
+		vim.b[buf].rice_target = file
+		vim.bo[buf].filetype = "text"
+	end)
+	vim.wo[run.input_win].winbar = " entrada: " .. vim.fn.fnamemodify(file, ":t")
+end
+
+-- Alt+I abre (ou fecha) a caixa de entrada do arquivo atual, acima da saída.
 local function toggle_input()
 	if run.input_win and vim.api.nvim_win_is_valid(run.input_win) then
 		local was_here = vim.api.nvim_get_current_win() == run.input_win
@@ -644,13 +653,9 @@ local function toggle_input()
 		end
 	end)
 	run.input_win = vim.api.nvim_get_current_win()
-	vim.cmd("edit " .. vim.fn.fnameescape(input_path(file)))
-	local buf = vim.api.nvim_get_current_buf()
-	vim.b[buf].rice_target = file
-	vim.bo[buf].filetype = "text"
+	show_input(file)
 	vim.wo[run.input_win].number = false
 	vim.wo[run.input_win].signcolumn = "no"
-	vim.wo[run.input_win].winbar = " entrada: " .. vim.fn.fnamemodify(file, ":t")
 	balance()
 	vim.cmd.startinsert()
 end
@@ -682,9 +687,52 @@ local function go(which)
 	end
 end
 
-for i = 1, 3 do
-	map({ "n", "i", "x" }, "<A-" .. i .. ">", function() go(i) end, { desc = ({ "Ir para o código", "Ir para a entrada", "Ir para a saída" })[i] })
+-- Alt+setas andam pelas janelas conforme a posição na tela. No código,
+-- Alt+↑/↓ continuam movendo a linha; na coluna da direita, trocam entre entrada e saída.
+local function in_column()
+	local win = vim.api.nvim_get_current_win()
+	return win == run.win or win == run.input_win
 end
+
+map({ "n", "i", "x" }, "<A-Left>", function() go(1) end, { desc = "Ir para o código" })
+map({ "n", "i", "x" }, "<A-Right>", function() if not in_column() then go(2) end end, { desc = "Ir para a entrada" })
+map({ "n", "i" }, "<A-Up>", function()
+	if in_column() then go(2) else move_line(-1) end
+end, { desc = "Mover linha para cima / ir para a entrada" })
+map({ "n", "i" }, "<A-Down>", function()
+	if in_column() then go(3) else move_line(1) end
+end, { desc = "Mover linha para baixo / ir para a saída" })
+
+-- Arquivos que o Ctrl+R sabe rodar já abrem com entrada e saída à direita.
+local runnable = { c = true, cpp = true, nasm = true, asm = true, python = true, lua = true, sh = true, bash = true }
+
+local function open_all()
+	local code = vim.api.nvim_get_current_win()
+	if not (run.win and vim.api.nvim_win_is_valid(run.win)) then
+		panel()
+		write({ "Ctrl+R compila e roda" }, "Comment")
+	end
+	if not (run.input_win and vim.api.nvim_win_is_valid(run.input_win)) then toggle_input() end
+	vim.api.nvim_set_current_win(code)
+	vim.cmd.startinsert()
+end
+
+vim.api.nvim_create_autocmd("VimEnter", {
+	callback = function()
+		if runnable[vim.bo.filetype] and is_code(0) then vim.schedule(open_all) end
+	end,
+})
+
+-- Trocou de arquivo de código: a caixa passa a mostrar a entrada dele.
+vim.api.nvim_create_autocmd("BufEnter", {
+	callback = function(args)
+		if not (is_code(args.buf) and runnable[vim.bo[args.buf].filetype]) then return end
+		if not (run.input_win and vim.api.nvim_win_is_valid(run.input_win)) then return end
+		local file = vim.api.nvim_buf_get_name(args.buf)
+		local shown = vim.b[vim.api.nvim_win_get_buf(run.input_win)].rice_target
+		if shown ~= file then vim.schedule(function() show_input(file) end) end
+	end,
+})
 
 -- -----------------------------------------------------------------------------
 -- 10. Terminal externo (sem terminal embutido)
