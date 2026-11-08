@@ -312,6 +312,10 @@ def render(palette):
         f"let g:{key} = '{value}'\n" for key,value in
         [('background',c['background']),('foreground',c['foreground']),('cursor',v['accent'])]
         + [(f'color{i}',value) for i,value in enumerate(terminal)])
+    # cliamp theme: same vivid terminal colors; no bg keeps Kitty's transparency.
+    cliamp = '# RICE // minimal: generated on every palette change.\n' + ''.join(
+        f'{key} = "{value}"\n' for key,value in (('accent',v['accent']),('bright_fg',c['foreground']),
+        ('fg',c['muted']),('green',v['green']),('yellow',v['yellow']),('red',v['red'])))
     kitty = '\n'.join(f'{k} {v}' for k,v in {
         'background':c['background'], 'foreground':c['foreground'], 'cursor':c['accent'],
         'cursor_text_color':c['background'], 'selection_background':c['accent'],
@@ -389,7 +393,7 @@ def render(palette):
     import lockscreen
     lock_theme = lockscreen.render(palette, current_profile())
     return {'lockscreen.toml':lock_theme, 'noctalia.json':json.dumps(noctalia,indent=2)+'\n', 'kitty.conf':kitty, 'colors.css':css, 'profile.css':profile_css, 'hyprland.lua':hypr, 'colors.fish':fish,
-            'nvim.lua':nvim, 'colors-wal.vim':wal, 'palette.json':json.dumps(palette,indent=2)+'\n'}
+            'nvim.lua':nvim, 'colors-wal.vim':wal, 'cliamp.toml':cliamp, 'palette.json':json.dumps(palette,indent=2)+'\n'}
 
 def link(name, target):
     temporary = STATE/f'.{name}-{time.time_ns()}'
@@ -434,11 +438,13 @@ def reload_components():
         temporary.write_text((STATE/'current/noctalia.json').read_text())
         os.replace(temporary, target)
         command(['noctalia', 'msg', 'config-reload'])
-    wal = Path.home()/'.cache/wal/colors-wal.vim'
-    wal.parent.mkdir(parents=True, exist_ok=True)
-    temporary = wal.with_name('.colors-wal.vim.tmp')
-    temporary.write_text((STATE/'current/colors-wal.vim').read_text())
-    os.replace(temporary, wal)
+    # Terminal apps that read a theme file: Neovim (pywal.nvim) and cliamp.
+    for name, target in (('colors-wal.vim', Path.home()/'.cache/wal/colors-wal.vim'),
+                         ('cliamp.toml', Path.home()/'.config/cliamp/themes/rice.toml')):
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name('.'+target.name+'.tmp')
+        temporary.write_text((STATE/'current'/name).read_text())
+        os.replace(temporary, target)
     for app, sig in (('kitty', signal.SIGUSR1), ('waybar', signal.SIGUSR2)):
         try:
             pids = command(['pgrep', '-u', str(os.getuid()), '-x', app]).split()

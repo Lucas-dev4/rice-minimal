@@ -276,6 +276,13 @@ outline = "#888888"
             self.assertEqual(wal[f'color{index}'].strip("'"),kitty[f'color{index}'])
         self.assertEqual(wal['background'].strip("'"),kitty['background'])
 
+    def test_cliamp_theme_has_all_six_colors_and_no_background(self):
+        import tomllib
+        files = theme.render({'colors':dict(theme.FALLBACK,**{k:'#777777' for k in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')}),'generator':'test'})
+        data = tomllib.loads(files['cliamp.toml'])
+        self.assertEqual(set(data),{'accent','bright_fg','fg','green','yellow','red'})
+        self.assertTrue(all(len(value) == 7 and value.startswith('#') for value in data.values()))
+
     def test_only_the_terminal_gets_vivid_colors(self):
         colors = dict(theme.FALLBACK, **{key:'#777777' for key in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')})
         files = theme.render({'colors':colors,'generator':'test'})

@@ -1,0 +1,21 @@
+# cliamp — configuração inicial do RICE // minimal.
+# O próprio cliamp regrava este arquivo ao salvar preferências (tema, painéis).
+
+# Tema gerado pelo rice a cada troca de wallpaper (~/.config/cliamp/themes/rice.toml).
+# Sem cor de fundo: usa o fundo transparente do Kitty.
+theme = "rice"
+
+# Pasta aberta pelo navegador de arquivos (tecla o).
+initial_directory = "~/Músicas"
+
+volume = 0
+repeat = "off"
+shuffle = false
+visualizer = "Bars"
+vis_rows = 7
+
+# Margens mínimas, no estilo seco do rice.
+padding_horizontal = 2
+padding_vertical = 1
+
+log_level = "warn"

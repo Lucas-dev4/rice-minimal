@@ -21,7 +21,7 @@ opt.shortmess:append("I")     -- sem tela de boas-vindas
 opt.showmode = false          -- o modo já aparece na lualine
 opt.undofile = true           -- desfazer continua funcionando depois de fechar
 opt.swapfile = false          -- o autosave já protege o trabalho
-opt.updatetime = 1000         -- 1 s parado digitando dispara o autosave
+opt.updatetime = 300
 opt.ignorecase = true         -- busca sem diferenciar maiúsculas...
 opt.smartcase = true          -- ...a não ser que você digite uma maiúscula
 opt.splitright = true
@@ -191,7 +191,7 @@ vim.api.nvim_create_user_command("RiceTheme", apply_theme, { desc = "Recarrega a
 -- 5. Autosave
 -- -----------------------------------------------------------------------------
 -- Salva ao sair do modo inserção, ao trocar de buffer ou de janela, depois de
--- qualquer edição no modo normal e após 1 s parado digitando (sem sair do insert).
+-- qualquer edição no modo normal e 300 ms depois de parar de digitar (sem sair do insert).
 -- Salva só arquivos reais, com nome, alterados e graváveis.
 local function autosave(buf)
 	local bo = vim.bo[buf]
@@ -201,9 +201,22 @@ local function autosave(buf)
 	end
 end
 
-vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave", "FocusLost", "TextChanged", "CursorHoldI" }, {
-	group = vim.api.nvim_create_augroup("RiceAutosave", { clear = true }),
+local autosave_group = vim.api.nvim_create_augroup("RiceAutosave", { clear = true })
+vim.api.nvim_create_autocmd({ "InsertLeave", "BufLeave", "FocusLost", "TextChanged" }, {
+	group = autosave_group,
 	callback = function(args) autosave(args.buf) end,
+})
+
+-- Enquanto digita: cada tecla reinicia a contagem; 300 ms sem digitar, salva.
+local typing = vim.uv.new_timer()
+vim.api.nvim_create_autocmd("TextChangedI", {
+	group = autosave_group,
+	callback = function(args)
+		typing:stop()
+		typing:start(300, 0, vim.schedule_wrap(function()
+			if vim.api.nvim_buf_is_valid(args.buf) then autosave(args.buf) end
+		end))
+	end,
 })
 
 -- -----------------------------------------------------------------------------
