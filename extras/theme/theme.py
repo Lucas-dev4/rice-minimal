@@ -394,6 +394,14 @@ prepend_conds = [
         'fish_color_escape':v['yellow'], 'fish_color_autosuggestion':c['muted'],
         'fish_color_search_match':v['yellow']}.items())+'\n'
     fish += f"set -gx LS_COLORS '{listing(types)}'\nset -gx EZA_COLORS '{listing({**types,**kinds})}'\n"
+    # bat (and man, through MANPAGER) uses the terminal ANSI colors; fzf gets the same
+    # palette, a transparent background and plain ASCII marks.
+    fzf = (f"--color=bg:-1,bg+:-1,gutter:-1,fg:{c['foreground']},fg+:{c['foreground']},hl:{v['accent']},hl+:{v['accent']},"
+           f"info:{c['muted']},prompt:{v['accent']},pointer:{v['accent']},marker:{v['green']},spinner:{v['accent']},"
+           f"header:{c['muted']},border:{c['muted']},separator:{c['muted']},scrollbar:{c['muted']} "
+           # Quoted: an unquoted > breaks how fzf reads the options after it.
+           "--pointer='>' --marker='*' --prompt='> ' --gutter=' ' --separator=- --no-scrollbar")
+    fish += f'set -gx BAT_THEME ansi\nset -gx FZF_DEFAULT_OPTS "{fzf}"\nset -g rice_accent_sgr \'{sgr(v["accent"])}\'\n'
     noctalia = {'dark': {
         'mPrimary':c['accent'], 'mOnPrimary':ink,
         'mSecondary':c['green'], 'mOnSecondary':c['background'],

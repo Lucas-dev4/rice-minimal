@@ -1,0 +1,29 @@
+// fastfetch — RICE // minimal. Cores ANSI do Kitty, então seguem o wallpaper.
+{
+	"$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+	"logo": {
+		"type": "data",
+		"source": "$1 ____  ___ ____ _____\n|  _ \\|_ _/ ___| ____|\n| |_) || | |   |  _|\n|  _ < | | |___| |___\n|_| \\_\\___\\____|_____|\n\n$2// minimal",
+		"color": { "1": "cyan", "2": "white" },
+		"padding": { "top": 1, "left": 2, "right": 4 }
+	},
+	"display": {
+		"separator": " | ",
+		"color": { "keys": "cyan", "title": "cyan" }
+	},
+	"modules": [
+		{ "type": "title", "format": "{user-name}@{host-name}" },
+		"break",
+		{ "type": "os", "key": "[ OS     ]" },
+		{ "type": "kernel", "key": "[ KERNEL ]" },
+		{ "type": "wm", "key": "[ WM     ]" },
+		{ "type": "shell", "key": "[ SHELL  ]" },
+		{ "type": "terminal", "key": "[ TERM   ]" },
+		{ "type": "cpu", "key": "[ CPU    ]" },
+		{ "type": "gpu", "key": "[ GPU    ]" },
+		{ "type": "memory", "key": "[ RAM    ]" },
+		{ "type": "disk", "key": "[ DISK   ]", "folders": "/" },
+		{ "type": "packages", "key": "[ PKGS   ]" },
+		{ "type": "uptime", "key": "[ UP     ]" }
+	]
+}

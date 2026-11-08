@@ -159,3 +159,7 @@ Gerenciador de arquivos no terminal, instalado pelo pacote `yazi` do Arch, com `
 `python3 scripts/restore.py backups/<nome>` mostra o que um backup restauraria; com `--apply`, confere o backup inteiro antes de mexer em qualquer coisa, salva o estado atual num backup de resgate (que o mesmo comando restaura) e volta tudo se algo falhar. O código do projeto nunca é restaurado por ele: isso é papel do git. A tela de login tem o próprio restaurador, `sudo sh /var/backups/rice-greeter/restore.sh`.
 
 O perfil Minimal desliga todas as animações; nele a tela de login é sincronizada sem espera. A GUI usa renderização por software do Qt (menos memória e abertura mais rápida); defina `QT_QUICK_BACKEND` para trocar.
+
+## Terminal: vim, bat, fzf e fastfetch
+
+No Fish, `vim` abre o Neovim do rice. `bat` (e o `man`, que usa o bat) segue as cores ANSI do Kitty com `BAT_THEME=ansi`. O `fzf` recebe a paleta do wallpaper, fundo transparente e marcas em ASCII (`>`, `*`, `-`). O `fastfetch` usa `config/fastfetch/config.jsonc` (logo ASCII, chaves no formato `[ OS     ]`) e a função `fastfetch` do Fish passa o tom do wallpaper. Tudo é atualizado a cada troca de paleta pelo `colors.fish`.

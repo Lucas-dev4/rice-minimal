@@ -326,6 +326,15 @@ outline = "#888888"
         self.assertEqual((rules[-1]['url'],rules[-1]['fg']),('*/',accent))
         self.assertEqual(len(rules),10)
 
+    def test_fish_sets_bat_and_fzf_from_the_palette(self):
+        colors = dict(theme.FALLBACK,**{k:'#777777' for k in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')})
+        fish = theme.render({'colors':colors,'generator':'test'})['colors.fish']
+        self.assertIn('set -gx BAT_THEME ansi',fish)
+        self.assertIn('hl:'+theme.terminal_accent({'colors':colors}),fish)
+        self.assertIn('bg:-1',fish)
+        self.assertIn("rice_accent_sgr '38;2;",fish)
+        self.assertIn("--pointer='>'",fish)
+
     def test_only_the_terminal_gets_vivid_colors(self):
         colors = dict(theme.FALLBACK, **{key:'#777777' for key in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')})
         files = theme.render({'colors':colors,'generator':'test'})
