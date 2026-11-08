@@ -614,6 +614,31 @@ def greeter_status():
                   image_match=bool(image and wallpaper and image.read_bytes() == wallpaper.read_bytes()))
     return status
 
+REVEAL = ROOT/'gui/reveal'
+
+def reveal(path):
+    # Builds the new wallpaper in ASCII on screen (gui/reveal) and waits, briefly, until the
+    # screen is covered so the swap underneath is unseen. Cosmetic: never fails the change.
+    # Touch STATE/reveal-off to disable it.
+    try:
+        if (STATE/'reveal-off').exists() or not os.environ.get('WAYLAND_DISPLAY'):
+            return
+        target = Path(path).expanduser().resolve()
+        shown = subprocess.run(['noctalia','msg','wallpaper-get'], capture_output=True, text=True, timeout=2).stdout.strip()
+        if shown and Path(shown).expanduser().resolve() == target:
+            return  # duplicate Waypaper event or the same image again
+        ready = Path(os.environ.get('XDG_RUNTIME_DIR', '/tmp'))/'rice-reveal.ready'
+        ready.unlink(missing_ok=True)
+        env = dict(os.environ, RICE_REVEAL_IMAGE=str(target), RICE_REVEAL_READY=str(ready))
+        subprocess.Popen(['qs','-n','-p',str(REVEAL)], env=env, stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        for _ in range(15):
+            if ready.exists():
+                return
+            time.sleep(.1)
+    except Exception:
+        pass
+
 def wallpaper_hook(path=None, wait=True):
     # Waypaper starts its hook before finishing its own config save.
     if wait:
@@ -623,6 +648,7 @@ def wallpaper_hook(path=None, wait=True):
         chosen = latest or (Path(path).expanduser() if path else None)
         if chosen is None:
             raise ValueError('Waypaper has no readable selection')
+        reveal(chosen)
         set_wallpaper(chosen)
         result = regenerate(chosen)
         # Duplicate Waypaper events land here as 'cached'; nothing new to send.

@@ -86,7 +86,7 @@ class Adaptive(unittest.TestCase):
                 raise sync_error
         with patch.object(theme,'time') as clock, patch.object(theme,'selected_wallpaper',return_value=Path('/tmp/a.png')), \
              patch.object(theme,'set_wallpaper'), patch.object(theme,'regenerate',return_value=result), \
-             patch.object(theme,'command',side_effect=command):
+             patch.object(theme,'reveal'), patch.object(theme,'command',side_effect=command):
             clock.time_ns.return_value = 0
             clock.sleep.side_effect = lambda seconds: calls.append('settle') if seconds == theme.GREETER_SETTLE else None
             return theme.wallpaper_hook(), calls
