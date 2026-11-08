@@ -15,17 +15,10 @@ ShellRoot {
 
     readonly property string image: Quickshell.env("RICE_REVEAL_IMAGE") || ""
     // Block size in pixels and the time to fill the screen.
-    readonly property int block: 8
+    readonly property int block: 4
     readonly property int buildMs: 2400
-    property var dark: ({})
-    readonly property color bg: dark.mSurface || "#12100e"
+    readonly property color bg: "#000000"
 
-    FileView {
-        path: Quickshell.env("HOME") + "/.config/noctalia/palettes/RiceMinimal.json"
-        blockLoading: true
-        printErrors: false
-        onLoaded: { try { shell.dark = JSON.parse(text()).dark || {}; } catch (error) {} }
-    }
     FileView { id: ready; path: Quickshell.env("RICE_REVEAL_READY") || ""; printErrors: false }
 
     Component.onCompleted: if (!image) Qt.quit()

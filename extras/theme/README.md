@@ -27,7 +27,7 @@ Runtime state is in `~/.local/state/rice-minimal/theme/`:
 
 Generation failure preserves the last working palette. First startup or missing/corrupt cached files use the built-in static emergency palette. Generations are retained for recovery and are not treated as disposable backups.
 
-On a real wallpaper change the hook first starts `gui/reveal` (Quickshell, overlay layer, click-through, no keyboard): it covers the screen, builds the new image from 8 px blocks of its own colors, from the middle outwards, slow at first and accelerating, then dissolves into the real wallpaper and exits (~3.5 s, hard limit 9 s). The hook waits up to 1.5 s for the cover before swapping the image underneath. Re-selecting the current image skips it. `touch ~/.local/state/rice-minimal/theme/reveal-off` disables it; a failure never fails the wallpaper change.
+On a real wallpaper change the hook first starts `gui/reveal` (Quickshell, overlay layer, click-through, no keyboard): it covers the screen, builds the new image from 4 px blocks of its own colors on pure black, from the middle outwards, slow at first and accelerating, then dissolves into the real wallpaper and exits (~3.5 s, hard limit 9 s). The hook waits up to 1.5 s for the cover before swapping the image underneath. Re-selecting the current image skips it. `touch ~/.local/state/rice-minimal/theme/reveal-off` disables it; a failure never fails the wallpaper change.
 
 ## Component integration
 
