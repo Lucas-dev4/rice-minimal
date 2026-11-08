@@ -18,7 +18,7 @@ FloatingWindow {
         { name: "DOCTOR", source: "screens/DoctorScreen.qml", hints: [] },
         { name: "BACKUPS", source: "screens/BackupsScreen.qml", hints: [] },
         { name: "LOCK", source: "screens/LockScreen.qml", hints: [] },
-        { name: "GREETER", source: "screens/GreeterScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] }
+        { name: "GREETER", source: "screens/GreeterScreen.qml", hints: [] }
     ]
     property int current: 0
     property var status: ({})
