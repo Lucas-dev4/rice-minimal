@@ -46,7 +46,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "RICE // APPEARANCE PROFILES"
+        title: "LW // PROFILES"
     }
 
     Row {

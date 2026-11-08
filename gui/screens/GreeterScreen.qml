@@ -62,7 +62,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "RICE // LOGIN GREETER"
+        title: "LW // GREETER"
     }
 
     Rectangle {

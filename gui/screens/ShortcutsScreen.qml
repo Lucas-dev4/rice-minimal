@@ -114,7 +114,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "RICE // SUPER SHORTCUTS"
+        title: "LW // SHORTCUTS"
         note: root.shown.length + "/" + root.binds.length
     }
 

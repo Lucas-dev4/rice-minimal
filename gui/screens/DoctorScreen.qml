@@ -32,7 +32,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "RICE // SYSTEM DOCTOR"
+        title: "LW // DOCTOR"
     }
 
     Row {

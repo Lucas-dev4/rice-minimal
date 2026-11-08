@@ -66,7 +66,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "RICE // RESTORE / BACKUPS"
+        title: "LW // BACKUPS"
         note: root.backups.length + " saved"
     }
 

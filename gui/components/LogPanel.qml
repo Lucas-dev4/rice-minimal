@@ -7,6 +7,7 @@ Rectangle {
     id: root
 
     property var entries: []
+    property bool loaded: false
     readonly property var last: entries.length > 0 ? entries[entries.length - 1] : null
     readonly property string lastLine: last ? format(last) : ""
     readonly property string lastStatus: last ? last.status : ""
@@ -16,7 +17,7 @@ Rectangle {
         return time + "  [ " + entry.status + " ] " + entry.action + (entry.detail ? " — " + entry.detail : "");
     }
 
-    color: Theme.surface
+    color: Theme.panel
 
     Rectangle { width: parent.width; height: 1; color: Theme.rule }
 
@@ -25,6 +26,7 @@ Rectangle {
         watchChanges: true
         printErrors: false
         onFileChanged: reload()
+        onLoadFailed: root.loaded = true
         onLoaded: {
             const parsed = [];
             for (const line of text().split("\n").slice(-200)) {
@@ -36,6 +38,7 @@ Rectangle {
                 }
             }
             root.entries = parsed;
+            root.loaded = true;
             list.positionViewAtEnd();
         }
     }

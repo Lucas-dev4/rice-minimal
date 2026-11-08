@@ -101,7 +101,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "RICE // WALLPAPERS"
+        title: "LW // WALLPAPERS"
         note: root.shown.length + "/" + root.images.length + (maker.running ? "  previews " + root.thumbsDone + "/" + root.thumbsTotal : "")
     }
 

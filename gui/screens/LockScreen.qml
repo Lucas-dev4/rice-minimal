@@ -77,7 +77,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "RICE // LOCK SCREEN"
+        title: "LW // LOCK"
     }
 
     // Mirrors lockscreen.render(): the password field alone, centered.

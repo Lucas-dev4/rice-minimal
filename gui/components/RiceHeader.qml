@@ -1,24 +1,83 @@
 import QtQuick
 import qs
 
-// The TUI's frame title: +-- RICE // X -- note --------
+// LW // TITLE  [ note ]  - - - - - - -
+// The title "decodes" from noise each time it appears (refined profile only).
 Item {
     id: root
 
     property string title: ""
     property string note: ""
+    property bool primary: title.indexOf("//") >= 0
 
     width: parent ? parent.width : 0
     height: label.implicitHeight
     clip: true
 
-    Row {
-        spacing: 0
+    readonly property string noise: "!<>-_\\/[]{}=+*^?#░▒"
+    property int frame: 14
 
-        RiceText { text: "+-- "; color: Theme.rule }
-        RiceText { id: label; text: root.title; color: Theme.accent; font.bold: true }
-        RiceText { text: root.note ? " -- " : ""; color: Theme.rule }
-        RiceText { text: root.note; color: Theme.muted }
-        RiceText { text: " " + "-".repeat(160); color: Theme.rule }
+    function scrambled() {
+        if (frame >= 14)
+            return title;
+        const done = frame / 14 * title.length;
+        let out = "";
+        for (let i = 0; i < title.length; i++)
+            out += title[i] === " " || i < done ? title[i] : noise[Math.floor(Math.random() * noise.length)];
+        return out;
+    }
+
+    onTitleChanged: if (Theme.motion && primary) { frame = 0; decode.restart(); }
+    Component.onCompleted: if (Theme.motion && primary) { frame = 0; decode.restart(); }
+
+    Timer {
+        id: decode
+        interval: 28
+        repeat: true
+        onTriggered: if (++root.frame >= 14) stop()
+    }
+
+    Row {
+        id: row
+        spacing: 10
+
+        RiceText {
+            id: label
+            text: root.frame >= 14 ? root.title : root.scrambled()
+            color: root.primary ? Theme.accent : Theme.faint
+            font.bold: true
+            font.letterSpacing: root.primary ? 0.6 : 1.5
+            font.pixelSize: root.primary ? Theme.fontSize : Theme.small
+        }
+        Rectangle {
+            visible: root.note !== ""
+            anchors.verticalCenter: label.verticalCenter
+            width: noteText.implicitWidth + 12
+            height: noteText.implicitHeight + 2
+            color: "transparent"
+            border.width: 1
+            border.color: Theme.line
+            RiceText {
+                id: noteText
+                anchors.centerIn: parent
+                text: root.note
+                color: Theme.dim
+                font.pixelSize: Theme.small
+            }
+        }
+    }
+
+    // Dashed rule to the right edge.
+    Row {
+        anchors.left: row.right
+        anchors.leftMargin: 10
+        anchors.right: parent.right
+        y: Math.round(label.height / 2)
+        clip: true
+        spacing: 4
+        Repeater {
+            model: 200
+            Rectangle { width: 4; height: 1; color: Theme.line }
+        }
     }
 }

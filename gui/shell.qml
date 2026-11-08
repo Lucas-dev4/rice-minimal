@@ -6,24 +6,30 @@ import qs
 import qs.components
 
 // Opened on demand by `rice gui`; closing the window ends the process.
+// Look and behaviour follow docs/lw-prototype.html; all tokens live in Theme.qml.
 FloatingWindow {
     id: window
 
     readonly property var screens: [
-        { name: "WALLPAPERS", source: "screens/WallpaperScreen.qml" }, { name: "SHORTCUTS", source: "screens/ShortcutsScreen.qml" }, { name: "PROFILES", source: "screens/ProfilesScreen.qml" },
-        { name: "PALETTE", source: "screens/PaletteScreen.qml" },
-        { name: "DOCTOR", source: "screens/DoctorScreen.qml" },
-        { name: "BACKUPS", source: "screens/BackupsScreen.qml" }, { name: "LOCK", source: "screens/LockScreen.qml" },
-        { name: "GREETER", source: "screens/GreeterScreen.qml" }
+        { name: "WALLPAPERS", source: "screens/WallpaperScreen.qml", hints: [["hjkl", "move"], ["⏎", "apply"], ["/", "search"]] },
+        { name: "SHORTCUTS", source: "screens/ShortcutsScreen.qml", hints: [["jk", "move"], ["⏎", "edit"], ["/", "search"]] },
+        { name: "PROFILES", source: "screens/ProfilesScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
+        { name: "PALETTE", source: "screens/PaletteScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
+        { name: "DOCTOR", source: "screens/DoctorScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
+        { name: "BACKUPS", source: "screens/BackupsScreen.qml", hints: [["jk", "move"], ["esc", "quit"]] },
+        { name: "LOCK", source: "screens/LockScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
+        { name: "GREETER", source: "screens/GreeterScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] }
     ]
     property int current: 0
     property var status: ({})
+    property bool statusLoaded: false
     property string syncError: ""
+    readonly property var hints: screen.item && screen.item.hints ? screen.item.hints : screens[current].hints
 
-    title: "RICE // CONTROL"
-    implicitWidth: 1120
-    implicitHeight: 720
-    color: Theme.surface
+    title: "LW // CONTROL"
+    implicitWidth: 1220
+    implicitHeight: 780
+    color: Theme.bg
     onVisibleChanged: if (!visible) Qt.quit()
 
     function select(index) {
@@ -41,9 +47,14 @@ FloatingWindow {
         id: statusCommand
         onSucceeded: data => {
             window.status = data;
+            window.statusLoaded = true;
             Theme.terminal = data.terminal;
         }
-        onFailed: message => console.warn("status:", message)
+        onFailed: message => {
+            window.statusLoaded = true;
+            console.warn("status:", message);
+        }
+        Component.onCompleted: call(["status", "--json"])
     }
 
     RiceCommand {
@@ -56,6 +67,8 @@ FloatingWindow {
         function onEntriesChanged() {
             if (screen.item && screen.item.externalChange)
                 screen.item.externalChange();
+            // Wallpaper, palette or profile may have changed: refresh the CURRENT block.
+            statusCommand.call(["status", "--json"]);
         }
     }
 
@@ -70,6 +83,11 @@ FloatingWindow {
         focus: true
 
         Keys.onPressed: event => {
+            if (boot.visible) {
+                boot.finish();
+                event.accepted = true;
+                return;
+            }
             const digit = parseInt(event.text);
             if (screen.item && screen.item.handleKey && screen.item.handleKey(event)) {
                 event.accepted = true;
@@ -88,77 +106,151 @@ FloatingWindow {
             event.accepted = true;
         }
 
-        Item {
+        // ================= SIDEBAR =================
+        Rectangle {
             id: sidebar
             anchors.top: parent.top
             anchors.bottom: footer.top
-            width: 216
+            width: 232
+            color: Theme.panel
 
-            RiceText {
+            Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
+
+            Logo {
                 id: logo
-                x: 18
-                y: 18
-                color: Theme.accent
-                font.pixelSize: 11
-                lineHeight: 1.1
-                text: " ____  ___ ____ _____\n|  _ \\|_ _/ ___| ____|\n| |_) || | |   |  _|\n|  _ < | | |___| |___\n|_| \\_\\___\\____|_____|"
+                x: 22
+                y: 30
+            }
+
+            Item {
+                id: sub
+                anchors.top: logo.bottom
+                anchors.topMargin: 10
+                x: 22
+                width: parent.width - 44
+                height: subText.implicitHeight
+                RiceText { id: subText; text: "// control"; color: Theme.dim }
+                RiceText { anchors.right: parent.right; text: "v0.1"; color: Theme.faint }
             }
 
             RiceText {
-                id: tagline
-                anchors.top: logo.bottom
-                anchors.topMargin: 8
-                x: 18
-                text: "// CONTROL"
-                color: Theme.muted
+                id: menuLabel
+                anchors.top: sub.bottom
+                anchors.topMargin: 28
+                x: 22
+                text: "MENU"
+                color: Theme.faint
+                font.pixelSize: Theme.small
+                font.letterSpacing: 1.5
             }
 
-            Column {
+            Item {
                 id: nav
-                anchors.top: tagline.bottom
-                anchors.topMargin: 22
-                width: parent.width
+                anchors.top: menuLabel.bottom
+                anchors.topMargin: 8
+                width: parent.width - 1
+                height: navColumn.height
 
-                Repeater {
-                    model: window.screens
-                    NavItem {
-                        required property var modelData
-                        required property int index
-                        number: index + 1
-                        label: modelData.name
-                        active: window.current === index
-                        onClicked: window.select(index)
+                // The active band slides between rows.
+                Rectangle {
+                    width: parent.width
+                    height: 29
+                    y: window.current * 29
+                    color: Theme.accentA
+                    Rectangle { width: 2; height: parent.height; color: Theme.accent }
+                    Behavior on y { NumberAnimation { duration: Theme.tMed; easing.type: Theme.ease } }
+                }
+
+                Column {
+                    id: navColumn
+                    width: parent.width
+                    Repeater {
+                        model: window.screens
+                        NavItem {
+                            required property var modelData
+                            required property int index
+                            number: index + 1
+                            label: modelData.name
+                            active: window.current === index
+                            onClicked: window.select(index)
+                        }
                     }
                 }
             }
 
+            // CURRENT: what is applied right now.
             Column {
                 anchors.bottom: parent.bottom
-                anchors.bottomMargin: 14
-                x: 18
-                width: parent.width - 30
-                spacing: 2
+                anchors.bottomMargin: 18
+                x: 22
+                width: parent.width - 44
+                spacing: 6
 
                 RiceText {
-                    width: parent.width
-                    text: "PROFILE " + (window.status.profile || "")
-                    color: Theme.muted
+                    text: "CURRENT"
+                    color: Theme.faint
+                    font.pixelSize: Theme.small
+                    font.letterSpacing: 1.5
+                    bottomPadding: 2
                 }
-                RiceText {
+
+                Rectangle {
                     width: parent.width
-                    elide: Text.ElideMiddle
-                    text: window.status.wallpaper ? (window.status.wallpaper.effective || "").split("/").pop() : ""
-                    color: Theme.muted
+                    height: Math.round(width * 10 / 16)
+                    color: Theme.raise
+                    border.width: 1
+                    border.color: Theme.line2
+
+                    Image {
+                        anchors.fill: parent
+                        anchors.margins: 1
+                        source: window.wallpaper ? "file://" + window.wallpaper : ""
+                        sourceSize.width: 380
+                        fillMode: Image.PreserveAspectCrop
+                        asynchronous: true
+                        clip: true
+                    }
+                    Rectangle {
+                        x: 6
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 5
+                        width: Math.min(parent.width - 12, wallName.implicitWidth + 10)
+                        height: wallName.implicitHeight
+                        color: Qt.alpha(Theme.bg, 0.8)
+                        visible: wallName.text !== ""
+                        RiceText {
+                            id: wallName
+                            x: 5
+                            width: parent.width - 10
+                            elide: Text.ElideRight
+                            font.pixelSize: 10
+                            text: window.wallpaper.split("/").pop().replace(/\.[^.]+$/, "")
+                        }
+                    }
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 3
+                    Repeater {
+                        model: [Theme.accent, Theme.red, Theme.yel, Theme.ok, Theme.cyan, Theme.blue]
+                        Rectangle {
+                            required property color modelData
+                            width: (parent.width - 15) / 6
+                            height: 14
+                            color: modelData
+                            Behavior on color { ColorAnimation { duration: Theme.tMed } }
+                        }
+                    }
+                }
+
+                Item {
+                    width: parent.width
+                    height: profileLabel.implicitHeight + 4
+                    RiceText { id: profileLabel; y: 4; text: "profile"; color: Theme.dim }
+                    RiceText { y: 4; anchors.right: parent.right; text: Theme.profile || window.status.profile || "--" }
                 }
             }
-        }
-
-        Rectangle {
-            anchors.top: parent.top
-            anchors.bottom: footer.top
-            anchors.left: sidebar.right
-            width: 1
-            color: Theme.rule
         }
 
         Loader {
@@ -167,54 +259,78 @@ FloatingWindow {
             anchors.bottom: footer.top
             anchors.left: sidebar.right
             anchors.right: parent.right
-            anchors.margins: 20
+            anchors.leftMargin: 26
+            anchors.rightMargin: 26
+            anchors.topMargin: 22
+            anchors.bottomMargin: 14
             source: window.screens[window.current].source || "screens/PlaceholderScreen.qml"
             onLoaded: {
                 if (item.title !== undefined)
                     item.title = window.screens[window.current].name;
                 if (item.keyTarget !== undefined)
                     item.keyTarget = keys;
+                // Each tab enters with a short fade (refined only).
+                item.opacity = Theme.motion ? 0 : 1;
+                enter.restart();
             }
+            NumberAnimation { id: enter; target: screen.item; property: "opacity"; to: 1; duration: Theme.tMed; easing.type: Theme.ease }
         }
 
+        // ================= STATUS BAR =================
         Rectangle {
             id: footer
             anchors.bottom: parent.bottom
             width: parent.width
-            height: 36
-            color: "transparent"
+            height: 34
+            color: Theme.panel
 
-            Rectangle { width: parent.width; height: 1; color: Theme.rule }
+            Rectangle { width: parent.width; height: 1; color: Theme.line }
 
-            RiceButton {
-                id: syncButton
-                anchors.verticalCenter: parent.verticalCenter
-                x: 16
-                label: syncCommand.running ? "SYNCING" : "SYNC ALL"
-                enabledState: !syncCommand.running
-                onClicked: {
-                    window.syncError = "";
-                    syncCommand.call(["sync", "--json"]);
+            Row {
+                id: leftBlocks
+                height: parent.height
+
+                StatusBlock {
+                    id: syncButton
+                    label: syncCommand.running ? "SYNCING" : "SYNC ALL"
+                    clickable: !syncCommand.running
+                    onClicked: {
+                        window.syncError = "";
+                        syncCommand.call(["sync", "--json"]);
+                    }
+                }
+                StatusBlock {
+                    label: clock.text
+                    textColor: Theme.ok
+                    textFormat: Text.StyledText
                 }
             }
 
-            RiceText {
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: syncButton.right
-                anchors.leftMargin: 14
-                anchors.right: logButton.left
-                anchors.rightMargin: 14
-                elide: Text.ElideRight
-                text: "| " + (window.syncError ? "[ FAIL ] " + window.syncError : log.lastLine)
-                color: window.syncError ? Theme.fail : Theme.statusColor(log.lastStatus)
+            StatusBlock {
+                id: message
+                anchors.left: leftBlocks.right
+                anchors.right: hintBlock.left
+                label: typed.shown
+                textColor: window.syncError ? Theme.red : Theme.statusColor(log.lastStatus)
+                separator: false
+                elide: true
             }
 
-            RiceButton {
+            StatusBlock {
+                id: hintBlock
+                anchors.right: logButton.left
+                leftSeparator: true
+                textColor: Theme.faint
+                textFormat: Text.StyledText
+                label: window.hints.map(h => "<font color='" + Theme.dim + "'>" + h[0] + "</font> " + h[1]).join("&nbsp;&nbsp;&nbsp;")
+            }
+
+            StatusBlock {
                 id: logButton
-                anchors.verticalCenter: parent.verticalCenter
                 anchors.right: parent.right
-                anchors.rightMargin: 16
+                separator: false
                 label: log.visible ? "LOG v" : "LOG ^"
+                clickable: true
                 onClicked: log.visible = !log.visible
             }
         }
@@ -226,5 +342,59 @@ FloatingWindow {
             height: 260
             visible: false
         }
+
+        // Corners, as in a terminal frame.
+        RiceText { x: 8; y: 6; text: "┌"; color: Theme.faint; font.pixelSize: 11 }
+        RiceText { anchors.right: parent.right; anchors.rightMargin: 8; y: 6; text: "┐"; color: Theme.faint; font.pixelSize: 11 }
+
+        BootScreen {
+            id: boot
+            anchors.fill: parent
+            steps: [
+                { label: "reading profile: " + (Theme.profile || "?"), done: Theme.profile !== "" },
+                { label: "loading palette " + (window.status.generation || ""), done: Object.keys(Theme.dark).length > 0 },
+                { label: "reading rice status", done: window.statusLoaded },
+                { label: "reading action log", done: log.loaded },
+                { label: "loading " + window.screens[window.current].name.toLowerCase(), done: screen.status === Loader.Ready },
+                { label: "starting control panel", done: true }
+            ]
+            onFinished: keys.forceActiveFocus()
+        }
+    }
+
+    readonly property string wallpaper: status.wallpaper ? (status.wallpaper.effective || "") : ""
+
+    // hh:mm:ss with blinking colons.
+    QtObject {
+        id: clock
+        property date now: new Date()
+        property bool blink: true
+        readonly property string colon: blink || !Theme.motion ? ":" : "<font color='" + Theme.panel + "'>:</font>"
+        readonly property string text: Qt.formatTime(now, "hh") + colon + Qt.formatTime(now, "mm") + colon + Qt.formatTime(now, "ss")
+    }
+    Timer {
+        interval: 500
+        running: true
+        repeat: true
+        onTriggered: {
+            clock.blink = !clock.blink;
+            if (clock.blink)
+                clock.now = new Date();
+        }
+    }
+
+    // The last log line is typed out, one character every 12 ms.
+    QtObject {
+        id: typed
+        readonly property string full: window.syncError ? "[ FAIL ] " + window.syncError : log.lastLine
+        property int count: 0
+        readonly property string shown: Theme.motion ? full.slice(0, count) : full
+        onFullChanged: { count = 0; typer.restart(); }
+    }
+    Timer {
+        id: typer
+        interval: 12
+        repeat: true
+        onTriggered: if (++typed.count >= typed.full.length) stop()
     }
 }

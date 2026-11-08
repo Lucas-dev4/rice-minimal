@@ -48,7 +48,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "RICE // COLOR PALETTE"
+        title: "LW // PALETTE"
     }
 
     RiceText {

@@ -11,7 +11,7 @@ Item {
         spacing: 8
         RiceText {
             anchors.horizontalCenter: parent.horizontalCenter
-            text: "RICE // " + root.title
+            text: "LW // " + root.title
             color: Theme.accent
             font.bold: true
         }
