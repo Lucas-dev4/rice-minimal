@@ -3,25 +3,23 @@ import json
 from pathlib import Path
 from theme import theme
 
-KINDS = {'full':'Project, live files and theme state',
+KINDS = {'full':'Live files and theme state (project code is in git)',
          'files':'Files changed by one install step',
          'lock':'Lock screen visuals',
          'snapshot':'Copies for manual restore'}
 
 
 def classify(path):
-    # Each format has its own tool; the wrong one fails or restores only part of it.
+    # Every format with a manifest goes through scripts/restore.py, which previews first.
     if path.name.startswith('lock-visual-'):
         return 'lock','python3 extras/rice.py lock-restore'
-    relative = path.relative_to(theme.ROOT)
-    if (path/'project').is_dir():
-        return 'full',f'python3 scripts/restore_refined.py {relative}'
     try:
         manifest = json.loads((path/'manifest.json').read_text())
     except (OSError,ValueError):
         manifest = None
     if isinstance(manifest,list) and manifest:
-        return 'files',f'python3 restore.py {relative}'
+        kind = 'full' if (path/'theme').is_dir() else 'files'
+        return kind,f'python3 scripts/restore.py {path.relative_to(theme.ROOT)}'
     return 'snapshot',None
 
 

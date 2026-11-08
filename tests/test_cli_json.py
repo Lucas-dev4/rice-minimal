@@ -406,13 +406,13 @@ class Backups(Envelope):
         return {b['name']:b for b in self.run_cli('backups','list','--json')[1]['data']['backups']}
 
     def test_each_format_points_to_its_own_tool(self):
-        self.add('rice-final-1','project',manifest=[{'path':'/x'}])
+        self.add('rice-final-1','project','theme',manifest=[{'path':'/x'}])
         self.add('phase3-1',manifest=[{'path':'/x','backup':'/y'}])
         self.add('lock-visual-1')
         self.add('gui-fase0-1')
         data = self.listed()
-        self.assertIn('restore_refined.py',data['rice-final-1']['command'])
-        self.assertIn('restore.py',data['phase3-1']['command'])
+        self.assertIn('scripts/restore.py',data['rice-final-1']['command'])
+        self.assertIn('scripts/restore.py',data['phase3-1']['command'])
         self.assertIn('lock-restore',data['lock-visual-1']['command'])
         self.assertEqual((data['gui-fase0-1']['kind'],data['gui-fase0-1']['command']),('snapshot',None))
 
@@ -425,9 +425,9 @@ class Backups(Envelope):
         self.assertEqual((result['ok'],result['data']['backups'],result['data']['recovery']['full']),(True,[],None))
 
     def test_newest_full_backup_is_the_recovery_command(self):
-        old = self.add('rice-final-old','project')
+        old = self.add('rice-final-old','theme',manifest=[{'path':'/x'}])
         os.utime(old,(1,1))
-        self.add('rice-final-new','project')
+        self.add('rice-final-new','theme',manifest=[{'path':'/x'}])
         self.assertIn('rice-final-new',self.run_cli('backups','list','--json')[1]['data']['recovery']['full'])
 
 

@@ -11,12 +11,16 @@ function fish_greeting
 end
 function fish_prompt
     set -l last_status $status
-    set_color normal
+    rice_theme_refresh
+    set_color $rice_prompt_color
     printf '%s' (prompt_pwd)
     if test $last_status -ne 0
+        set_color $rice_error_color
         printf ' [%s]' $last_status
+        set_color $rice_prompt_color
     end
     printf ' > '
+    set_color normal
 end
 function fish_right_prompt
 end

@@ -78,6 +78,16 @@ def inspect():
     except Exception as exc:
         add('WARN','Lock visual candidate',exc)
     try:
+        # Installed copies that drifted from the repository (scripts/install.py fixes them).
+        import importlib.util
+        spec=importlib.util.spec_from_file_location('rice_install',theme.ROOT/'scripts/install.py')
+        install=importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(install)
+        pending=[str(path).replace(str(Path.home()),'~') for path in install.plan()]
+        add('WARN' if pending else 'OK','Installed files match the repo',', '.join(pending) or 'all installed; run scripts/install.py to see details')
+    except Exception as exc:
+        add('WARN','Installed files match the repo',exc)
+    try:
         hashes=json.loads((theme.ROOT/'config/integrity.json').read_text())
         bad=[name for name,digest in hashes.items() if not (theme.ROOT/name).is_file() or hashlib.sha256((theme.ROOT/name).read_bytes()).hexdigest()!=digest]
         add('FAIL' if bad else 'OK','Managed file integrity',', '.join(bad) or str(len(hashes))+' files match')

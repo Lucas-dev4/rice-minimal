@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -393,26 +394,6 @@ prepend_conds = [
         'fish_color_escape':v['yellow'], 'fish_color_autosuggestion':c['muted'],
         'fish_color_search_match':v['yellow']}.items())+'\n'
     fish += f"set -gx LS_COLORS '{listing(types)}'\nset -gx EZA_COLORS '{listing({**types,**kinds})}'\n"
-    highlights = {
-        'Normal': {'fg':c['foreground'], 'bg':'NONE'}, 'NormalFloat': {'fg':c['foreground'],'bg':c['background']},
-        'Comment': {'fg':c['muted']}, 'Constant': {'fg':c['yellow']}, 'String': {'fg':c['green']},
-        'Identifier': {'fg':c['foreground']}, 'Function': {'fg':c['accent']}, 'Statement': {'fg':c['accent']},
-        'PreProc': {'fg':c['cyan']}, 'Type': {'fg':c['cyan']}, 'Special': {'fg':c['magenta']},
-        'LineNr': {'fg':c['muted']}, 'CursorLineNr': {'fg':c['accent'],'bold':True},
-        'StatusLine': {'fg':c['foreground'],'bg':c['background']}, 'StatusLineNC': {'fg':c['muted'],'bg':c['background']},
-        'Search': {'fg':c['background'],'bg':c['yellow']}, 'Visual': {'fg':c['background'],'bg':c['accent']},
-        'ErrorMsg': {'fg':c['red']}, 'DiagnosticError': {'fg':c['red']}, 'DiagnosticWarn': {'fg':c['yellow']},
-        'FloatBorder': {'fg':c['muted'],'bg':c['background']},
-        'WinSeparator': {'fg':c['muted']},
-        'Cursor': {'fg':c['background'],'bg':c['accent']},
-        'DiagnosticInfo': {'fg':c['cyan']},
-        'DiagnosticHint': {'fg':c['muted']},
-        'Pmenu': {'fg':c['foreground'],'bg':c['background']}, 'PmenuSel': {'fg':c['background'],'bg':c['accent']},
-    }
-    nvim = 'vim.opt.termguicolors = true\nvim.opt.background = "dark"\n'
-    for name, attrs in highlights.items():
-        fields = ', '.join(f'{k} = {str(v).lower() if isinstance(v,bool) else json.dumps(v)}' for k,v in attrs.items())
-        nvim += f'vim.api.nvim_set_hl(0, "{name}", {{ {fields} }})\n'
     noctalia = {'dark': {
         'mPrimary':c['accent'], 'mOnPrimary':ink,
         'mSecondary':c['green'], 'mOnSecondary':c['background'],
@@ -433,19 +414,29 @@ prepend_conds = [
     import lockscreen
     lock_theme = lockscreen.render(palette, current_profile())
     return {'lockscreen.toml':lock_theme, 'noctalia.json':json.dumps(noctalia,indent=2)+'\n', 'kitty.conf':kitty, 'colors.css':css, 'profile.css':profile_css, 'hyprland.lua':hypr, 'colors.fish':fish,
-            'nvim.lua':nvim, 'colors-wal.vim':wal, 'cliamp.toml':cliamp, 'yazi-theme.toml':yazi, 'palette.json':json.dumps(palette,indent=2)+'\n'}
+            'colors-wal.vim':wal, 'cliamp.toml':cliamp, 'yazi-theme.toml':yazi, 'palette.json':json.dumps(palette,indent=2)+'\n'}
 
 def link(name, target):
     temporary = STATE/f'.{name}-{time.time_ns()}'
     temporary.symlink_to(target)
     os.replace(temporary, STATE/name)
 
+def prune(keep, limit=20):
+    # Generations are cheap to rebuild; keep the newest ones and whatever is in use.
+    keep = {path for path in keep if path} | {(STATE/'previous').resolve()}
+    folders = [p for p in STATE.glob('palette-*') if p.is_dir()]
+    # Empty folders are failed publishes; they must not take one of the kept places.
+    empty = [p for p in folders if not any(p.iterdir())]
+    generations = sorted((p for p in folders if p not in empty), key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in generations[limit:] + empty:
+        if path.resolve() not in keep:
+            shutil.rmtree(path, ignore_errors=True)
+
 def publish(palette):
     folder = Path(tempfile.mkdtemp(prefix='palette-', dir=STATE))
     for name, content in render(palette).items():
         (folder/name).write_text(content)
-    for name in ('hyprland.lua', 'nvim.lua'):
-        command(['luac', '-p', folder/name])
+    command(['luac', '-p', folder/'hyprland.lua'])
     command(['fish', '-n', folder/'colors.fish'])
     # GTK's real CSS parser validates before any running bar can read the file.
     import gi
@@ -453,6 +444,7 @@ def publish(palette):
     from gi.repository import Gtk
     Gtk.CssProvider().load_from_data((folder/'colors.css').read_bytes())
     previous = (STATE/'current').resolve() if (STATE/'current').exists() else None
+    prune(keep={folder.resolve(), previous})
     if previous:
         # Profile and lock changes republish the same colors; keep the real previous palette.
         try:
@@ -566,10 +558,10 @@ def sync_greeter(force=False):
     if not force and not (STATE/'greeter-sync').exists():
         log_action('greeter','SKIP','automatic sync is off')
         return 'disabled'
-    # Noctalia animates palette changes and greeter-sync snapshots the live colors,
-    # so syncing right after config-reload would send a mid-animation blend.
+    # With animations on (Refined), Noctalia fades between palettes and greeter-sync
+    # would snapshot a blend; Minimal switches instantly, so it can sync right away.
     # The login screen is cosmetic here: a failure must not fail the wallpaper change.
-    time.sleep(GREETER_SETTLE)
+    time.sleep(GREETER_SETTLE if current_profile() == 'refined' else 0)
     try:
         command(['noctalia','msg','greeter-sync'])
     except (OSError, subprocess.SubprocessError) as exc:
@@ -595,9 +587,10 @@ def greeter_status():
                   image_match=bool(image and wallpaper and image.read_bytes() == wallpaper.read_bytes()))
     return status
 
-def wallpaper_hook(path=None):
+def wallpaper_hook(path=None, wait=True):
     # Waypaper starts its hook before finishing its own config save.
-    time.sleep(.3)
+    if wait:
+        time.sleep(.3)
     with locked():
         latest = selected_wallpaper()
         chosen = latest or (Path(path).expanduser() if path else None)
@@ -648,7 +641,8 @@ def sync_all():
 def apply_choice(path):
     # Persist through Waypaper, then execute the very same hook synchronously.
     command(['waypaper','--wallpaper',path,'--no-post-command'])
-    return wallpaper_hook(path)
+    # Waypaper has already exited and saved, so there is nothing to wait for.
+    return wallpaper_hook(path, wait=False)
 
 def restore_previous(reload=True):
     with locked():

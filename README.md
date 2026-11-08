@@ -48,7 +48,7 @@ Resultados dos testes reais: `VALIDACAO-SESSAO.json`. Estado final: `diagnostico
 Novo backup, sem alterar `backups/LATEST` nem os backups anteriores: `backups/20261105-214902-082254`. O SHA256SUMS do backup original foi verificado com sucesso. Para reverter apenas esta continuação, primeiro encerre o supervisor pelo PID registrado em `diagnostico/estado-final.json` (isso devolve a barra Noctalia), execute:
 
 ```sh
-python3 ~/Projetos/rice-minimal/restore.py ~/Projetos/rice-minimal/backups/20261105-214902-082254
+python3 ~/Projetos/rice-minimal/scripts/restore.py ~/Projetos/rice-minimal/backups/20261105-214902-082254 --apply
 hyprctl reload config-only
 ```
 
@@ -113,7 +113,7 @@ Após instalar, falta concluir em sessão acessível:
 Backups em backups/20261105-212603 com manifest.json. Para restaurar os arquivos alterados (preserva o estado atual em before-restore):
 
 ```sh
-python ~/Projetos/rice-minimal/restore.py ~/Projetos/rice-minimal/backups/20261105-212603
+python3 ~/Projetos/rice-minimal/scripts/restore.py ~/Projetos/rice-minimal/backups/20261105-212603 --apply
 ```
 
 Para apenas um arquivo, copie o correspondente de backups/20261105-212603/.config/ para ~/.config/. Restaure hyprland.lua junto ao módulo caso reverta o compositor. Neovim init.lua e módulo rice-minimal.lua eram novos e serão removidos pelo restaurador. O launcher supers também será removido. Links novos na pasta Wallpapers podem ser removidos individualmente; nenhum original foi movido ou apagado. Nenhum pacote foi instalado, portanto não há pacotes para remover. Backups são privados e ignorados pelo Git; não publicar diagnósticos sem revisar seu conteúdo.
@@ -151,3 +151,11 @@ Player de música no terminal (`bjarneo/cliamp`, MIT), instalado do binário ofi
 ## yazi
 
 Gerenciador de arquivos no terminal, instalado pelo pacote `yazi` do Arch, com `7zip` e `zoxide`. `Super+E` abre o yazi num Kitty (classe `yazi`) no lugar do Dolphin; a variável `FILE_MANAGER` continua `dolphin` para quem a usa. `config/yazi/yazi.toml` põe pastas primeiro, ordenação natural, tamanho dos arquivos e abre texto no Neovim. O rice gera `~/.config/yazi/theme.toml` a cada troca de wallpaper: só os azuis fixos do tema padrão (seleção, pastas, modo, abas) passam para o tom do terminal; o resto usa as cores ANSI do Kitty. No Fish, `y` abre o yazi e, ao sair, deixa o terminal na pasta onde você estava; `config/fish/conf.d/zoxide.fish` liga o `z`.
+
+## Instalar e restaurar
+
+`python3 scripts/install.py` lista o que mudaria para deixar o sistema igual ao repositório (Hyprland, Fish, Kitty, Neovim, yazi, cliamp, Waypaper, atalhos de terminal e Qt); com `--apply`, valida cada arquivo, salva um backup em `backups/install-*` e grava tudo, desfazendo o que já tinha gravado se algo falhar. Os caminhos são gerados para o usuário e a pasta atuais. O doctor avisa quando um arquivo instalado se afasta do repositório. Pacotes e a tela de login (sudo) ficam de fora.
+
+`python3 scripts/restore.py backups/<nome>` mostra o que um backup restauraria; com `--apply`, confere o backup inteiro antes de mexer em qualquer coisa, salva o estado atual num backup de resgate (que o mesmo comando restaura) e volta tudo se algo falhar. O código do projeto nunca é restaurado por ele: isso é papel do git. A tela de login tem o próprio restaurador, `sudo sh /var/backups/rice-greeter/restore.sh`.
+
+O perfil Minimal desliga todas as animações; nele a tela de login é sincronizada sem espera. A GUI usa renderização por software do Qt (menos memória e abertura mais rápida); defina `QT_QUICK_BACKEND` para trocar.

@@ -62,7 +62,7 @@ python3 extras/theme/theme.py restore
 To revert **all Phase 3 integration**, the prepared backup is:
 
 ```sh
-python3 ~/Projetos/rice-minimal/restore.py ~/Projetos/rice-minimal/backups/phase3-20261105-220201-094267
+python3 ~/Projetos/rice-minimal/scripts/restore.py ~/Projetos/rice-minimal/backups/phase3-20261105-220201-094267 --apply
 hyprctl reload config-only
 pkill -USR1 -u "$USER" -x kitty
 pkill -USR2 -u "$USER" -x waybar

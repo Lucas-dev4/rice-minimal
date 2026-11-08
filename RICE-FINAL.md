@@ -29,7 +29,7 @@ A ativação permanente pelo menu só é liberada após um teste com desbloqueio
 
 ```sh
 cd ~/Projetos/rice-minimal
-python3 scripts/restore_refined.py backups/rice-final-20261105-231618
+python3 scripts/restore.py backups/rice-final-20261105-231618 --apply
 hyprctl configerrors
 ```
 
@@ -78,7 +78,7 @@ Diagnóstico somente leitura, com `[ OK ]`, `[ WARN ]` e `[ FAIL ]`: versão/con
 - `extras/doctor.py`, `config/integrity.json`: diagnóstico e integridade.
 - `extras/lockscreen.py`: layout, contraste, candidata, validação, teste consentido, instalação e restauração visual.
 - `extras/theme/profiles.py`: importação consistente no uso como CLI e como módulo.
-- `scripts/restore_refined.py`: restauração também remove um overlay criado após o snapshot.
+- `scripts/restore.py`: restauração também remove um overlay criado após o snapshot.
 - `scripts/test_control_tui.py`, `tests/test_rice_final.py`, `tests/tui_smoke.py`: navegação integrada, resize, segurança e regressões.
 - `scripts/test_adaptive_session.py`, `scripts/test_refined_session.py`: caminhos de navegação atualizados para o novo centro.
 - `README.md`, `RICE-FINAL.md`, `.gitignore`: documentação e marcador de snapshot.

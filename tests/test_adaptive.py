@@ -73,11 +73,12 @@ class Adaptive(unittest.TestCase):
         with patch.object(theme,'command') as command, patch.object(theme,'wallpaper_hook',return_value='ok') as hook:
             self.assertEqual(theme.apply_choice(chosen),'ok')
             command.assert_called_once_with(['waypaper','--wallpaper',chosen,'--no-post-command'])
-            hook.assert_called_once_with(chosen)
+            hook.assert_called_once_with(chosen,wait=False)
         self.assertEqual(filtered([chosen], 'SPACE'),[chosen])
 
-    def run_hook(self, result, sync_error=None):
+    def run_hook(self, result, sync_error=None, profile='refined'):
         (self.state/'greeter-sync').touch()
+        (self.state/'profile').write_text(profile+'\n')
         calls = []
         def command(args, **kwargs):
             calls.append(args)
@@ -94,6 +95,37 @@ class Adaptive(unittest.TestCase):
         sync = ['noctalia','msg','greeter-sync']
         self.assertEqual(self.run_hook('matugen'),('matugen',['settle',sync]))
         self.assertEqual(self.run_hook('cached'),('cached',[]))
+
+    def test_minimal_profile_syncs_without_waiting_for_an_animation(self):
+        sync = ['noctalia','msg','greeter-sync']
+        self.assertEqual(self.run_hook('matugen',profile='minimal'),('matugen',[sync]))
+
+    def test_apply_choice_does_not_wait_for_waypaper(self):
+        with patch.object(theme,'command'), patch.object(theme,'wallpaper_hook',return_value='ok') as hook:
+            theme.apply_choice(Path('/tmp/a.png'))
+        hook.assert_called_once_with(Path('/tmp/a.png'),wait=False)
+
+    def test_prune_keeps_newest_current_and_previous(self):
+        made = []
+        for index in range(25):
+            folder = self.state/f'palette-{index:02d}'
+            folder.mkdir()
+            (folder/'palette.json').write_text('{}')
+            os.utime(folder,(1000+index,1000+index))
+            made.append(folder)
+        (self.state/'current').unlink(missing_ok=True)
+        (self.state/'current').symlink_to('palette-00')
+        (self.state/'previous').unlink(missing_ok=True)
+        (self.state/'previous').symlink_to('palette-01')
+        (self.state/'palette-empty').mkdir()
+        theme.prune(keep={made[0]})
+        left = {p.name for p in self.state.glob('palette-*')}
+        self.assertIn('palette-00',left)
+        self.assertIn('palette-01',left)
+        self.assertIn('palette-24',left)
+        self.assertNotIn('palette-02',left)
+        self.assertNotIn('palette-empty',left)
+        self.assertEqual(len(left),22)
 
     def test_greeter_sync_failure_keeps_wallpaper_change(self):
         for error in (subprocess.CalledProcessError(1,'noctalia'),subprocess.TimeoutExpired('noctalia',30),FileNotFoundError('noctalia')):

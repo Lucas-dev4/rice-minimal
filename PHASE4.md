@@ -62,9 +62,9 @@ Inicie a barra por `python3 scripts/session.py`, como já faz o autostart. Execu
 - `extras/theme/profiles.py`: transação dos perfis, estado anterior e CLI.
 - `extras/rice.py`, `extras/ui.py`: submenu, estado ativo e navegação/seleção.
 - `scripts/session.py`, `scripts/waybar_ipc.py`: supervisor e compatibilidade de cliques com Lua.
-- `scripts/install_refined.py`, `scripts/restore_refined.py`: instalação com snapshot e restauração com resgate.
+- `scripts/install.py`, `scripts/restore.py`: instalação com snapshot e restauração com resgate.
 - `scripts/test_refined_session.py`: aceitação real reproduzível.
-- `tests/test_profiles.py`, `tests/test_waybar_ipc.py`, `tests/test_restore_refined.py`: testes de falha, persistência, compatibilidade e restauração.
+- `tests/test_profiles.py`, `tests/test_waybar_ipc.py`, `tests/test_restore.py`: testes de falha, persistência, compatibilidade e restauração.
 - `.gitignore`, `README.md`, `PHASE4.md`: documentação e exclusão do marcador de backup.
 - `VALIDACAO-FASE3.json` foi atualizado pela suíte existente; `VALIDACAO-FASE4.json` registra a aceitação da nova fase.
 
@@ -101,7 +101,7 @@ Backups antigos não foram removidos. O marcador `.phase4-backup` identifica ess
 
 ```sh
 cd ~/Projetos/rice-minimal
-python3 scripts/restore_refined.py backups/phase4-20261105-224647
+python3 scripts/restore.py backups/phase4-20261105-224647 --apply
 hyprctl configerrors
 ```
 
@@ -109,6 +109,6 @@ O restaurador guarda o estado atual em `before-restore-*` dentro do backup, rest
 
 Para somente desfazer a escolha de aparência, use `rice` → `[7] Restore previous profile` ou `profiles.py restore`; não restaure toda a Fase 3.
 
-Instalações futuras: `python3 scripts/install_refined.py` mostra os destinos; `--apply` instala com backup e ativa Refined. Se o supervisor já estava rodando antes da instalação, reinicie apenas `scripts/session.py` para carregar o adaptador; o autostart do próximo login já o utiliza. A instalação não sobrescreve o backup original ao ser repetida.
+Instalações futuras: `python3 scripts/install.py` mostra o que mudaria; `--apply` instala com backup e ativa Refined. Se o supervisor já estava rodando antes da instalação, reinicie apenas `scripts/session.py` para carregar o adaptador; o autostart do próximo login já o utiliza. A instalação não sobrescreve o backup original ao ser repetida.
 
 Referências consultadas: [animações Lua do Hyprland](https://wiki.hypr.land/configuring/core/animations/), [Noctalia v5.4.1 — parser de paletas](https://github.com/noctalia-dev/noctalia/blob/v5.4.1/src/theme/theme_service.cpp), [Waybar 0.15 — cliques de workspace](https://github.com/Alexays/Waybar/blob/0.15.0/src/modules/hyprland/workspace.cpp). A API foi conferida também nos módulos e stubs instalados.

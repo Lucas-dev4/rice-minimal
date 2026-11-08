@@ -45,6 +45,15 @@ def apply_hypr():
             raise RuntimeError(errors)
 
 
+def same(printed, value):
+    """config-get prints TOML values ('monospace', true, 0.25); compare them as data."""
+    import tomllib
+    try:
+        return tomllib.loads('v = '+printed)['v'] == value
+    except (tomllib.TOMLDecodeError, TypeError):
+        return False
+
+
 def switch(profile):
     if profile not in ('minimal','refined'):
         raise ValueError('Unknown profile: '+profile)
@@ -53,13 +62,19 @@ def switch(profile):
         previous_generation = (theme.STATE/'current').resolve()
         # Read every key first so a partial IPC failure can restore its actual value.
         keys = settings(profile)
-        old = {key:theme.command(['noctalia','msg','config-get',key]) for key in keys}
+        # Reads are independent IPC calls; in parallel they take ~0.1 s instead of ~0.55 s.
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(8) as pool:
+            old = dict(zip(keys, pool.map(lambda key: theme.command(['noctalia','msg','config-get',key]), keys)))
         changed = []
         try:
             atomic(theme.STATE/'profile', profile+'\n')
             theme.publish(theme.read_palette())
             apply_hypr()
             for key,value in keys.items():
+                # Only send what differs: one IPC round trip each, and most keys never change.
+                if same(old[key], value):
+                    continue
                 changed.append(key)
                 theme.command(['noctalia','msg','config-set',key,json.dumps(value)])
             theme.reload_components()
