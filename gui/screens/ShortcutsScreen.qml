@@ -21,10 +21,11 @@ Item {
     property bool recording: false
     property var recordMods: []
     property bool armedRestore: false
+    property bool armedDelete: false
     property bool armedSave: false
 
-    readonly property var hints: recording ? [["esc", "cancelar"]] : [["jk", "move"], ["hl", "grupo"], ["r", "gravar"], ["⏎", "editar"], ["/", "search"]]
-    readonly property bool busy: saver.running || restorer.running
+    readonly property var hints: recording ? [["esc", "cancelar"]] : [["jk", "move"], ["hl", "grupo"], ["r", "gravar"], ["⏎", "editar"], ["del", "apagar"], ["/", "search"]]
+    readonly property bool busy: saver.running || restorer.running || deleter.running
 
     function idOf(b) { return (b.editable ? "b" : "x") + b.line; }
     function info(b) {
@@ -72,8 +73,9 @@ Item {
     readonly property bool noctPrefix: !!selected && /noctCall\s*\.\./.test(selected.action)
     // A fixed action (dispatcher, function) can be replaced by a command or a phrase.
     readonly property bool fixedAction: !!selected && selected.editable && selected.command === null
-    readonly property bool replacing: fixedAction && draft.command.trim() !== "" && draft.command !== selected.action
-    readonly property var phrase: (commandEditable && draft.command !== selected.command) || replacing
+    // `!!selected` again: bindings may run while the dependent flags still hold the old row.
+    readonly property bool replacing: !!selected && fixedAction && draft.command.trim() !== "" && draft.command !== selected.action
+    readonly property var phrase: !!selected && ((commandEditable && draft.command !== selected.command) || replacing)
         ? Words.translate(draft.command, noctPrefix && !replacing) : null
 
     function reload() { reader.call(["shortcuts", "list", "--json"]); }
@@ -86,6 +88,7 @@ Item {
         const i = info(selected);
         draft = { key: selected.key, command: selected.command !== null ? selected.command : selected.action, desc: i.desc, group: i.group };
         armedSave = false;
+        armedDelete = false;
         // Typing into a field replaces its binding, so the fields are refilled explicitly.
         descField.text = i.desc;
         // Computed here: commandEditable may still hold the previous row's value.
@@ -119,6 +122,31 @@ Item {
         notes = next;
         notesFile.setText(JSON.stringify(next, null, 2) + "\n");
     }
+
+    // Two presses: the first arms, the second removes the line (binds.lua keeps a backup).
+    function askDelete() {
+        const b = selected;
+        if (!b || busy) return;
+        if (!b.editable) { Status.say("[ -- ] atalho do rice: não pode ser apagado aqui", Theme.dim); return; }
+        if (!armedDelete) {
+            armedDelete = true;
+            disarm.restart();
+            Status.say("[ ?? ] apagar " + Words.describe(b)[0] + " (" + b.key + ")? confirme", Theme.yel);
+            return;
+        }
+        armedDelete = false;
+        if (notes[b.action]) {
+            const next = Object.assign({}, notes);
+            delete next[b.action];
+            writeNotes(next);
+        }
+        // Keep the cursor near: the next row takes the deleted one's place.
+        const ids = visibleIds, at = ids.indexOf(idOf(b));
+        afterDelete = at >= 0 && at + 1 < ids.length ? ids[at + 1] : ids[at - 1] || "";
+        Status.start("deleting");
+        deleter.call(["shortcuts", "delete", "--line", String(b.line), "--revision", revision, "--json"]);
+    }
+    property string afterDelete: ""
 
     function save() {
         const b = selected;
@@ -221,6 +249,7 @@ Item {
             closed = [];
             return true;
         case Qt.Key_R: startRecording(); return true;
+        case Qt.Key_Delete: askDelete(); return true;
         case Qt.Key_Slash: search.focusInput(); return true;
         case Qt.Key_Return: case Qt.Key_Enter: descField.focusInput(); return true;
         }
@@ -272,6 +301,11 @@ Item {
         onSucceeded: data => {
             root.revision = data.revision;
             root.binds = data.binds.concat(data.external);
+            if (root.afterDeleteKey) {
+                const next = root.binds.find(b => b.key === root.afterDeleteKey);
+                if (next) root.currentId = root.idOf(next);
+                root.afterDeleteKey = "";
+            }
             if (!root.selected && root.visibleIds.length)
                 root.currentId = root.visibleIds[0];
             root.fill();
@@ -287,6 +321,19 @@ Item {
         }
         onFailed: message => { Status.stop(); Status.say("[ FAIL ] " + message, Theme.red); }
     }
+    RiceCommand {
+        id: deleter
+        onSucceeded: {
+            Status.stop();
+            Status.say("[ OK ] atalho apagado; backup guardado (RESTORE desfaz)");
+            // Line numbers below the deleted one shift up: find the neighbour by key after reload.
+            const old = root.byId(root.afterDelete);
+            root.afterDeleteKey = old ? old.key : "";
+            root.reload();
+        }
+        onFailed: message => { Status.stop(); Status.say("[ FAIL ] " + message, Theme.red); }
+    }
+    property string afterDeleteKey: ""
     RiceCommand {
         id: checker
         onSucceeded: data => {
@@ -316,7 +363,7 @@ Item {
         }
         onFailed: message => Status.say("[ FAIL ] " + message, Theme.red)
     }
-    Timer { id: disarm; interval: 3000; onTriggered: { root.armedRestore = false; root.armedSave = false; } }
+    Timer { id: disarm; interval: 3000; onTriggered: { root.armedRestore = false; root.armedSave = false; root.armedDelete = false; } }
 
     RiceHeader {
         id: title
@@ -682,6 +729,12 @@ Item {
                     if (root.armedRestore) { root.armedRestore = false; finder.call(["shortcuts", "backups", "--json"]); }
                     else { root.armedRestore = true; disarm.restart(); }
                 }
+            }
+            AccentButton {
+                ghost: true
+                label: root.armedDelete ? "CONFIRM?" : "DELETE"
+                enabledState: !root.busy && !!root.selected && root.selected.editable
+                onClicked: root.askDelete()
             }
             AccentButton {
                 label: root.armedSave ? "CONFIRM?" : "SAVE"

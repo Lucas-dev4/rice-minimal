@@ -312,6 +312,15 @@ hl.bind(mainMod .. " + Z",    hl.dsp.exec_cmd("hyprctl kill"), { locked = true }
         self.assertIn('hl.bind(mainMod .. " + Q",    hl.dsp.exec_cmd("noctalia msg volume-down"))',self.file.read_text())
         self.assertEqual(self.file.read_text().count('\n'),self.TEXT.count('\n'))
 
+    def test_delete_removes_only_that_line_and_keeps_a_backup(self):
+        code, result = self.run_cli('shortcuts','delete','--line','4','--revision',self.listing()['revision'],'--json','--file',str(self.file))
+        self.assertEqual((code,result['ok']),(0,True))
+        self.assertEqual(self.file.read_text(),self.TEXT.replace('hl.bind(mainMod .. " + Q",    hl.dsp.window.close())\n',''))
+        self.assertEqual(Path(result['data']['backup']).read_text(),self.TEXT)
+        # Not a bind line (a comment) and a stale revision are refused.
+        self.assertFalse(self.run_cli('shortcuts','delete','--line','3','--revision',self.listing()['revision'],'--json','--file',str(self.file))[1]['ok'])
+        self.assertFalse(self.run_cli('shortcuts','delete','--line','4','--revision','x','--json','--file',str(self.file))[1]['ok'])
+
     def test_key_edit_works_on_a_dispatcher(self):
         self.assertEqual(self.change(4,'--key','SHIFT + Q')[0],0)
         self.assertIn('hl.dsp.window.close()',self.file.read_text())

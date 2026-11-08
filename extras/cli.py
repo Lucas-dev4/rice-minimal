@@ -366,6 +366,9 @@ def main(argv):
     change.add_argument('--key',default='')
     change.add_argument('--command',default='')
     change.add_argument('--replace',action='store_true',help='let --command replace a dispatcher or function action')
+    drop=keys.add_parser('delete',parents=[common])
+    drop.add_argument('--line',type=int,required=True)
+    drop.add_argument('--revision',required=True)
     keys.add_parser('restore',parents=[common]).add_argument('backup')
     saved=actions.add_parser('backups').add_subparsers(dest='operation',required=True)
     saved.add_parser('list',parents=[common])
@@ -415,6 +418,9 @@ def main(argv):
         elif name == 'lock restore':
             data={'rescue':lockscreen.restore()}
             theme.log_action('lock','OK','previous visuals restored')
+        elif name == 'shortcuts delete':
+            data=shortcuts.delete(args.line,args.revision,args.file)
+            theme.log_action('shortcut','OK','removed '+data['line'])
         elif name == 'shortcuts set':
             data=shortcuts.edit(args.line,args.revision,args.key,args.command,args.file,args.replace)
             theme.log_action('shortcut','OK',data['line'])

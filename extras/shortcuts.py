@@ -101,6 +101,20 @@ def edit(line, revision, key='', command='', path=None, replace=False):
     return {'backup':str(backend.safe_write(target,original,''.join(lines))),'line':lines[line].strip()}
 
 
+def delete(line, revision, path=None):
+    # Removes one bind line; safe_write keeps a .supers-*.bak, so RESTORE brings it back.
+    target = Path(path or backend.CONFIG_PATH)
+    original = target.read_text()
+    if hashlib.sha256(original.encode()).hexdigest() != revision:
+        raise ValueError('The shortcut file changed; reload and try again')
+    binds = backend.parse_binds(original.splitlines(True))
+    if not any(b['line_idx'] == line for b in binds):
+        raise ValueError('That line is not an editable shortcut')
+    lines = original.splitlines(True)
+    removed = lines.pop(line).strip()
+    return {'backup':str(backend.safe_write(target,original,''.join(lines))),'line':removed}
+
+
 def check(path=None):
     target = Path(path or backend.CONFIG_PATH)
     result = subprocess.run(['luac','-p',str(target)],capture_output=True,text=True)
