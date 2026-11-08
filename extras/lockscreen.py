@@ -81,7 +81,6 @@ def status():
         session=None
     return {'enabled':(theme.STATE/'lock-enabled').exists(),'tested':tested(),'dim':dim(),
             'effective_dim':candidate['tint_intensity'],'wallpaper':candidate['wallpaper'],
-            'title':'RICE // LOCKED' if theme.current_profile() == 'refined' else 'RICE //',
             'displays':[m['name'] for m in displays()],'layout_current':current,'session_locked':session}
 
 
@@ -149,10 +148,8 @@ def render(palette,profile):
     for i,m in enumerate(displays()):
         w=m['width']/m.get('scale',1); h=m['height']/m.get('scale',1)
         output=m['name']
-        rows=[('title','label',.33,360,40,{'title':'RICE // LOCKED' if refined else 'RICE //','color':'on_surface','background':False,'shadow':False}),
-              ('time','clock',.43,480 if refined else 320,110 if refined else 70,{'format':'{:%H:%M}','color':'on_surface','background':False,'shadow':False,'show_seconds':False}),
-              ('date','clock',.52,500,36,{'format':'{:%A, %d %B %Y}','color':'on_surface','background':False,'shadow':False,'show_seconds':False}),
-              ('input','login_box',.65,400,100,{'layout':'compact','background_opacity':.94,'background_radius':2.0,'input_radius':2.0,'show_weather':False,'show_media':False,'show_session_buttons':False,'show_password_reveal':False,'show_caps_lock':True,'show_keyboard_layout':True,'show_login_button':True,'show_unlock_hint':True,'center_password_text':True})]
+        # Only the password field: no title, clock or date on the lock screen.
+        rows=[('input','login_box',.5,400,100,{'layout':'compact','background_opacity':.94,'background_radius':2.0,'input_radius':2.0,'show_weather':False,'show_media':False,'show_session_buttons':False,'show_password_reveal':False,'show_caps_lock':True,'show_keyboard_layout':False,'show_login_button':False,'show_unlock_hint':False,'center_password_text':True})]
         for name,kind,y,bw,bh,settings in rows:
             widget_id=f'rice-{name}-{i}' if kind != 'login_box' else 'lockscreen-login-box@'+output
             order.append(widget_id)
@@ -161,7 +158,8 @@ def render(palette,profile):
                         f'cx = {w/2}',f'cy = {h*y}',f'box_width = {min(bw,w*.85)}',f'box_height = {bh}',
                         f'placement_width = {w}',f'placement_height = {h}','rotation = 0.0',
                         '[lockscreen_widgets.widget.'+json.dumps(widget_id)+'.settings]']
-            settings=dict(settings,font_family='DejaVu Sans Mono')
+            if kind != 'login_box':  # Noctalia rejects font_family on the login box.
+                settings=dict(settings,font_family='DejaVu Sans Mono')
             for key,value in settings.items():
                 widgets.append(key+' = '+json.dumps(value,ensure_ascii=False))
     lines += ['widget_order = '+json.dumps(order),'[lockscreen_widgets.grid]','visible = false','cell_size = 16','major_interval = 4']

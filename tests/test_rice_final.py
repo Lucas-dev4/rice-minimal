@@ -28,8 +28,8 @@ class Final(unittest.TestCase):
         data=tomllib.loads(rendered)
         self.assertEqual(set(data['lockscreen']),lockscreen.VISUAL_KEYS)
         self.assertEqual(data['lockscreen']['blur_intensity'],0)
-        self.assertIn('RICE // LOCKED',rendered)
-        self.assertEqual(len(data['lockscreen_widgets']['widget_order']),4)
+        self.assertEqual([w['type'] for w in data['lockscreen_widgets']['widget'].values()],['login_box'])
+        self.assertNotIn('font_family',rendered)
         self.assertTrue(any(w['type']=='login_box' for w in data['lockscreen_widgets']['widget'].values()))
         self.assertEqual(data['lockscreen']['wallpaper'],'/tmp/quoted " file.png')
 

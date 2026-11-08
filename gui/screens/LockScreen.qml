@@ -80,7 +80,7 @@ Item {
         title: "RICE // LOCK SCREEN"
     }
 
-    // Approximates the widget rows from lockscreen.render().
+    // Mirrors lockscreen.render(): the password field alone, centered.
     Rectangle {
         id: preview
         anchors.top: title.bottom
@@ -103,28 +103,9 @@ Item {
             color: Theme.surface
             opacity: root.info.effective_dim || 0
         }
-        RiceText {
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height * .33 - height / 2
-            text: root.info.title || ""
-            font.bold: true
-        }
-        RiceText {
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height * .43 - height / 2
-            text: "00:00"
-            font.pixelSize: 30
-            font.bold: true
-        }
-        RiceText {
-            anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height * .54 - height / 2
-            text: "date"
-            font.pixelSize: 11
-        }
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
-            y: parent.height * .65
+            y: parent.height * .5 - height / 2
             width: 120
             height: 22
             color: Theme.surfaceAlt

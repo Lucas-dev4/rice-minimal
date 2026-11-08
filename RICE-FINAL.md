@@ -51,7 +51,7 @@ Os perfis existentes e o adaptador IPC do supervisor foram preservados. Nenhum n
 
 ## Tema nativo do bloqueio
 
-A candidata usa widgets nativos `label`, `clock` e `login_box`: título RICE // LOCKED, hora central grande, data e campo compacto. Cada monitor detectado recebe seu layout com coordenadas lógicas. O wallpaper vem dos metadados da paleta atual; as cores usam os roles da paleta customizada do Noctalia. Os pontos de atualização existentes do Matugen geram também `lockscreen.toml`; quando o layout estiver aprovado e ativo, o reload publica o overlay `~/.config/noctalia/rice-lock.toml` atomicamente.
+A candidata usa só o widget nativo `login_box`, centralizado: o campo de senha, sem título, relógio, data, dica ou botão. O aviso de Caps Lock continua aparecendo quando ele está ligado.
 
 Os níveis de escurecimento selecionam mínimos de 35%, 55% e 75%. A amostra central do wallpaper pode elevar esse mínimo para preservar contraste de texto; não há blur. Refined usa somente fade nativo de 150 ms; Minimal mantém as animações globais do shell desligadas. Indicadores de digitação e autenticação continuam sendo os do campo seguro nativo.
 

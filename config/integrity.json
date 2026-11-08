@@ -14,7 +14,7 @@
   "extras/backups.py": "02eb7ac959040b1e4d9b3ab97e6a243503dbc43bb95c73cb6e4b313357dce8f4",
   "extras/cli.py": "6ec68d19498446aee191d11f6e84ab8b65703a56141a9c4c012cb8660ae8c63b",
   "extras/doctor.py": "a45fd19c859d004d4a08c0ed821b84c85731aa90258df176d39ca6718422b432",
-  "extras/lockscreen.py": "99d9e1a1e04cdc14c7cf454d681c7ac174af8f451ac07333cfe1a693736451e9",
+  "extras/lockscreen.py": "da07f9cf6e5e03ddbaaefe2525572903cfac7ffae76ef3d1a5f9bcc10ff56447",
   "extras/rice.py": "d76e4d980492d41e318e3618bba9c857f912dceb91fa6384489b7778d6dd8123",
   "extras/shortcuts.py": "5d65b0f31e4622543a8234c68c651e77a941cb1b975349cc8a386e83d8b4f4ac",
   "extras/supers/README.md": "30f2dfa388afa795bcf11e3d4fa2d6dca4125f9482a1ed6705a9291a4bf47b9d",
@@ -44,7 +44,7 @@
   "gui/screens/BackupsScreen.qml": "49e8a0995e265ba860d8550d89e6f65adbddf086fea5a211fdf39f2c88d6ad92",
   "gui/screens/DoctorScreen.qml": "6711bcf3216947f96850c240a57153dd616fb2a51e2e6ce545485769b63cb735",
   "gui/screens/GreeterScreen.qml": "92a8bde6d22ae4965048f3da9a91cc51da18975323adf399e3fb6d9bea8c6b82",
-  "gui/screens/LockScreen.qml": "181a132b073c15ec1a63085ee3d6b1cd56b92c1c1e6f7d2099eba35fe92b5fb3",
+  "gui/screens/LockScreen.qml": "179790feeabcff5afd2249698e5537139c1c660f646d6c3121760d53e63e9103",
   "gui/screens/PaletteScreen.qml": "a45b80fd0c206f810bd26cf428afc60eab136a981f736b2d2629736cea0045aa",
   "gui/screens/PlaceholderScreen.qml": "fc68882b775c930f83a0b67e31aca18ff8aaa412aa2f6c71f71ff72cd593ff2a",
   "gui/screens/ProfilesScreen.qml": "fd823342e7e55f0c1d01e7c4bff90fec226b71e925930725d8935d10649d3b75",
@@ -66,7 +66,7 @@
   "tests/test_cli_json.py": "7819f28b827f53bf04b86336383ec0a7f55f3349135077d27469b4f53bc0932c",
   "tests/test_profiles.py": "58c750209fc7c67c7dfcec0e77faa011286a807d8c732b56e3cac5f2646867fd",
   "tests/test_restore_refined.py": "305c6cb2a73893ee38b348eb110e6a9f897fc16f4250eeaec30394fde221e1fa",
-  "tests/test_rice_final.py": "0353ee334814eb3c50bcaa2e9c8c6f2b4b7aec009cfa2078abc71157664230e2",
+  "tests/test_rice_final.py": "67a309ecb3d924dd64ae8aa7269ce59a43c8816fdb30a7fbbd9ad0e52ff6e830",
   "tests/test_waybar_ipc.py": "b4817d4ca546615846eda8371c149afb5b729a3508b2971acd209ce8e4de1fa0",
   "tests/tui_smoke.py": "7df919064de8c90bab50fd92c9bd333951db9711d1c20b138301b64b4401bc14"
 }
