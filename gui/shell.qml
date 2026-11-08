@@ -13,7 +13,7 @@ FloatingWindow {
     readonly property var screens: [
         { name: "WALLPAPERS", source: "screens/WallpaperScreen.qml", hints: [] },
         { name: "SHORTCUTS", source: "screens/ShortcutsScreen.qml", hints: [] },
-        { name: "PROFILES", source: "screens/ProfilesScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
+        { name: "PROFILES", source: "screens/ProfilesScreen.qml", hints: [] },
         { name: "PALETTE", source: "screens/PaletteScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
         { name: "DOCTOR", source: "screens/DoctorScreen.qml", hints: [["1-8", "tab"], ["esc", "quit"]] },
         { name: "BACKUPS", source: "screens/BackupsScreen.qml", hints: [["jk", "move"], ["esc", "quit"]] },
@@ -61,6 +61,7 @@ FloatingWindow {
             window.status = data;
             window.statusLoaded = true;
             Theme.terminal = data.terminal;
+            Status.wallpaper = data.wallpaper ? (data.wallpaper.effective || "") : "";
         }
         onFailed: message => {
             window.statusLoaded = true;
@@ -436,7 +437,9 @@ FloatingWindow {
             : Status.busy ? progress.text
             : Status.message || log.lastLine
         property int count: 0
-        readonly property string shown: Theme.motion && !Status.busy ? full.slice(0, count) : full
+        // One line only: log details may contain newlines.
+        readonly property string flat: full.replace(/\s*\n\s*/g, " ")
+        readonly property string shown: Theme.motion && !Status.busy ? flat.slice(0, count) : flat
         onFullChanged: if (!Status.busy) { count = 0; typer.restart(); }
     }
     Timer {

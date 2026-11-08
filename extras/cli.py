@@ -182,8 +182,32 @@ def previous_profile():
         return None
 
 
+def profile_differences():
+    """Only what really changes between the profiles, read from the files that apply them."""
+    import re
+    def word(value):
+        return ('on' if value else 'off') if isinstance(value,bool) else str(value)
+    rows=[]
+    lua=(theme.ROOT/'config/hypr/rice-appearance.lua').read_text()
+    if re.search(r'animations\s*=\s*\{\s*enabled\s*=\s*refined',lua):
+        rows.append({'setting':'hyprland animations','minimal':'off','refined':'on'})
+    for leaf,label in (('workspaces','workspace switch'),('windows','window open')):
+        found=re.search(r'leaf\s*=\s*"'+leaf+r'".*?speed\s*=\s*([\d.]+)(?:.*?style\s*=\s*"(\w+))?',lua)
+        if found:
+            # Hyprland animation speed is in tenths of a second.
+            ms=round(float(found.group(1))*100)
+            rows.append({'setting':label,'minimal':'instant','refined':f"{found.group(2)+' ' if found.group(2) else ''}{ms} ms"})
+    minimal,refined=profiles.settings('minimal'),profiles.settings('refined')
+    for key in minimal:
+        if minimal[key]!=refined[key]:
+            rows.append({'setting':'noctalia '+key,'minimal':word(minimal[key]),'refined':word(refined[key])})
+    rows.append({'setting':'greeter waits for colors','minimal':'0 s','refined':f'{theme.GREETER_SETTLE} s'})
+    return rows
+
+
 def profile_get():
-    return {'profile':theme.current_profile(),'previous':previous_profile(),'choices':['minimal','refined']}
+    return {'profile':theme.current_profile(),'previous':previous_profile(),'choices':['minimal','refined'],
+            'differences':profile_differences()}
 
 
 def profile_set(name):

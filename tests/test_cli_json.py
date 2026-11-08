@@ -180,6 +180,16 @@ class Profile(Envelope):
         if previous:
             (self.state/'previous-profile').write_text(previous+'\n')
 
+    def test_differences_come_from_the_files_that_apply_the_profiles(self):
+        rows = {r['setting']:r for r in cli.profile_differences()}
+        self.assertEqual(rows['hyprland animations']['refined'],'on')
+        self.assertEqual(rows['workspace switch']['minimal'],'instant')
+        self.assertRegex(rows['workspace switch']['refined'],r'^slide \d+ ms$')
+        self.assertEqual(rows['noctalia shell.animation.enabled']['minimal'],'off')
+        self.assertEqual(rows['greeter waits for colors']['refined'],f'{theme.GREETER_SETTLE} s')
+        # Settings equal in both profiles never appear.
+        self.assertFalse(any('rounding' in name or 'font' in name for name in rows))
+
     def test_active_profile_keeps_history(self):
         self.set_profile('refined','minimal')
         with patch.object(cli.profiles,'switch') as switch:
