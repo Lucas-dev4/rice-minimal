@@ -307,6 +307,11 @@ def render(palette):
     v = terminal_colors(palette)
     terminal = [c['background'], v['red'], v['green'], v['yellow'], v['blue'], v['magenta'], v['cyan'], c['foreground'],
                 c['muted']] + [mix(v[k], '#ffffff', .2) for k in ('red','green','yellow','blue','magenta','cyan')] + [c['foreground']]
+    # Same colors as Kitty, in the format pywal.nvim sources from ~/.cache/wal.
+    wal = '" RICE // minimal: terminal colors for pywal.nvim.\n' + ''.join(
+        f"let g:{key} = '{value}'\n" for key,value in
+        [('background',c['background']),('foreground',c['foreground']),('cursor',v['accent'])]
+        + [(f'color{i}',value) for i,value in enumerate(terminal)])
     kitty = '\n'.join(f'{k} {v}' for k,v in {
         'background':c['background'], 'foreground':c['foreground'], 'cursor':c['accent'],
         'cursor_text_color':c['background'], 'selection_background':c['accent'],
@@ -384,7 +389,7 @@ def render(palette):
     import lockscreen
     lock_theme = lockscreen.render(palette, current_profile())
     return {'lockscreen.toml':lock_theme, 'noctalia.json':json.dumps(noctalia,indent=2)+'\n', 'kitty.conf':kitty, 'colors.css':css, 'profile.css':profile_css, 'hyprland.lua':hypr, 'colors.fish':fish,
-            'nvim.lua':nvim, 'palette.json':json.dumps(palette,indent=2)+'\n'}
+            'nvim.lua':nvim, 'colors-wal.vim':wal, 'palette.json':json.dumps(palette,indent=2)+'\n'}
 
 def link(name, target):
     temporary = STATE/f'.{name}-{time.time_ns()}'
@@ -429,6 +434,11 @@ def reload_components():
         temporary.write_text((STATE/'current/noctalia.json').read_text())
         os.replace(temporary, target)
         command(['noctalia', 'msg', 'config-reload'])
+    wal = Path.home()/'.cache/wal/colors-wal.vim'
+    wal.parent.mkdir(parents=True, exist_ok=True)
+    temporary = wal.with_name('.colors-wal.vim.tmp')
+    temporary.write_text((STATE/'current/colors-wal.vim').read_text())
+    os.replace(temporary, wal)
     for app, sig in (('kitty', signal.SIGUSR1), ('waybar', signal.SIGUSR2)):
         try:
             pids = command(['pgrep', '-u', str(os.getuid()), '-x', app]).split()

@@ -267,6 +267,15 @@ outline = "#888888"
         self.publish('#333333')
         self.assertNotEqual((self.state/'previous').resolve(),older)
 
+    def test_neovim_gets_the_same_colors_as_kitty_in_pywal_format(self):
+        files = theme.render({'colors':dict(theme.FALLBACK,**{k:'#777777' for k in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')}),'generator':'test'})
+        kitty = dict(line.split(' ',1) for line in files['kitty.conf'].splitlines())
+        wal = dict(line[6:].split(' = ') for line in files['colors-wal.vim'].splitlines() if line.startswith('let g:'))
+        self.assertEqual(len(wal),19)
+        for index in range(16):
+            self.assertEqual(wal[f'color{index}'].strip("'"),kitty[f'color{index}'])
+        self.assertEqual(wal['background'].strip("'"),kitty['background'])
+
     def test_only_the_terminal_gets_vivid_colors(self):
         colors = dict(theme.FALLBACK, **{key:'#777777' for key in ('bar_clock','bar_volume','bar_memory','bar_cpu','bar_workspace','bar_window')})
         files = theme.render({'colors':colors,'generator':'test'})

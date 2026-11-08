@@ -38,6 +38,8 @@ def inspect():
     command('Kitty opacity',['kitty','+runpy','from kitty.config import load_config; o=load_config("'+str(Path.home()/'.config/kitty/kitty.conf')+'"); assert o.background_opacity == 0.85; print(o.background_opacity)'])
     command('Fish syntax',['fish','-n',Path.home()/'.config/fish/config.fish'])
     command('Neovim Lua syntax',['luac','-p',Path.home()/'.config/nvim/init.lua'])
+    wal=Path.home()/'.cache/wal/colors-wal.vim'
+    add('OK' if wal.is_file() else 'WARN','Neovim colors (pywal.nvim)',wal if wal.is_file() else 'missing; run rice sync')
     command('Super validation',['python3',theme.ROOT/'extras/supers/Supers','--check'])
     palette=theme.read_palette()
     path=Path(palette.get('wallpaper','/missing'))

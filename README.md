@@ -139,3 +139,7 @@ A tela Lock mostra uma prévia da candidata, ajusta o escurecimento e atualiza a
 A tela Backups lista cada backup com o tipo e o comando de restauração certo (`rice backups list`). Perfil e paleta anteriores restauram ali mesmo; a restauração completa e a do greeter ficam no terminal, porque substituem código em uso. `COPY COMMAND` copia o comando.
 
 As cores vêm de `~/.config/noctalia/palettes/RiceMinimal.json`, trocado de forma atômica a cada mudança de paleta.
+
+## Neovim
+
+`config/nvim/init.lua` é um arquivo único com lazy.nvim, pywal.nvim e lualine (versões fixadas em `config/nvim/lazy-lock.json`). O rice escreve as cores do terminal em `~/.cache/wal/colors-wal.vim` a cada troca de wallpaper, e o Neovim aberto recarrega na hora. Fundo transparente, indentação com TAB real, `:Org` para reindentar, autosave ao sair do modo inserção e ao trocar de buffer, atalhos estilo VSCode e `Ctrl+T` para abrir um Kitty em `~/Vscode`. Não há terminal embutido.
