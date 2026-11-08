@@ -8,7 +8,7 @@ var SYMBOL = {
     Left: "←", Right: "→", Up: "↑", Down: "↓",
     Escape: "Esc", Return: "⏎", BackSpace: "⌫", Space: "Space", Tab: "Tab",
     mouse_up: "scroll ↑", mouse_down: "scroll ↓", "mouse:272": "LMB", "mouse:273": "RMB",
-    Minus: "−", Plus: "+", period: ".", comma: ",", Print: "PrtSc",
+    Minus: "−", Plus: "+", equal: "=/+", period: ".", comma: ",", Print: "PrtSc",
     "code:82": "KP −", "code:86": "KP +"
 };
 var ARROW = { left: "←", l: "←", right: "→", r: "→", up: "↑", u: "↑", down: "↓", d: "↓" };

@@ -66,7 +66,7 @@
   "gui/screens/PaletteScreen.qml": "6b6b15c49a5cecb1ae63e98a01d0b730e887b432674172519ae2890b066ab719",
   "gui/screens/PlaceholderScreen.qml": "303b7a807e2b45a4f0b44f123635b5c8648113dcb5fb632e10fe5fcc23b83482",
   "gui/screens/ProfilesScreen.qml": "45b066d66514b199e2b0b18aa5c21d31f5d46d98e482c4606c2ec6e25c83f69f",
-  "gui/screens/ShortcutWords.js": "db244da17eb26d72c199365f443675cabaa91dc627ba4d8b16cc84e8061b47a3",
+  "gui/screens/ShortcutWords.js": "5afb062d5ca5f669e4326ae1c143f8d7100a9a971b837f4f06b9dc69a8d37bc4",
   "gui/screens/ShortcutsScreen.qml": "1056b88247b1db9dfa69cb508135b00f9cabd54baaf9d4867b6aff763b1097fd",
   "gui/screens/WallpaperScreen.qml": "3f24be8315f87ce7bebbfadb3f8a2c7845e02542d617bc3ff1d0abdff98c3fad",
   "gui/shell.qml": "7097eb432bb0f63c4e25f463baad32140838562a6607d340a6ede055e5c3115a",
