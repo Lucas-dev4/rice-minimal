@@ -79,6 +79,10 @@ Item {
         const i = info(selected);
         draft = { key: selected.key, command: selected.command || "", desc: i.desc, group: i.group };
         armedSave = false;
+        // Typing into a field replaces its binding, so the fields are refilled explicitly.
+        descField.text = i.desc;
+        // Computed here: commandEditable may still hold the previous row's value.
+        commandField.text = selected.editable && selected.command !== null ? draft.command : selected.action;
     }
 
     function move(step) {
@@ -176,6 +180,11 @@ Item {
         const name = Words.keyName(event);
         if (!name)
             return;
+        // binds.lua writes every combination as mainMod .. "+ ...": Super is mandatory.
+        if (mods.indexOf("SUPER") < 0) {
+            stopRecording("[ !! ] use Super na combinação — binds.lua sempre começa com Super", Theme.red);
+            return;
+        }
         const key = mods.concat([name]).join(" + ");
         setDraft("key", key);
         const clash = conflictsOf(selected, key);
@@ -577,6 +586,7 @@ Item {
                 onEdited: root.setDraft("desc", text)
             }
             Field {
+                id: commandField
                 width: parent.width
                 label: "COMANDO"
                 text: root.commandEditable ? root.draft.command : (root.selected ? root.selected.action : "")
