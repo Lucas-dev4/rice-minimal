@@ -356,6 +356,11 @@ map("i", "<S-Up>", "<C-o>Vk", { desc = "Selecionar linha acima" })
 map("i", "<S-Down>", "<C-o>Vj", { desc = "Selecionar linha abaixo" })
 map("i", "<S-Left>", "<C-o>vh", { desc = "Selecionar à esquerda" })
 map("i", "<S-Right>", "<C-o>vl", { desc = "Selecionar à direita" })
+-- Seta sem Shift cancela a seleção e anda, como em qualquer editor. Se a seleção
+-- começou no insert, o Esc volta direto para a digitação.
+for _, arrow in ipairs({ "<Up>", "<Down>", "<Left>", "<Right>" }) do
+	map("x", arrow, "<Esc>" .. arrow, { desc = "Cancelar seleção e mover" })
+end
 map("x", "<S-Up>", "k", { desc = "Estender seleção para cima" })
 map("x", "<S-Down>", "j", { desc = "Estender seleção para baixo" })
 map("x", "<S-Left>", "h", { desc = "Estender seleção à esquerda" })
