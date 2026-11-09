@@ -309,6 +309,23 @@ map("x", "<C-y>", "<Esc><C-r>", { desc = "Refazer" })
 map({ "n", "i", "x" }, "<C-s>", "<Cmd>update<CR>", { desc = "Salvar" })
 map({ "n", "i", "x" }, "<C-q>", "<Cmd>confirm qa<CR>", { desc = "Sair" })
 
+-- Ctrl+/: comenta ou descomenta a linha (ou a seleção) com o gc nativo, que usa o
+-- comentário do tipo de arquivo (// em C, ; em NASM). O terminal pode mandar Ctrl+/
+-- como <C-/> (protocolo de teclado do Kitty) ou como <C-_> (terminais antigos).
+local function comment_line()
+	local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+	local before = #vim.api.nvim_get_current_line()
+	vim.cmd("normal gcc")
+	-- O cursor acompanha o texto que andou para a direita ou para a esquerda.
+	local shift = #vim.api.nvim_get_current_line() - before
+	vim.api.nvim_win_set_cursor(0, { row, math.max(0, col + shift) })
+end
+for _, key in ipairs({ "<C-/>", "<C-_>" }) do
+	map("n", key, comment_line, { desc = "Comentar linha" })
+	map("i", key, comment_line, { desc = "Comentar linha" })
+	map("x", key, "gcgv", { remap = true, desc = "Comentar seleção" })
+end
+
 -- o volta para o modo inserção sem criar linha nova (no Vim puro, o abre uma linha
 -- abaixo). Depois de uma seleção (Ctrl+A) volta para onde você estava digitando.
 map("n", "o", "i", { desc = "Voltar para a inserção" })

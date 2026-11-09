@@ -13,7 +13,7 @@
   "config/hypr/rice-integration.lua": "2c1529ac614a4a7df647ed01c2543c728cb95367d6f1a404a910d7908790ee86",
   "config/hypr/rice-minimal.lua": "877dc243a532c3d6611fe2c3de7d72fb95e592ae7295bef52c7a5de74dfe3c32",
   "config/kitty/kitty.conf": "c5b0312e6396a2d25606421207ffe857390f2b7472c19b374d3ea1aea2ae39cf",
-  "config/nvim/init.lua": "09c2afd1ff28ab120455a485585f564e17101294ba4dbeca00acf343d23c9b68",
+  "config/nvim/init.lua": "b057fdde240b98627f901552cd698ddbb926dacaac3158abf61b38897566a7a6",
   "config/nvim/lazy-lock.json": "2e7e7c4e73909e3427a38e5d607087889c743b482809fd0d057bad23490d83f7",
   "config/waybar/config.jsonc": "be36b931f2449c6fb0e10fbee1389dc651bfcee2587ce9697802efb5882aad7e",
   "config/waybar/style.css": "99ebfc7cd6816ae302339b590cb36b0b070fb2d4ed40c7d808ca2f9c7823f7ad",
