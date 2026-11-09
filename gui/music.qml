@@ -16,7 +16,7 @@ FloatingWindow {
     readonly property var screens: [
         { name: "NOW PLAYING", source: "player/NowScreen.qml" },
         { name: "PLAYLIST", source: "player/PlaylistScreen.qml" },
-        { name: "EQUALIZER", source: "player/PlannedScreen.qml", plan: "fase 6: 10 bandas reais do cliamp" },
+        { name: "EQUALIZER", source: "player/EqScreen.qml" },
         { name: "RADIO", source: "player/PlannedScreen.qml", plan: "fase 7: radio-browser e radios.toml" }
     ]
     property int current: 0
