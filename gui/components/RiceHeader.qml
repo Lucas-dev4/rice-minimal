@@ -8,6 +8,10 @@ Item {
 
     property string title: ""
     property string note: ""
+    // A status chip (LW // MUSIC: PLAYING green, PAUSED yellow); dim by default.
+    property color noteColor: Theme.dim
+    // Items placed at the right end; the dashed rule stops before them.
+    default property alias trailing: rightSlot.data
     property bool primary: title.indexOf("//") >= 0
 
     width: parent ? parent.width : 0
@@ -56,12 +60,13 @@ Item {
             height: noteText.implicitHeight + 2
             color: "transparent"
             border.width: 1
-            border.color: Theme.line
+            border.color: root.noteColor === Theme.dim ? Theme.line : Qt.alpha(root.noteColor, 0.35)
+            Behavior on border.color { ColorAnimation { duration: Theme.tFast } }
             RiceText {
                 id: noteText
                 anchors.centerIn: parent
                 text: root.note
-                color: Theme.dim
+                color: root.noteColor
                 font.pixelSize: Theme.small
             }
         }
@@ -71,7 +76,8 @@ Item {
     Row {
         anchors.left: row.right
         anchors.leftMargin: 10
-        anchors.right: parent.right
+        anchors.right: rightSlot.left
+        anchors.rightMargin: rightSlot.width > 0 ? 10 : 0
         y: Math.round(label.height / 2)
         clip: true
         spacing: 4
@@ -79,5 +85,12 @@ Item {
             model: 200
             Rectangle { width: 4; height: 1; color: Theme.line }
         }
+    }
+
+    Row {
+        id: rightSlot
+        anchors.right: parent.right
+        anchors.verticalCenter: row.verticalCenter
+        spacing: 6
     }
 }

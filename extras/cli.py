@@ -13,7 +13,7 @@ import backups
 import lockscreen
 import shortcuts
 
-COMMANDS = {'status','gui','wallpaper','palette','profile','greeter','sync','shortcuts','lock','backups'}
+COMMANDS = {'status','gui','music','wallpaper','palette','profile','greeter','sync','shortcuts','lock','backups'}
 THUMBS = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'rice-minimal/thumbs'
 THUMB_SIZE = 400
 
@@ -323,6 +323,18 @@ def gui():
     os.execvp('qs',['qs','-n','-d','-p',path])
 
 
+def music():
+    # LW // MUSIC: a second Quickshell instance of the same config folder (gui/music.qml).
+    # A second press closes it. GPU rendering: the visualizer draws every frame.
+    path=str(theme.ROOT/'gui'/'music.qml')
+    probe=subprocess.run(['qs','ipc','-p',path,'show'],capture_output=True,text=True)
+    if probe.returncode == 0 and 'target music' in probe.stdout:
+        subprocess.run(['qs','ipc','-p',path,'call','music','close'],capture_output=True)
+        return 0
+    os.environ.pop('QT_QUICK_BACKEND',None)
+    os.execvp('qs',['qs','-n','-d','-p',path])
+
+
 def failure(action,exc):
     return {'ok':False,'action':action,'error':{
         'code':'not_found' if isinstance(exc,FileNotFoundError) else 'invalid' if isinstance(exc,ValueError)
@@ -338,6 +350,7 @@ def main(argv):
     actions=parser.add_subparsers(dest='action',required=True)
     actions.add_parser('status',parents=[common])
     actions.add_parser('gui')
+    actions.add_parser('music')
     wallpaper=actions.add_parser('wallpaper').add_subparsers(dest='operation',required=True)
     wallpaper.add_parser('list',parents=[common])
     wallpaper.add_parser('thumbs')
@@ -382,6 +395,8 @@ def main(argv):
     args=parser.parse_args(argv)
     if args.action == 'gui':
         return gui()
+    if args.action == 'music':
+        return music()
     if getattr(args,'operation','') == 'thumbs':
         wallpaper_thumbs()
         return 0

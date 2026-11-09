@@ -17,6 +17,7 @@ Singleton {
     property bool connecting: true
     property var snapshot: ({})
     property var playlist: []            // [{title, artist, album, path, index}]
+    property bool playlistLoaded: false
     property string lastError: ""
     readonly property string status: online ? (snapshot.state || "stopped") : "offline"
     readonly property bool playing: status === "playing"
@@ -48,6 +49,14 @@ Singleton {
     signal changed()          // any new snapshot
     signal failed(string op, string message)
 
+    // local | radio | stream. Plain http(s) is a radio stream unless it is a known
+    // streaming site; provider ids (spotify:, ytmusic: …) are streaming.
+    function sourceOf(path) {
+        const p = String(path || "");
+        if (p.startsWith("/") || p.startsWith("file:")) return "local";
+        if (/^https?:/i.test(p)) return /youtube\.|youtu\.be|soundcloud\.|bandcamp\.|mixcloud\.|spotify\.|tidal\.|qobuz\./i.test(p) ? "stream" : "radio";
+        return "stream";
+    }
     function fileName(path) { return String(path || "").split("/").pop().replace(/\.[^.]+$/, ""); }
 
     // ---- commands -----------------------------------------------------------
@@ -95,7 +104,12 @@ Singleton {
         retry.interval = 400;
         retry.restart();
     }
-    function refreshPlaylist() { call("queue.list", { limit: 10000 }, r => playlist = (r.tracks || []).map((t, i) => Object.assign({ index: i }, t))); }
+    function refreshPlaylist() {
+        call("queue.list", { limit: 10000 }, r => {
+            playlist = (r.tracks || []).map((t, i) => Object.assign({ index: i }, t));
+            playlistLoaded = true;
+        });
+    }
 
     // ---- state stream -------------------------------------------------------
     property int playlistRevision: -1
