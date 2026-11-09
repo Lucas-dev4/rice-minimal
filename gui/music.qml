@@ -17,7 +17,7 @@ FloatingWindow {
         { name: "NOW PLAYING", source: "player/NowScreen.qml" },
         { name: "PLAYLIST", source: "player/PlaylistScreen.qml" },
         { name: "EQUALIZER", source: "player/EqScreen.qml" },
-        { name: "RADIO", source: "player/PlannedScreen.qml", plan: "fase 7: radio-browser e radios.toml" }
+        { name: "RADIO", source: "player/RadioScreen.qml" }
     ]
     property int current: 0
     property bool statusLoaded: false
@@ -423,7 +423,6 @@ FloatingWindow {
                 function describe() {
                     if (!item) return;
                     item.title = window.screens[window.current].name;
-                    if (item.plan !== undefined) item.plan = window.screens[window.current].plan;
                 }
                 Connections { target: window; function onCurrentChanged() { screen.describe(); } }
                 onLoaded: {

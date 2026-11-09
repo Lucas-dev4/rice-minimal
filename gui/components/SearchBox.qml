@@ -7,6 +7,8 @@ Rectangle {
 
     property alias text: input.text
     property Item keyTarget: null
+    property string placeholder: "search"
+    signal accepted()
 
     function focusInput() { input.forceActiveFocus(); }
 
@@ -51,14 +53,14 @@ Rectangle {
         font.pixelSize: Theme.fontSize
         cursorDelegate: RiceText { text: "█"; color: Theme.accent; visible: input.activeFocus }
         Keys.onEscapePressed: { text = ""; if (root.keyTarget) root.keyTarget.forceActiveFocus(); }
-        Keys.onReturnPressed: if (root.keyTarget) root.keyTarget.forceActiveFocus()
+        Keys.onReturnPressed: { root.accepted(); if (root.keyTarget) root.keyTarget.forceActiveFocus(); }
     }
 
     RiceText {
         anchors.verticalCenter: parent.verticalCenter
         anchors.left: input.left
         visible: input.text === "" && !input.activeFocus
-        text: "search"
+        text: root.placeholder
         color: Theme.faint
     }
 }
