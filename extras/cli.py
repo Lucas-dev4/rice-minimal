@@ -332,6 +332,8 @@ def music():
         subprocess.run(['qs','ipc','-p',path,'call','music','close'],capture_output=True)
         return 0
     os.environ.pop('QT_QUICK_BACKEND',None)
+    # The player animates like its prototype in every profile; RICE_GUI_MOTION=0 turns it off.
+    os.environ.setdefault('RICE_GUI_MOTION','1')
     os.execvp('qs',['qs','-n','-d','-p',path])
 
 

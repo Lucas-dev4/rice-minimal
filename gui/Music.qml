@@ -46,6 +46,18 @@ Singleton {
     readonly property bool muted: !isNaN(mutedFrom)
     readonly property var eqFrequencies: [70, 180, 320, 600, 1000, 3000, 6000, 12000, 14000, 16000]
 
+    // Per-file details cliamp does not give: {codec, rate, bitrate, channels, duration}.
+    // Filled by ffprobe for local files, once per path.
+    property var infos: ({})
+    property var probing: ({})
+    function requestInfo(path) {
+        if (!path || sourceOf(path) !== "local" || infos[path] || probing[path]) return;
+        probing[path] = true;
+        prober.createObject(root, { path: path }).running = true;
+    }
+    // Cover art, only when cliamp's MPRIS metadata has one (mpris:artUrl).
+    property string artUrl: ""
+
     signal changed()          // any new snapshot
     signal failed(string op, string message)
 
@@ -115,12 +127,18 @@ Singleton {
     property int playlistRevision: -1
     function accept(snap) {
         const wasOnline = online;
+        const before = track ? track.path : "";
         snapshot = snap;
         online = true;
         connecting = false;
         lastError = "";
         position = snap.position || 0;
         stamp = Date.now();
+        const now = snap.track ? snap.track.path : "";
+        if (now !== before) {
+            artUrl = "";
+            if (now) { artDelay.restart(); requestInfo(now); }
+        }
         if (snap.playlist_revision !== playlistRevision || !wasOnline) {
             playlistRevision = snap.playlist_revision;
             refreshPlaylist();
@@ -176,6 +194,38 @@ Singleton {
         repeat: true
         running: root.online && root.playing
         onTriggered: root.call("runtime.snapshot", {}, r => { if (r && r.snapshot) root.accept(r.snapshot); })
+    }
+
+    Timer { id: artDelay; interval: 300; onTriggered: if (!art.running) art.running = true }
+    Process {
+        id: art
+        command: ["playerctl", "-p", "cliamp", "metadata", "mpris:artUrl"]
+        stdout: StdioCollector { onStreamFinished: root.artUrl = text.trim() }
+    }
+
+    Component {
+        id: prober
+        Process {
+            id: probe
+            property string path
+            command: ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", "-show_format", "-select_streams", "a:0", path]
+            stdout: StdioCollector { id: probed }
+            onExited: {
+                let d = {};
+                try { d = JSON.parse(probed.text); } catch (error) {}
+                const a = (d.streams || [])[0] || {}, f = d.format || {};
+                const next = Object.assign({}, root.infos);
+                next[probe.path] = {
+                    codec: String(a.codec_name || "").toUpperCase(),
+                    rate: parseInt(a.sample_rate) || 0,
+                    bitrate: parseInt(a.bit_rate || f.bit_rate) || 0,
+                    channels: parseInt(a.channels) || 0,
+                    duration: parseFloat(f.duration || a.duration) || 0
+                };
+                root.infos = next;
+                probe.destroy();
+            }
+        }
     }
 
     Component {

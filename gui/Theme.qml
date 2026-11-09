@@ -55,6 +55,8 @@ Singleton {
     readonly property color faint: mix(bg, variant, 0.55)
     readonly property color accent: terminal.accent || dark.mPrimary || "#e8a46b"
     readonly property color accentA: Qt.alpha(accent, 0.09)
+    // The light end of the accent (the prototype's --hot): bar tops, the seek head.
+    readonly property color hot: mix(accent, Qt.color("#fff3e4"), 0.55)
     // Logo gradient: the accent fading into the wallpaper's tertiary tone.
     readonly property color logoTop: accent
     readonly property color logoBottom: mix(accent, Qt.color(dark.mTertiary || magenta), 0.75)

@@ -4,6 +4,8 @@ import Quickshell
 import Quickshell.Io
 import qs
 import qs.components
+// Indexes gui/player for Quickshell; the views there are loaded by path.
+import qs.player
 
 // LW // MUSIC — controller and visualizer for cliamp, opened by `rice music`. A separate
 // instance from LW // CONTROL with the same theme and components. Look and behaviour
@@ -12,10 +14,10 @@ FloatingWindow {
     id: window
 
     readonly property var screens: [
-        { name: "NOW PLAYING", source: "music/PlannedScreen.qml", plan: "fase 3: capa, título, progresso, controles, up next" },
-        { name: "PLAYLIST", source: "music/PlannedScreen.qml", plan: "fase 5: tabela da fila do cliamp" },
-        { name: "EQUALIZER", source: "music/PlannedScreen.qml", plan: "fase 6: 10 bandas reais do cliamp" },
-        { name: "RADIO", source: "music/PlannedScreen.qml", plan: "fase 7: radio-browser e radios.toml" }
+        { name: "NOW PLAYING", source: "player/NowScreen.qml" },
+        { name: "PLAYLIST", source: "player/PlannedScreen.qml", plan: "fase 5: tabela da fila do cliamp" },
+        { name: "EQUALIZER", source: "player/PlannedScreen.qml", plan: "fase 6: 10 bandas reais do cliamp" },
+        { name: "RADIO", source: "player/PlannedScreen.qml", plan: "fase 7: radio-browser e radios.toml" }
     ]
     property int current: 0
     property bool statusLoaded: false
@@ -348,6 +350,16 @@ FloatingWindow {
                 title: "LW // " + window.screens[window.current].name
                 note: Music.online ? Music.status.toUpperCase() : "OFFLINE"
                 noteColor: Music.playing ? Theme.ok : Music.status === "paused" ? Theme.yel : Theme.dim
+                // NOW PLAYING: the visualizer modes (v cycles them).
+                Repeater {
+                    model: window.current === 0 && Music.online && screen.item && screen.item.modes ? screen.item.modes : []
+                    Chip {
+                        required property string modelData
+                        label: modelData
+                        on: screen.item && screen.item.mode === modelData
+                        onClicked: { screen.item.setMode(modelData); keys.forceActiveFocus(); }
+                    }
+                }
             }
 
             Loader {
