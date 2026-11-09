@@ -59,7 +59,7 @@
   "gui/components/SearchBox.qml": "f814a16afdbcc9364e0e876a70d39dc04c4fe7b9ab96594f055eae92f5ca495d",
   "gui/components/StatusBlock.qml": "8c6c492699a589cfc2be4f0c3a79340c6a08bf026697a5c61195f8d0b9782b7b",
   "gui/components/Tag.qml": "17ae67773c19a973efd08723fb43850e77e62770232c43b17a2031cf1db80111",
-  "gui/music.qml": "1d3e9385d9f2a248dd373d14381602840752dd4421205560b8366abaa355d706",
+  "gui/music.qml": "e87ff21a4acd8386e516aa2615475c49871029b17f75b38280796984ccca89f7",
   "gui/player/NowScreen.qml": "37502def19ca6278fabbea011baeff8de645f3858b8b8840bdb96a7c3113bd48",
   "gui/player/PlannedScreen.qml": "5c8919ff2483ed147a3b2e54e44be216e9aae50ffc0e5c643cac3a171c41193c",
   "gui/player/Visualizer.qml": "c7f1dd6d72ddb6b30c8b200930a97b7ec2e074f363d004841ecf47d16b17d6f8",

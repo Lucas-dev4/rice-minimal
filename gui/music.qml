@@ -148,6 +148,43 @@ FloatingWindow {
         event.accepted = true;
     }
 
+    // ---- spectrum: cava captures only cliamp's own PipeWire stream ----------
+    // 56 log-spaced bands (30 Hz–16 kHz), 60 fps, ASCII 0..1000 per band. Runs only while
+    // cliamp plays and this window is open; empty → the visualizers show their idle motion.
+    property var spectrum: []
+    property string spectrumSource: "idle"
+    readonly property string cavaConfig: Quickshell.env("XDG_RUNTIME_DIR") + "/lw-music-cava.conf"
+    property bool cavaReady: false
+    FileView {
+        id: cavaFile
+        path: window.cavaConfig
+        printErrors: false
+        onSaved: window.cavaReady = true
+        Component.onCompleted: setText([
+            "[general]", "bars = 56", "framerate = 60", "lower_cutoff_freq = 30", "higher_cutoff_freq = 16000",
+            "[input]", "method = pipewire", "source = alsa_playback.cliamp",
+            "[output]", "method = raw", "channels = mono", "raw_target = /dev/stdout", "data_format = ascii",
+            "ascii_max_range = 1000", "bar_delimiter = 59", "frame_delimiter = 10", ""
+        ].join("\n"))
+    }
+    Process {
+        id: cava
+        command: ["cava", "-p", window.cavaConfig]
+        running: window.cavaReady && Music.playing && !cavaRetry.running
+        stdout: SplitParser {
+            onRead: line => {
+                const out = [];
+                for (const v of line.split(";")) if (v !== "") out.push(parseInt(v) / 1000);
+                window.spectrum = out;
+                window.spectrumSource = "cava";
+            }
+        }
+        onRunningChanged: if (!running) { window.spectrum = []; window.spectrumSource = "idle"; }
+        // No cava, or cliamp's stream not there yet: try again shortly.
+        onExited: code => { if (Music.playing) cavaRetry.restart(); }
+    }
+    Timer { id: cavaRetry; interval: 3000 }
+
     // Output format of cliamp's stream, read from PipeWire (pulse API): "44.1 kHz · 2ch".
     property string output: ""
     Process {
@@ -270,6 +307,17 @@ FloatingWindow {
                 width: parent.width - 44
                 spacing: 2
                 opacity: window.current === 0 ? 0.25 : 1
+                Visualizer {
+                    width: parent.width
+                    height: 34
+                    count: 28
+                    compact: true
+                    levels: window.spectrum
+                    idle: !Music.playing || window.spectrum.length === 0
+                    // Dimmed under NOW PLAYING, where the big one runs: hold it still.
+                    running: window.current !== 0 && Music.online
+                }
+                Item { width: 1; height: 4 }
                 Behavior on opacity { NumberAnimation { duration: Theme.tMed; easing.type: Theme.ease } }
                 RiceText {
                     width: parent.width
@@ -379,6 +427,10 @@ FloatingWindow {
                 Connections { target: window; function onCurrentChanged() { screen.describe(); } }
                 onLoaded: {
                     describe();
+                    if (item.levels !== undefined) {
+                        item.levels = Qt.binding(() => window.spectrum);
+                        item.levelSource = Qt.binding(() => window.spectrumSource);
+                    }
                     if (item.keyTarget !== undefined) item.keyTarget = keys;
                     item.opacity = Theme.motion ? 0 : 1;
                     enter.restart();
