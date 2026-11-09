@@ -34,8 +34,8 @@ opt.shiftwidth = 4
 opt.softtabstop = 0
 opt.smartindent = true
 
--- Mostra TABs e espaços sobrando no fim da linha, para ver o que :Org vai mudar.
-opt.list = true
+-- TABs e espaços ficam invisíveis (sem → e ·). Para ver o que :Org vai mudar: :set list
+opt.list = false
 opt.listchars = { tab = "→ ", trail = "·", nbsp = "␣" }
 
 -- -----------------------------------------------------------------------------
@@ -308,6 +308,11 @@ map("x", "<C-y>", "<Esc><C-r>", { desc = "Refazer" })
 -- Ctrl+S salva, Ctrl+Q sai (pergunta se algo não foi salvo).
 map({ "n", "i", "x" }, "<C-s>", "<Cmd>update<CR>", { desc = "Salvar" })
 map({ "n", "i", "x" }, "<C-q>", "<Cmd>confirm qa<CR>", { desc = "Sair" })
+
+-- o volta para o modo inserção sem criar linha nova (no Vim puro, o abre uma linha
+-- abaixo). Depois de uma seleção (Ctrl+A) volta para onde você estava digitando.
+map("n", "o", "i", { desc = "Voltar para a inserção" })
+map("x", "o", "<Esc>gi", { desc = "Sair da seleção e voltar para onde digitava" })
 
 -- Alt+↑ / Alt+↓: move a linha (ou a seleção) sem mexer na indentação,
 -- para não deslocar rótulos de Assembly. Use :Org para arrumar depois.
