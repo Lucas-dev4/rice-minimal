@@ -15,14 +15,15 @@ FloatingWindow {
 
     readonly property var screens: [
         { name: "NOW PLAYING", source: "player/NowScreen.qml" },
-        { name: "PLAYLIST", source: "player/PlannedScreen.qml", plan: "fase 5: tabela da fila do cliamp" },
+        { name: "PLAYLIST", source: "player/PlaylistScreen.qml" },
         { name: "EQUALIZER", source: "player/PlannedScreen.qml", plan: "fase 6: 10 bandas reais do cliamp" },
         { name: "RADIO", source: "player/PlannedScreen.qml", plan: "fase 7: radio-browser e radios.toml" }
     ]
     property int current: 0
     property bool statusLoaded: false
     readonly property var globalHints: [["1-4", "view"], ["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"]]
-    readonly property var hints: (screen.item && screen.item.hints ? screen.item.hints : []).concat(globalHints)
+    // The view's own keys when it has them (the status bar has room for about six).
+    readonly property var hints: screen.item && screen.item.hints && screen.item.hints.length ? screen.item.hints : globalHints
 
     title: "LW // MUSIC"
     implicitWidth: 1220
@@ -502,6 +503,30 @@ FloatingWindow {
                 separator: false
                 label: window.output || "—"
             }
+        }
+
+        // Audio files dropped on the window join cliamp's queue.
+        DropArea {
+            id: drop
+            anchors.fill: parent
+            enabled: Music.online
+            keys: ["text/uri-list"]
+            onDropped: event => {
+                const files = event.urls.map(u => decodeURIComponent(String(u).replace(/^file:\/\//, "")))
+                    .filter(f => /\.(mp3|flac|ogg|opus|m4a|aac|wav|wv|ape|aiff?|alac|wma)$/i.test(f));
+                for (const f of files) Music.addPath(f);
+                Status.say(files.length ? "[ + ] " + files.length + " arquivo(s) na fila" : "[ !! ] nenhum arquivo de áudio", files.length ? Theme.ok : Theme.red);
+            }
+        }
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 10
+            visible: drop.containsDrag
+            z: 40
+            color: Qt.alpha(Theme.bg, 0.85)
+            border.width: 2
+            border.color: Theme.accent
+            RiceText { anchors.centerIn: parent; text: "solte os arquivos de áudio"; color: Theme.accent; font.pixelSize: 16; font.letterSpacing: 1 }
         }
 
         RiceText { x: 8; y: 6; text: "┌"; color: Theme.faint; font.pixelSize: 11 }

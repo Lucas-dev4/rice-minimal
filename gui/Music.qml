@@ -50,10 +50,20 @@ Singleton {
     // Filled by ffprobe for local files, once per path.
     property var infos: ({})
     property var probing: ({})
+    // At most 4 ffprobe at a time; the rest wait in line.
+    property var infoQueue: []
+    property int infoRunning: 0
     function requestInfo(path) {
         if (!path || sourceOf(path) !== "local" || infos[path] || probing[path]) return;
         probing[path] = true;
-        prober.createObject(root, { path: path }).running = true;
+        infoQueue.push(path);
+        pumpInfo();
+    }
+    function pumpInfo() {
+        while (infoRunning < 4 && infoQueue.length) {
+            infoRunning++;
+            prober.createObject(root, { path: infoQueue.shift() }).running = true;
+        }
     }
     // Cover art, only when cliamp's MPRIS metadata has one (mpris:artUrl).
     property string artUrl: ""
@@ -223,6 +233,8 @@ Singleton {
                     duration: parseFloat(f.duration || a.duration) || 0
                 };
                 root.infos = next;
+                root.infoRunning--;
+                root.pumpInfo();
                 probe.destroy();
             }
         }
