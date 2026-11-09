@@ -21,7 +21,7 @@ FloatingWindow {
     ]
     property int current: 0
     property bool statusLoaded: false
-    readonly property var globalHints: [["1-4", "view"], ["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"]]
+    readonly property var globalHints: [["1-4", "view"], ["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"], ["o", "abrir"]]
     // The view's own keys when it has them (the status bar has room for about six).
     readonly property var hints: screen.item && screen.item.hints && screen.item.hints.length ? screen.item.hints : globalHints
 
@@ -129,6 +129,8 @@ FloatingWindow {
         const t = event.text, digit = parseInt(t);
         if (digit >= 1 && digit <= screens.length) select(digit - 1);
         else if (t === "R") select(3);
+        // o opens files from any view: they land in the playlist.
+        else if (t === "o" && Music.online) { select(1); Qt.callLater(() => { if (screen.item && screen.item.openFiles) screen.item.openFiles(); }); }
         else if (event.key === Qt.Key_Q) Qt.quit();
         else if (!Music.online) {
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) Music.start();
