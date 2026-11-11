@@ -148,20 +148,46 @@ Singleton {
     function setBand(band, dB) { call("eq", { band: band, value: Math.max(-12, Math.min(12, Math.round(dB))) }); }
     function setPreset(name) { call("eq", { name: name }); }
 
-    // Starts cliamp headless: it resumes its last session, or, the first time, opens the
-    // folder of `initial_directory` in its config (~/Músicas) without playing.
-    function start() {
+    // Starts cliamp headless. With a saved session (see session()) it gets the same queue
+    // and comes back paused at the same track and second; otherwise it opens the folder
+    // of `initial_directory` in its config (~/Músicas), without playing. cliamp's own
+    // resume.json is not used by its daemon, hence our session.
+    property var pendingResume: null
+    function start(saved) {
         if (online) return;
-        Quickshell.execDetached(["setsid", "bash", "-c",
-            'conf="$HOME/.config/cliamp"; if [ -e "$conf/resume.json" ]; then exec "$1" --daemon; fi; ' +
-            'dir=$(sed -n \'s/^initial_directory *= *"\\(.*\\)"/\\1/p\' "$conf/config.toml" | head -1); dir="${dir/#\\~/$HOME}"; ' +
-            '[ -d "$dir" ] && exec "$1" --daemon "$dir"; exec "$1" --daemon', "lw-music", bin]);
+        const paths = saved && saved.paths ? saved.paths : [];
+        pendingResume = paths.length ? saved : null;
+        if (paths.length)
+            Quickshell.execDetached(["setsid", bin, "--daemon"].concat(paths));
+        else
+            Quickshell.execDetached(["setsid", "bash", "-c",
+                'conf="${XDG_CONFIG_HOME:-$HOME/.config}/cliamp"; ' +
+                'dir=$(sed -n \'s/^initial_directory *= *"\\(.*\\)"/\\1/p\' "$conf/config.toml" | head -1); dir="${dir/#\\~/$HOME}"; ' +
+                '[ -d "$dir" ] && exec "$1" --daemon "$dir"; exec "$1" --daemon', "lw-music", bin]);
         startWatch.restart();
         connecting = true;
         retry.interval = 400;
         retry.restart();
     }
     // cliamp answers at most 200 tracks per call: fetch page by page, then publish once.
+    // What to save when the window closes (music.qml writes it).
+    function session() {
+        return { paths: playlist.map(t => t.path), index: currentIndex, position: Math.floor(position), volume: volumeDb };
+    }
+    // Back to the saved track and second, paused. cliamp's own gain sits at the floor
+    // while it gets there, so nothing is heard.
+    function resumeNow(saved) {
+        const index = Math.max(0, Math.min(playlist.length - 1, saved.index || 0));
+        call("volume", { value: volumeMin }, () =>
+            call("queue.play", { index: index }, () =>
+                call("seek.absolute", { value: saved.position || 0 }, () =>
+                    call("pause", {}, () => call("volume", { value: saved.volume === undefined ? 0 : saved.volume })))));
+    }
+    // Closing the player switches cliamp off (SIGTERM: it saves its own state too).
+    function shutdown() {
+        if (!online) return;
+        Quickshell.execDetached(["sh", "-c", 'kill -TERM "$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cliamp/cliamp.sock.pid")"']);
+    }
     function refreshPlaylist() {
         const pages = [];
         const page = offset => call("queue.list", { offset: offset, limit: 200 }, r => {
@@ -169,7 +195,11 @@ Singleton {
                 title: clean(t.title), artist: clean(t.artist), album: clean(t.album) }));
             pages.push(...got);
             if (got.length && pages.length < (r.total || 0)) page(offset + got.length);
-            else { playlist = pages; playlistLoaded = true; }
+            else {
+                playlist = pages;
+                playlistLoaded = true;
+                if (pendingResume) { const saved = pendingResume; pendingResume = null; resumeNow(saved); }
+            }
         });
         page(0);
     }

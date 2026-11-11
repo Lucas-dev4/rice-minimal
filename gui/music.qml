@@ -30,7 +30,44 @@ FloatingWindow {
     implicitWidth: 1220
     implicitHeight: 780
     color: Theme.bg
-    onVisibleChanged: if (!visible) Qt.quit()
+    onVisibleChanged: if (!visible) closePlayer()
+
+    // Closing the player (Super+M, Super+Q, q) switches cliamp off after saving the
+    // session; opening it again brings cliamp back paused where it was.
+    readonly property string sessionPath: Theme.guiStatePath + "/music-session.json"
+    property bool closing: false
+    function closePlayer() {
+        if (closing) return;
+        closing = true;
+        if (Music.online && Music.playlist.length) {
+            sessionFile.setText(JSON.stringify(Music.session()) + "\n");
+            Music.shutdown();
+        }
+        Qt.quit();
+    }
+    function savedSession() {
+        try { const s = JSON.parse(sessionFile.text()); return s.paths && s.paths.length ? s : null; } catch (error) { return null; }
+    }
+    function startCliamp() { Music.start(savedSession()); }
+    FileView {
+        id: sessionFile
+        path: window.sessionPath
+        blockLoading: true
+        blockWrites: true
+        atomicWrites: true
+        printErrors: false
+    }
+    // Opening the player with cliamp off starts it (RICE_MUSIC_AUTOSTART=0 keeps START manual).
+    property bool autoStarted: false
+    Connections {
+        target: Music
+        function onConnectingChanged() {
+            if (!Music.connecting && !Music.online && !window.autoStarted && Quickshell.env("RICE_MUSIC_AUTOSTART") !== "0") {
+                window.autoStarted = true;
+                window.startCliamp();
+            }
+        }
+    }
 
     function select(index) { current = Math.max(0, Math.min(screens.length - 1, index)); }
     function clock(seconds) {
@@ -41,7 +78,7 @@ FloatingWindow {
 
     IpcHandler {
         target: "music"
-        function close(): void { Qt.quit(); }
+        function close(): void { window.closePlayer(); }
         function open(index: int): void { window.select(index); }
         function shot(path: string): void { content.grabToImage(result => result.saveToFile(path)); }
         function key(name: string): void {
@@ -84,7 +121,7 @@ FloatingWindow {
             case "add": Music.addPath(arg); break;
             case "band": Music.setBand(parseInt(arg.split(",")[0]), parseFloat(arg.split(",")[1])); break;
             case "preset": Music.setPreset(arg); break;
-            case "start": Music.start(); break;
+            case "start": window.startCliamp(); break;
             case "quit": Qt.quit(); break;
             case "bad": Music.call("queue.play", { index: 999 }); break;
             default: return "unknown " + op;
@@ -137,9 +174,9 @@ FloatingWindow {
         else if (t === "R") select(3);
         // o opens files from any view: they land in the playlist.
         else if (t === "o" && Music.online) { select(1); Qt.callLater(() => { if (screen.item && screen.item.openFiles) screen.item.openFiles(); }); }
-        else if (event.key === Qt.Key_Q) Qt.quit();
+        else if (event.key === Qt.Key_Q) closePlayer();
         else if (!Music.online) {
-            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) Music.start();
+            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) startCliamp();
             else return;
         }
         else if (event.key === Qt.Key_Space) Music.toggle();
@@ -463,12 +500,12 @@ FloatingWindow {
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: !Music.connecting
                     label: "START ⏎"
-                    onClicked: Music.start()
+                    onClicked: window.startCliamp()
                 }
                 RiceText {
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: !Music.connecting
-                    text: "liga o cliamp sem janela (cliamp --daemon): retoma a última sessão ou abre ~/Músicas"
+                    text: "liga o cliamp sem janela: volta pausado onde parou, ou abre ~/Músicas"
                     color: Theme.faint
                     font.pixelSize: Theme.small
                 }

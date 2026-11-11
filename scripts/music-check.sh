@@ -7,6 +7,8 @@ set -u
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 # VOL normally drives the system output; the test must only touch the isolated cliamp.
 export RICE_MUSIC_VOLUME=cliamp
+# Opening the player starts cliamp by itself; the test wants to see it offline first.
+export RICE_MUSIC_AUTOSTART=0
 WORK=$(mktemp -d)
 trap 'kill $QS $CL 2>/dev/null; rm -rf "$WORK"' EXIT
 export HOME=$WORK/home XDG_CONFIG_HOME=$WORK/home/.config XDG_STATE_HOME=$WORK/home/.local/state
