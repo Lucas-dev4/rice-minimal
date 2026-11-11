@@ -136,6 +136,13 @@ Singleton {
     function playIndex(index) { call("queue.play", { index: index }); }
     function moveTrack(index, to) { call("queue.move", { index: index, to: to }, () => refreshPlaylist()); }
     function removeTrack(index) { call("queue.remove", { index: index }, () => refreshPlaylist()); }
+    // Plays a file: from the queue when it is there, otherwise appended and played.
+    function playPath(path) {
+        const at = playlist.findIndex(t => t.path === path);
+        if (at >= 0) { playIndex(at); return; }
+        const end = playlist.length;
+        call("queue", { path: path }, () => { call("queue.play", { index: end }); refreshPlaylist(); });
+    }
     function addPath(path) { call("queue", { path: path }, () => refreshPlaylist()); }
     function playUrl(url) { call("url.load", { path: url, play: true }); }
     function setBand(band, dB) { call("eq", { band: band, value: Math.max(-12, Math.min(12, Math.round(dB))) }); }

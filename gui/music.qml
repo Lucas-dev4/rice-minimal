@@ -17,11 +17,12 @@ FloatingWindow {
         { name: "NOW PLAYING", source: "player/NowScreen.qml" },
         { name: "PLAYLIST", source: "player/PlaylistScreen.qml" },
         { name: "EQUALIZER", source: "player/EqScreen.qml" },
-        { name: "RADIO", source: "player/RadioScreen.qml" }
+        { name: "RADIO", source: "player/RadioScreen.qml" },
+        { name: "LIBRARY", source: "player/LibraryScreen.qml" }
     ]
     property int current: 0
     property bool statusLoaded: false
-    readonly property var globalHints: [["1-4", "view"], ["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"], ["o", "abrir"]]
+    readonly property var globalHints: [["1-5", "view"], ["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"], ["o", "abrir"]]
     // The view's own keys when it has them (the status bar has room for about six).
     readonly property var hints: screen.item && screen.item.hints && screen.item.hints.length ? screen.item.hints : globalHints
 
@@ -59,6 +60,11 @@ FloatingWindow {
                 playlist: Music.playlist.map(t => t.title || Music.fileName(t.path)),
                 eq: Music.eqBands, error: Music.lastError, view: window.current
             });
+        }
+        function query(text: string): string {
+            if (!screen.item || !screen.item.query) return "this view has no search";
+            screen.item.query(text);
+            return "ok";
         }
         function act(op: string, arg: string): string {
             const n = parseFloat(arg);
