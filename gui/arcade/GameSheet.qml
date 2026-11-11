@@ -272,14 +272,22 @@ Item {
                 spacing: 10
                 Rectangle {
                     id: playButton
+                    readonly property bool live: !!Games.session && Games.session.id === root.gameId
+                    readonly property color tone: live ? Theme.red : Theme.ok
                     width: parent.width - (removeButton.visible ? removeButton.width + 10 : 0)
                     height: 38
-                    color: playMouse.containsMouse ? Theme.ok : "transparent"
+                    color: playMouse.containsMouse ? tone : "transparent"
                     border.width: 1
-                    border.color: Theme.ok
+                    border.color: tone
                     Behavior on color { ColorAnimation { duration: Theme.tFast } }
-                    RiceText { anchors.centerIn: parent; text: "▶ JOGAR  ⏎"; font.weight: Font.ExtraBold; font.letterSpacing: 1; color: playMouse.containsMouse ? Theme.bg : Theme.ok }
-                    MouseArea { id: playMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.launch(root.gameId) }
+                    RiceText { anchors.centerIn: parent; text: playButton.live ? "■ PARAR SESSÃO" : "▶ JOGAR  ⏎"; font.weight: Font.ExtraBold; font.letterSpacing: 1; color: playMouse.containsMouse ? Theme.bg : playButton.tone }
+                    MouseArea {
+                        id: playMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: playButton.live ? Games.stop(root.gameId) : root.launch(root.gameId)
+                    }
                 }
                 // Only for a game its source no longer has: two clicks.
                 AccentButton {

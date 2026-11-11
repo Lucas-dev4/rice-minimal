@@ -14,7 +14,16 @@ Singleton {
     readonly property var statusLabel: ({ want: "quero jogar", playing: "jogando", done: "zerado", dropped: "largado" })
 
     property var games: []
+    property var doc: ({})
     property bool loaded: false
+    // Sessions live in games.json (written by the games.py watcher, even with LW closed).
+    readonly property var session: doc.open_session || null
+    readonly property var sessionGame: session ? byId(session.id) : null
+    property double now: Date.now()
+    readonly property int sessionSeconds: session ? Math.max(0, Math.floor(now / 1000 - session.start)) : 0
+    // The launch in progress, for the launch screen: {id, title, wrappers, command, ok, error, detected}.
+    property var launching: null
+    signal sessionEnded(string title, real hours)
     property bool scanning: false
     property var lastScan: null              // {total, new, missing, errors}
 
@@ -49,7 +58,8 @@ Singleton {
         const proc = runner.createObject(root, { args: args, done: done || null });
         proc.running = true;
     }
-    function scan() {
+    // quiet: the automatic scan on opening only speaks when something changed.
+    function scan(quiet) {
         if (scanning) return;
         scanning = true;
         run(["scan"], (ok, data) => {
@@ -57,6 +67,7 @@ Singleton {
             if (!ok) { failed(data.error || "scan falhou"); return; }
             lastScan = data;
             const broken = Object.keys(data.errors || {});
+            if (quiet && !data.new && !broken.length) return;
             changed("scan: " + data.total + " jogos · " + data.new + " novos" + (data.missing ? " · " + data.missing + " sumiram" : "")
                     + (broken.length ? " · erro em " + broken.join(", ") : ""));
         });
@@ -70,6 +81,28 @@ Singleton {
         if (title) args.push("--title", title);
         run(args, (ok, data) => ok ? changed("[ + ] " + data.added.title + " na biblioteca") : failed(data.error));
     }
+    function launch(id) {
+        const g = byId(id);
+        if (!g) return;
+        if (session && session.id !== id) { failed("já há uma sessão: " + (sessionGame ? sessionGame.title : session.id)); return; }
+        if (session && session.id === id) { changed("● " + g.title + " já está rodando"); return; }
+        launching = { id: id, title: g.title, source: g.source, gamemode: !!g.gamemode, mangohud: !!g.mangohud,
+                      command: "", ok: false, error: "", detected: false };
+        run(["launch", id], (ok, data) => {
+            if (!launching || launching.id !== id) return;
+            launching = Object.assign({}, launching, ok ? { ok: true, command: data.command, tools: data.tools } : { error: data.error || "falha ao lançar" });
+            if (!ok) failed(data.error || "falha ao lançar");
+        });
+    }
+    function stop(id) { run(["stop", id], (ok, data) => ok ? changed("■ parando " + ((byId(id) || {}).title || id)) : failed(data.error)); }
+    // A session left open (LW closed, reboot): resumed if the game runs, closed otherwise.
+    function recover() {
+        run(["recover"], (ok, data) => {
+            if (ok && data.session === "running") changed("● sessão retomada: " + ((byId(data.id) || {}).title || data.id));
+        });
+    }
+    function hoursText(h) { return h < 0.1 ? "+" + Math.max(1, Math.round(h * 60)) + " min" : "+" + h.toFixed(1).replace(/\.0$/, "") + " h"; }
+
     function remove(id) {
         const g = byId(id);
         run(["remove", id], (ok, data) => ok ? changed("[ - ] " + (g ? g.title : id) + " removido") : failed(data.error));
@@ -83,11 +116,26 @@ Singleton {
         printErrors: false
         onFileChanged: reload()
         onLoaded: {
-            try { root.games = JSON.parse(text()).games || []; } catch (error) { root.games = []; }
+            let d = {};
+            try { d = JSON.parse(text()); } catch (error) {}
+            const before = root.doc;
+            root.doc = d;
+            root.games = d.games || [];
+            // A session that just ended, a launch whose process never showed up.
+            if (root.loaded && d.last_session && (!before.last_session || before.last_session.end !== d.last_session.end))
+                root.sessionEnded(d.last_session.title, d.last_session.hours);
+            if (root.launching) {
+                if (d.open_session && d.open_session.id === root.launching.id)
+                    root.launching = Object.assign({}, root.launching, { detected: true });
+                else if (d.launch_error && d.launch_error.id === root.launching.id && (!before.launch_error || before.launch_error.at !== d.launch_error.at))
+                    root.launching = Object.assign({}, root.launching, { error: d.launch_error.error });
+            }
             root.loaded = true;
         }
         onLoadFailed: root.loaded = true
     }
+
+    Timer { interval: 1000; repeat: true; running: root.session !== null; onTriggered: root.now = Date.now() }
 
     Component {
         id: runner

@@ -28,11 +28,8 @@ FloatingWindow {
     onVisibleChanged: if (!visible) Qt.quit()
 
     function select(index) { current = Math.max(0, Math.min(views.length - 1, index)); }
-    // Phase 4 wires the real launch, the process watch and the sessions.
-    function launchGame(id) {
-        const g = Games.byId(id);
-        Status.say("[ .. ] " + (g ? g.title : id) + ": o lançamento chega na fase 4", Theme.dim);
-    }
+    function launchGame(id) { sheet.close(); Games.launch(id); }
+    function stopGame(id) { Games.stop(id); }
 
     IpcHandler {
         target: "games"
@@ -72,9 +69,10 @@ FloatingWindow {
         target: Games
         function onFailed(message) { Status.say("[ !! ] " + message, Theme.red); }
         function onChanged(message) { Status.say(message, Theme.ok); }
+        function onSessionEnded(title, hours) { Status.say(Games.hoursText(hours) + " em " + title, Theme.ok); }
     }
     // The window opens with what games.json has; the scan runs behind it.
-    Component.onCompleted: Games.scan()
+    Component.onCompleted: { Games.recover(); Games.scan(true); }
 
     Item {
         id: keys
@@ -85,6 +83,7 @@ FloatingWindow {
 
     function handle(event) {
         if (boot.visible) { boot.finish(); event.accepted = true; return; }
+        if (launchScreen.shown) { launchScreen.handleKey(event); event.accepted = true; return; }
         if (sheet.shown) { if (sheet.handleKey(event)) event.accepted = true; return; }
         if (screen.item && screen.item.handleKey && screen.item.handleKey(event)) { event.accepted = true; return; }
         const digit = parseInt(event.text);
@@ -180,16 +179,32 @@ FloatingWindow {
                 }
             }
 
-            // SESSION: the running game (phase 4); idle until then.
+            // SESSION: ● game mm:ss while it runs (the watcher keeps counting with LW closed).
             Column {
                 id: session
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: 18
                 x: 22
                 width: parent.width - 44
-                spacing: 2
+                spacing: 3
                 Label { x: 0; text: "SESSÃO" }
-                RiceText { text: "nenhum jogo rodando"; color: Theme.dim; font.pixelSize: Theme.small }
+                RiceText {
+                    width: parent.width
+                    elide: Text.ElideRight
+                    textFormat: Text.StyledText
+                    readonly property int t: Games.sessionSeconds
+                    readonly property string elapsed: (t >= 3600 ? Math.floor(t / 3600) + ":" + String(Math.floor(t % 3600 / 60)).padStart(2, "0") : Math.floor(t / 60)) + ":" + String(t % 60).padStart(2, "0")
+                    text: Games.session ? "<font color='" + Theme.ok + "'>● " + elapsed + "</font>  " + (Games.sessionGame ? Games.sessionGame.title : "") : "nenhum jogo rodando"
+                    color: Games.session ? Theme.fg : Theme.dim
+                    font.pixelSize: Games.session ? Theme.fontSize : Theme.small
+                }
+                RiceText {
+                    visible: !!Games.session
+                    text: "■ PARAR"
+                    color: stopMouse.containsMouse ? Theme.fg : Theme.red
+                    font.pixelSize: Theme.small
+                    MouseArea { id: stopMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Games.stop(Games.session.id) }
+                }
             }
         }
 
@@ -257,6 +272,12 @@ FloatingWindow {
             keyTarget: keys
             bottomInset: footer.height
             onLaunch: id => window.launchGame(id)
+        }
+
+        LaunchScreen {
+            id: launchScreen
+            anchors.fill: parent
+            z: 40
         }
 
         RiceText { x: 8; y: 6; text: "┌"; color: Theme.faint; font.pixelSize: 11 }

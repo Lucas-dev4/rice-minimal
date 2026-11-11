@@ -9,6 +9,10 @@
                                 gamemode, mangohud, title
   games.py remove ID            drop a game (meant for ones marked missing)
   games.py running              ids whose processes are alive now (see running())
+  games.py launch ID            start the game (gamemoderun/mangohud as toggled) and its watcher
+  games.py watch ID             (started by launch) records the session: begins when the game's
+                                process appears, ends when it is gone, even with LW closed
+  games.py stop ID              asks the game's processes to quit (SIGTERM)
 
 Sources: Steam (every library in libraryfolders.vdf, art from appcache/librarycache in
 both the old flat and the newer per-app layout, playtime from userdata localconfig.vdf),
@@ -337,6 +341,18 @@ def remove(gid):
 
 
 # ---- what is running --------------------------------------------------------------------
+# Wine's own helpers inherit LW_GAME_ID too and linger after the game; they are not the game.
+WINE_SYSTEM = {'wineserver', 'services.exe', 'winedevice.exe', 'explorer.exe', 'plugplay.exe', 'svchost.exe',
+               'rpcss.exe', 'conhost.exe', 'start.exe', 'winemenubuilder', 'winemenubuilder.exe', 'tabtip.exe'}
+
+
+def is_wine_helper(entry):
+    try:
+        return (entry/'comm').read_text().strip() in WINE_SYSTEM
+    except OSError:
+        return False
+
+
 def running(proc='/proc'):
     """Game ids alive now. LW launches carry LW_GAME_ID (every child inherits it, the .exe
     under Wine too); Steam puts SteamAppId in its games' environment."""
@@ -348,12 +364,175 @@ def running(proc='/proc'):
             env = (entry/'environ').read_bytes().split(b'\0')
         except OSError:
             continue
+        if is_wine_helper(entry):
+            continue
         for var in env:
             if var.startswith(b'LW_GAME_ID='):
                 alive.add(var[11:].decode(errors='replace'))
             elif var.startswith(b'SteamAppId=') and var[11:] not in (b'', b'0'):
                 alive.add('steam:' + var[11:].decode(errors='replace'))
     return sorted(alive)
+
+
+# ---- launch, watch, sessions --------------------------------------------------------------
+import signal
+import subprocess
+
+WATCH_APPEAR = 180     # seconds to wait for the game's process (Wine and Steam can be slow)
+WATCH_POLL = 2
+HEARTBEAT = 30
+
+
+def tools():
+    from shutil import which
+    return {'gamemode': bool(which('gamemoderun')), 'mangohud': bool(which('mangohud'))}
+
+
+def command_for(game):
+    """The command LW runs. Steam goes through steam:// (its own launch options decide the
+    wrappers); everything else gets gamemoderun/mangohud in front when toggled and installed."""
+    cmd = game['launch']
+    if game['source'] == 'steam':
+        return cmd
+    have = tools()
+    if game.get('mangohud') and have['mangohud']:
+        cmd = 'mangohud ' + cmd
+    if game.get('gamemode') and have['gamemode']:
+        cmd = 'gamemoderun ' + cmd
+    return cmd
+
+
+def pids_of(gid, proc='/proc'):
+    out = []
+    want_lw = b'LW_GAME_ID=' + gid.encode()
+    want_steam = b'SteamAppId=' + gid.split(':', 1)[1].encode() if gid.startswith('steam:') else None
+    for entry in Path(proc).iterdir():
+        if not entry.name.isdigit() or int(entry.name) == os.getpid():
+            continue
+        try:
+            env = (entry/'environ').read_bytes().split(b'\0')
+        except OSError:
+            continue
+        if (want_lw in env or (want_steam and want_steam in env)) and not is_wine_helper(entry):
+            out.append(int(entry.name))
+    return out
+
+
+def update(fn):
+    with locked():
+        data = load()
+        result = fn(data)
+        save(data)
+    return result
+
+
+def launch(gid):
+    data = load()
+    game = next((g for g in data['games'] if g['id'] == gid), None)
+    if not game:
+        raise ValueError('jogo não encontrado: ' + gid)
+    if game.get('missing'):
+        raise ValueError(game['title'] + ' sumiu da fonte')
+    live = data.get('open_session')
+    if live and pids_of(live['id']):
+        other = next((g['title'] for g in data['games'] if g['id'] == live['id']), live['id'])
+        raise ValueError('já há uma sessão: ' + other)
+    cmd = command_for(game)
+    env = dict(os.environ, LW_GAME_ID=gid)
+    if game.get('prefix'):
+        env['WINEPREFIX'] = game['prefix']
+    cwd = game.get('workdir') if game.get('workdir') and Path(game['workdir']).is_dir() else str(home())
+    log = data_dir()/'last-launch.log'
+    with open(log, 'w') as out:
+        subprocess.Popen(['sh', '-c', cmd], env=env, cwd=cwd, stdin=subprocess.DEVNULL, stdout=out,
+                         stderr=subprocess.STDOUT, start_new_session=True)
+    # The watcher is its own session too: closing LW never stops the count.
+    subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'watch', gid], stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+                     env={k: v for k, v in os.environ.items() if k != 'LW_GAME_ID'})
+    def pending(d):
+        d['launching'] = {'id': gid, 'at': int(time.time()), 'command': cmd}
+    update(pending)
+    return {'command': cmd, 'tools': tools(), 'log': str(log)}
+
+
+def watch(gid):
+    # One watcher per game.
+    with open(data_dir()/f'watch-{short_hash(gid)}.lock', 'w') as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return {'watch': 'already watching'}
+        deadline = time.time() + WATCH_APPEAR
+        while not pids_of(gid):
+            if time.time() > deadline:
+                def failed(d):
+                    d.pop('launching', None)
+                    d['launch_error'] = {'id': gid, 'at': int(time.time()), 'error': 'o processo do jogo não apareceu em %d s' % WATCH_APPEAR}
+                update(failed)
+                return {'watch': 'not started'}
+            time.sleep(0.5)
+        start = time.time()
+        def begin(d):
+            d.pop('launching', None)
+            prior = d.get('open_session')
+            # LW reopened during a session that is still running: keep its start.
+            d['open_session'] = prior if prior and prior.get('id') == gid else {'id': gid, 'start': int(start), 'seen': int(start)}
+        update(begin)
+        misses, beat = 0, time.time()
+        while misses < 2:
+            time.sleep(WATCH_POLL)
+            misses = 0 if pids_of(gid) else misses + 1
+            if misses == 0 and time.time() - beat >= HEARTBEAT:
+                beat = time.time()
+                update(lambda d: d.get('open_session') and d['open_session'].update(seen=int(beat)))
+        return {'added_hours': close_session(gid, time.time() - WATCH_POLL * 2)}
+
+
+def close_session(gid, end):
+    def finish(d):
+        live = d.get('open_session')
+        if not live or live.get('id') != gid:
+            return 0
+        game = next((g for g in d['games'] if g['id'] == gid), None)
+        d.pop('open_session', None)
+        if not game:
+            return 0
+        start = live['start']
+        end_at = max(start, int(end))
+        hours = round((end_at - start) / 3600, 3)
+        game.setdefault('sessions', []).append({'start': start, 'end': end_at})
+        game['hours'] = round(game.get('hours', 0) + hours, 3)
+        game['last_played'] = end_at
+        if game.get('status') == 'want':
+            game['status'] = 'playing'
+        d['last_session'] = {'id': gid, 'title': game['title'], 'hours': hours, 'end': end_at}
+        return hours
+    return update(finish)
+
+
+def recover():
+    """LW (re)opened: a session whose game is gone (crash, reboot, killed watcher) ends at its
+    last heartbeat; one whose game still runs gets a watcher again."""
+    data = load()
+    live = data.get('open_session')
+    if not live:
+        return {'session': None}
+    if pids_of(live['id']):
+        subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'watch', live['id']], stdin=subprocess.DEVNULL,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        return {'session': 'running', 'id': live['id']}
+    return {'session': 'closed', 'id': live['id'], 'added_hours': close_session(live['id'], live.get('seen', live['start']))}
+
+
+def stop(gid):
+    pids = pids_of(gid)
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    return {'signalled': len(pids)}
 
 
 def main(argv=None):
@@ -372,6 +551,9 @@ def main(argv=None):
     s.add_argument('pairs', nargs='+')
     r = sub.add_parser('remove')
     r.add_argument('id')
+    for name in ('launch', 'watch', 'stop'):
+        sub.add_parser(name).add_argument('id')
+    sub.add_parser('recover')
     args = parser.parse_args(argv)
     try:
         if args.action == 'scan':
@@ -384,6 +566,14 @@ def main(argv=None):
             data = add(args.exe, args.prefix, args.title, args.args)
         elif args.action == 'set':
             data = set_fields(args.id, args.pairs)
+        elif args.action == 'launch':
+            data = launch(args.id)
+        elif args.action == 'watch':
+            data = watch(args.id)
+        elif args.action == 'stop':
+            data = stop(args.id)
+        elif args.action == 'recover':
+            data = recover()
         else:
             data = remove(args.id)
     except Exception as exc:

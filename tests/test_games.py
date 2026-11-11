@@ -144,6 +144,38 @@ class Games(unittest.TestCase):
             (proc/pid/'environ').write_bytes(env)
         self.assertEqual(games.running(proc), ['steam:620', 'wine:abc'])
 
+    def test_wine_helpers_are_not_the_game(self):
+        proc = self.home/'proc'
+        for pid, comm in (('20', 'NFS11.exe'), ('21', 'wineserver'), ('22', 'explorer.exe')):
+            (proc/pid).mkdir(parents=True)
+            (proc/pid/'environ').write_bytes(b'LW_GAME_ID=wine:nfs\0')
+            (proc/pid/'comm').write_text(comm + '\n')
+        self.assertEqual(games.pids_of('wine:nfs', proc), [20])
+        (proc/'20/environ').write_bytes(b'')
+        self.assertEqual(games.running(proc), [])     # only Wine helpers left: the game is over
+
+    def test_wrappers_only_when_toggled_and_installed_and_never_for_steam(self):
+        game = {'source': 'wine', 'launch': 'wine x.exe', 'gamemode': True, 'mangohud': True}
+        with patch.object(games, 'tools', return_value={'gamemode': True, 'mangohud': False}):
+            self.assertEqual(games.command_for(game), 'gamemoderun wine x.exe')
+            self.assertEqual(games.command_for(dict(game, source='steam', launch='steam steam://rungameid/1')), 'steam steam://rungameid/1')
+
+    def test_a_session_adds_hours_moves_want_to_playing_and_recover_closes_at_the_heartbeat(self):
+        exe = self.home/'g.exe'
+        exe.write_bytes(b'MZ')
+        gid = self.cli('add', '--exe', str(exe))[1]['added']['id']
+        def opened(d):
+            d['open_session'] = {'id': gid, 'start': 1000, 'seen': 1000 + 5400}
+        games.update(opened)
+        with patch.object(games, 'pids_of', return_value=[]):
+            result = games.recover()
+        self.assertEqual((result['session'], result['added_hours']), ('closed', 1.5))
+        db = games.load()
+        game = db['games'][0]
+        self.assertEqual((game['hours'], game['status'], game['last_played'], len(game['sessions'])), (1.5, 'playing', 6400, 1))
+        self.assertNotIn('open_session', db)
+        self.assertEqual(db['last_session']['hours'], 1.5)
+
 
 if __name__ == '__main__':
     unittest.main()

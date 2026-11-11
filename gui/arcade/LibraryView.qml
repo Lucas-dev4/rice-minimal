@@ -127,7 +127,9 @@ Item {
             color: Theme.panel
             border.width: 1
             border.color: Theme.line
-            readonly property var g: Games.continueGame
+            // During a session the card follows the running game.
+            readonly property bool live: !!Games.session
+            readonly property var g: Games.sessionGame || Games.continueGame
             GameCover {
                 id: contCover
                 x: 14
@@ -146,7 +148,7 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 3
                 visible: !!parent.g
-                RiceText { text: "CONTINUAR"; color: Theme.faint; font.pixelSize: 10; font.letterSpacing: 2 }
+                RiceText { text: parent.parent.live ? "● EM SESSÃO" : "CONTINUAR"; color: parent.parent.live ? Theme.ok : Theme.faint; font.pixelSize: 10; font.letterSpacing: 2 }
                 RiceText { width: parent.width; elide: Text.ElideRight; text: parent.parent.g ? parent.parent.g.title : ""; font.pixelSize: 18; font.weight: Font.ExtraBold }
                 RiceText {
                     readonly property var g: parent.parent.g
@@ -163,14 +165,22 @@ Item {
                 Item { width: 1; height: 6 }
                 Rectangle {
                     id: playButton
+                    readonly property bool live: parent.parent.live
+                    readonly property color tone: live ? Theme.red : Theme.ok
                     width: playText.implicitWidth + 36
                     height: playText.implicitHeight + 16
-                    color: playMouse.containsMouse ? Theme.ok : "transparent"
+                    color: playMouse.containsMouse ? tone : "transparent"
                     border.width: 1
-                    border.color: Theme.ok
+                    border.color: tone
                     Behavior on color { ColorAnimation { duration: Theme.tFast } }
-                    RiceText { id: playText; anchors.centerIn: parent; text: "▶ JOGAR"; font.weight: Font.ExtraBold; font.letterSpacing: 1; color: playMouse.containsMouse ? Theme.bg : Theme.ok }
-                    MouseArea { id: playMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.launch(Games.continueGame.id) }
+                    RiceText { id: playText; anchors.centerIn: parent; text: playButton.live ? "■ PARAR" : "▶ JOGAR"; font.weight: Font.ExtraBold; font.letterSpacing: 1; color: playMouse.containsMouse ? Theme.bg : playButton.tone }
+                    MouseArea {
+                        id: playMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: playButton.live ? Games.stop(Games.session.id) : root.launch(parent.parent.parent.g.id)
+                    }
                 }
             }
             RiceText {
@@ -291,8 +301,9 @@ Item {
                 height: statusText.implicitHeight
                 RiceText {
                     id: statusText
-                    text: cell.modelData.missing ? "sumiu" : Games.statusLabel[cell.modelData.status] || cell.modelData.status
-                    color: cell.modelData.missing ? Theme.red : Games.statusColor(cell.modelData.status)
+                    readonly property bool live: !!Games.session && Games.session.id === cell.modelData.id
+                    text: live ? "● em sessão" : cell.modelData.missing ? "sumiu" : Games.statusLabel[cell.modelData.status] || cell.modelData.status
+                    color: live ? Theme.ok : cell.modelData.missing ? Theme.red : Games.statusColor(cell.modelData.status)
                     font.pixelSize: 10
                 }
                 RiceText { anchors.right: parent.right; text: root.hours(Games.hoursOf(cell.modelData)); color: Theme.faint; font.pixelSize: 10 }
