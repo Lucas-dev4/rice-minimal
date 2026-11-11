@@ -28,6 +28,11 @@ FloatingWindow {
     onVisibleChanged: if (!visible) Qt.quit()
 
     function select(index) { current = Math.max(0, Math.min(views.length - 1, index)); }
+    // Phase 4 wires the real launch, the process watch and the sessions.
+    function launchGame(id) {
+        const g = Games.byId(id);
+        Status.say("[ .. ] " + (g ? g.title : id) + ": o lançamento chega na fase 4", Theme.dim);
+    }
 
     IpcHandler {
         target: "games"
@@ -44,6 +49,7 @@ FloatingWindow {
             screen.item.query(text);
             return "ok";
         }
+        function openSheet(id: string): string { if (id) sheet.openGame(id); else sheet.close(); return "ok"; }
         function state(): string {
             return JSON.stringify({ loaded: Games.loaded, scanning: Games.scanning, count: Games.games.length,
                                     lastScan: Games.lastScan, view: window.current, message: Status.message,
@@ -79,6 +85,7 @@ FloatingWindow {
 
     function handle(event) {
         if (boot.visible) { boot.finish(); event.accepted = true; return; }
+        if (sheet.shown) { if (sheet.handleKey(event)) event.accepted = true; return; }
         if (screen.item && screen.item.handleKey && screen.item.handleKey(event)) { event.accepted = true; return; }
         const digit = parseInt(event.text);
         if (digit >= 1 && digit <= views.length) select(digit - 1);
@@ -202,6 +209,12 @@ FloatingWindow {
                 item.title = window.views[window.current].name;
                 if (item.keyTarget !== undefined) item.keyTarget = keys;
             }
+            Connections {
+                target: screen.item
+                ignoreUnknownSignals: true
+                function onOpen(id) { sheet.openGame(id); }
+                function onLaunch(id) { window.launchGame(id); }
+            }
         }
 
         // ================= STATUS BAR =================
@@ -235,6 +248,15 @@ FloatingWindow {
                 separator: false
                 label: Games.scanning ? "scan…" : Games.lastScan ? "scan: " + Games.lastScan.total + " · " + Games.lastScan.new + " novos" : "—"
             }
+        }
+
+        GameSheet {
+            id: sheet
+            anchors.fill: parent
+            z: 30
+            keyTarget: keys
+            bottomInset: footer.height
+            onLaunch: id => window.launchGame(id)
         }
 
         RiceText { x: 8; y: 6; text: "┌"; color: Theme.faint; font.pixelSize: 11 }

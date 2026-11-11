@@ -136,6 +136,7 @@ Item {
                 height: 122
                 game: parent.g
                 showTitle: false
+                visible: !!parent.g
             }
             Column {
                 anchors.left: contCover.right
@@ -174,8 +175,7 @@ Item {
             }
             RiceText {
                 visible: !parent.g
-                anchors.left: contCover.right
-                anchors.leftMargin: 16
+                x: 24
                 anchors.verticalCenter: parent.verticalCenter
                 text: "nada em andamento — marque um jogo como \"jogando\""
                 color: Theme.dim
