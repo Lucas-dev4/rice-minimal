@@ -8,7 +8,8 @@
       year per matched track, and a cover only for files without one. Writes nothing to
       the audio files.
   library.py apply --plan PLAN.json
-      Writes the proposal: every existing tag is kept (lyrics too), genre/date are set,
+      Writes the proposal: every existing tag is kept (lyrics too); genre, date, title,
+      artist, album and album_artist are set when the plan has them,
       covers embedded; the audio is copied untouched and checked by hash before the
       original goes to the trash.
   library.py scan [--root DIR]
@@ -220,7 +221,7 @@ def apply_one(entry):
         return {'path': str(src), 'ok': True, 'skipped': True}
     out = subprocess.run(['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', str(src)], capture_output=True, text=True).stdout
     tags = {k: v.replace('\ufeff', '') for k, v in ((json.loads(out).get('format') or {}).get('tags') or {}).items()}
-    for key in ('genre', 'date'):
+    for key in ('genre', 'date', 'title', 'artist', 'album', 'album_artist'):
         if key in change:
             tags[key] = change[key]
     work = src.with_name('.lw-tags-' + src.stem)
