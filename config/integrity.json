@@ -22,6 +22,7 @@
   "extras/backups.py": "e22aa0b4d9fe102656fa01dd54ae6bbdb0ccb47fd32d4e5ca7de1330d18d1452",
   "extras/cli.py": "818055ecff645c0c59084a1b9dfa5698724cd1b84c6cdcd774c0cb36cc3832cc",
   "extras/doctor.py": "37ee30aaa88b5304c49423a3c42c02ab3057a15928748a2324371c6262d257c3",
+  "extras/games.py": "5b08abe25c2d91048a63aaf1d7ef355567c7f257e4382b27bdfe16ab6563626f",
   "extras/library.py": "6b47f8c0c80ab07a8a2bae37f93f87aa0281966686a0f7e2cde1076aa9e59b4c",
   "extras/lockscreen.py": "da07f9cf6e5e03ddbaaefe2525572903cfac7ffae76ef3d1a5f9bcc10ff56447",
   "extras/radio.py": "c69d19ee33697279e6d1ec45845b1182bd2b4f885bb0f74f7925e1b9a454abb7",

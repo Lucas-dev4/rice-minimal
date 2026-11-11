@@ -1,0 +1,149 @@
+import io
+import json
+import os
+import sys
+import tempfile
+import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'extras'))
+import games  # noqa: E402
+
+LIBRARY_FOLDERS = '''"libraryfolders"
+{
+	"0"
+	{
+		"path"		"%s"
+		"apps" { "620" "123" }
+	}
+	"1"
+	{
+		"path"		"%s"
+	}
+}
+'''
+MANIFEST = '''"AppState"
+{
+	"appid"		"%s"
+	"name"		"%s"
+	"installdir"		"%s"
+}
+'''
+LOCALCONFIG = '''"UserLocalConfigStore"
+{
+	"Software" { "Valve" { "Steam" { "apps" {
+		"620" { "LastPlayed" "1700000000" "Playtime" "125" }
+		"999" { "Playtime" "0" }
+	} } } }
+}
+'''
+
+
+class Games(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.home = Path(self.tmp.name)
+        env = patch.dict(os.environ, {'HOME': str(self.home), 'XDG_DATA_HOME': str(self.home/'data')})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def cli(self, *argv):
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = games.main(list(argv))
+        return code, json.loads(out.getvalue())
+
+    def steam(self):
+        root = self.home/'.local/share/Steam'
+        extra = self.home/'Disco2/SteamLibrary'
+        for lib in (root, extra):
+            (lib/'steamapps').mkdir(parents=True)
+        (root/'steamapps/libraryfolders.vdf').write_text(LIBRARY_FOLDERS % (root, extra))
+        (root/'steamapps/appmanifest_620.acf').write_text(MANIFEST % ('620', 'Portal 2', 'Portal 2'))
+        (root/'steamapps/appmanifest_1493710.acf').write_text(MANIFEST % ('1493710', 'Proton Experimental', 'Proton - Experimental'))
+        (extra/'steamapps/appmanifest_999.acf').write_text(MANIFEST % ('999', 'Hollow Knight', 'Hollow Knight'))
+        cache = root/'appcache/librarycache'
+        cache.mkdir(parents=True)
+        (cache/'620_library_600x900.jpg').write_bytes(b'old layout')
+        (cache/'999/abc123').mkdir(parents=True)
+        (cache/'999/abc123/library_600x900.jpg').write_bytes(b'new layout')
+        (root/'userdata/42/config').mkdir(parents=True)
+        (root/'userdata/42/config/localconfig.vdf').write_text(LOCALCONFIG)
+        return root, extra
+
+    def test_steam_reads_every_library_both_art_layouts_and_playtime(self):
+        root, extra = self.steam()
+        found = {g['id']: g for g in games.scan_steam()}
+        self.assertEqual(set(found), {'steam:620', 'steam:999'})       # Proton is a tool, not a game
+        self.assertTrue(found['steam:620']['cover'].endswith('620_library_600x900.jpg'))
+        self.assertTrue(found['steam:999']['cover'].endswith('999/abc123/library_600x900.jpg'))
+        self.assertEqual(found['steam:620']['hours_source'], 2.1)     # 125 minutes
+        self.assertEqual(found['steam:620']['launch'], 'steam steam://rungameid/620')
+
+    def test_rescan_keeps_your_data_and_marks_missing_instead_of_deleting(self):
+        root, extra = self.steam()
+        self.assertEqual(self.cli('scan')[1]['new'], 2)
+        self.cli('set', 'steam:620', 'status=playing', 'notes=fase 3', 'progress=40', 'est_hours=12')
+        (extra/'steamapps/appmanifest_999.acf').unlink()
+        code, result = self.cli('scan')
+        self.assertEqual((result['new'], result['missing']), (0, 1))
+        db = {g['id']: g for g in games.load()['games']}
+        self.assertEqual((db['steam:620']['status'], db['steam:620']['notes'], db['steam:620']['progress'], db['steam:620']['est_hours']),
+                         ('playing', 'fase 3', 40, 12.0))
+        self.assertTrue(db['steam:999']['missing'])
+        self.assertEqual(self.cli('remove', 'steam:999')[0], 0)
+        self.assertEqual(len(games.load()['games']), 1)
+
+    def test_roms_pick_the_core_by_extension_and_clean_the_title(self):
+        roms = self.home/'ROMs/gba'
+        roms.mkdir(parents=True)
+        (roms/'Pokemon Emerald (USA) [!].gba').write_bytes(b'rom')
+        (roms/'leia-me.txt').write_text('x')
+        found = games.scan_roms()
+        self.assertEqual(len(found), 1)
+        self.assertEqual((found[0]['title'], found[0]['system']), ('Pokemon Emerald', 'gba'))
+        self.assertIn('mgba_libretro.so', found[0]['launch'])
+
+    def test_wine_games_are_added_by_hand_once_and_validated(self):
+        exe = self.home/'Jogos/NFS/NFS11.exe'
+        exe.parent.mkdir(parents=True)
+        exe.write_bytes(b'MZ')
+        code, result = self.cli('add', '--exe', str(exe), '--prefix', str(self.home/'.wine_dodi'), '--title', 'NFS Hot Pursuit')
+        self.assertEqual(code, 0)
+        launch = result['added']['launch']
+        self.assertIn('WINEPREFIX=', launch)
+        self.assertIn('wine ', launch)
+        self.assertEqual(self.cli('add', '--exe', str(exe))[0], 1)            # no duplicates
+        self.assertEqual(self.cli('add', '--exe', str(self.home/'nada.exe'))[0], 1)
+        gid = result['added']['id']
+        self.assertEqual(self.cli('set', gid, 'status=zerado')[0], 1)       # only want|playing|done|dropped
+        self.assertEqual(self.cli('set', gid, 'hours=99')[0], 1)            # hours come from sessions only
+        exe.unlink()
+        self.cli('scan')
+        self.assertTrue(games.load()['games'][0]['missing'])
+
+    def test_hydra_entries_with_an_executable_are_imported(self):
+        db = self.home/'.config/hydralauncher/hydra-db'
+        db.mkdir(parents=True)
+        (db/'000008.log').write_bytes(
+            b'\x00junk{"title":"Need For Speed: Hot Pursuit","shop":"steam","objectId":"47870",'
+            b'"executablePath":"/home/x/Games/NFS/NFS11.exe","winePrefixPath":"/home/x/.wine_dodi","isDeleted":false}'
+            b'{"title":"Sem exe","objectId":"1","isDeleted":false}')
+        found = games.scan_hydra()
+        self.assertEqual([g['title'] for g in found], ['Need For Speed: Hot Pursuit'])
+        self.assertEqual(found[0]['source'], 'hydra')
+
+    def test_running_finds_lw_launches_and_steam_games(self):
+        proc = self.home/'proc'
+        for pid, env in (('10', b'PATH=/usr/bin\0LW_GAME_ID=wine:abc\0'), ('11', b'SteamAppId=620\0'),
+                         ('12', b'SteamAppId=0\0'), ('self', b'LW_GAME_ID=nope\0')):
+            (proc/pid).mkdir(parents=True)
+            (proc/pid/'environ').write_bytes(env)
+        self.assertEqual(games.running(proc), ['steam:620', 'wine:abc'])
+
+
+if __name__ == '__main__':
+    unittest.main()
