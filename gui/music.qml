@@ -357,26 +357,28 @@ FloatingWindow {
                 width: parent.width - 44
                 height: volText.implicitHeight
                 readonly property int cells: 12
-                readonly property int filled: Math.round(Music.volumePercent / 100 * cells)
+                readonly property int filled: Math.round(Math.min(100, Music.volumePercent) / 100 * cells)
+                // The system volume is there even when cliamp is not.
+                readonly property bool live: Music.online || Music.systemVolume
                 RiceText { id: volText; text: "VOL"; color: Theme.dim; font.pixelSize: Theme.small }
                 RiceText {
                     id: volBar
                     anchors.horizontalCenter: parent.horizontalCenter
-                    text: Music.muted || !Music.online ? "▯".repeat(vol.cells) : "▮".repeat(vol.filled) + "▯".repeat(vol.cells - vol.filled)
-                    color: Music.muted || !Music.online ? Theme.faint : Theme.accent
+                    text: Music.muted || !vol.live ? "▯".repeat(vol.cells) : "▮".repeat(vol.filled) + "▯".repeat(vol.cells - vol.filled)
+                    color: Music.muted || !vol.live ? Theme.faint : Theme.accent
                     font.pixelSize: Theme.small
                     font.letterSpacing: -1
                 }
                 RiceText {
                     anchors.right: parent.right
-                    text: !Music.online ? "–" : Music.muted ? "MUTE" : Music.volumePercent + "%"
+                    text: !vol.live ? "–" : Music.muted ? "MUTE" : Music.volumePercent + "%"
                     color: Theme.dim
                     font.pixelSize: Theme.small
                 }
                 MouseArea {
                     anchors.fill: volBar
                     anchors.margins: -4
-                    enabled: Music.online
+                    enabled: vol.live
                     cursorShape: Qt.PointingHandCursor
                     onClicked: mouse => { Music.setVolumePercent(Math.round(mouse.x / width * 20) * 5); keys.forceActiveFocus(); }
                     onWheel: wheel => Music.volumeStep(wheel.angleDelta.y > 0 ? 5 : -5)

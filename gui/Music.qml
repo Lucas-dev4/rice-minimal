@@ -43,9 +43,16 @@ Singleton {
     // Volume: dB from cliamp; percent uses cliamp's own bar formula.
     readonly property real volumeMin: -50
     readonly property real volumeDb: snapshot.volume === undefined ? 0 : snapshot.volume
-    readonly property int volumePercent: Math.round(100 * Math.max(0, Math.min(1, (volumeDb - volumeMin) / (6 - volumeMin))))
+    // VOL is the system output (PipeWire default sink), the same one Super+=/− and the
+    // Noctalia OSD move, so every control shows one number. RICE_MUSIC_VOLUME=cliamp uses
+    // cliamp's own gain instead (scripts/music-check.sh, so tests never touch the speakers).
+    readonly property bool systemVolume: Quickshell.env("RICE_MUSIC_VOLUME") !== "cliamp"
+    property real sinkVolume: 0
+    property bool sinkMuted: false
+    readonly property int cliampPercent: Math.round(100 * Math.max(0, Math.min(1, (volumeDb - volumeMin) / (6 - volumeMin))))
+    readonly property int volumePercent: systemVolume ? Math.round(sinkVolume * 100) : cliampPercent
     property real mutedFrom: NaN          // dB to go back to; NaN = not muted
-    readonly property bool muted: !isNaN(mutedFrom)
+    readonly property bool muted: systemVolume ? sinkMuted : !isNaN(mutedFrom)
     readonly property var eqFrequencies: [70, 180, 320, 600, 1000, 3000, 6000, 12000, 14000, 16000]
 
     // Per-file details cliamp does not give: {codec, rate, bitrate, channels, duration}.
@@ -105,12 +112,22 @@ Singleton {
     function seekBy(seconds) { if (seekable) seekTo(position + seconds); }
     function setVolumePercent(percent) {
         const p = Math.max(0, Math.min(100, percent));
+        if (systemVolume) {
+            sinkVolume = p / 100;
+            Quickshell.execDetached(["wpctl", "set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", (p / 100).toFixed(2)]);
+            return;
+        }
         mutedFrom = NaN;
         call("volume", { value: Math.round((volumeMin + (6 - volumeMin) * p / 100) * 10) / 10 });
     }
-    function volumeStep(percent) { setVolumePercent(volumePercent + percent); }
+    // Steps and mute use the very commands of Super+=/− (same step, same OSD).
+    function volumeStep(percent) {
+        if (systemVolume) Quickshell.execDetached(["noctalia", "msg", percent > 0 ? "volume-up" : "volume-down"]);
+        else setVolumePercent(volumePercent + percent);
+    }
     // cliamp has no mute: remember the level and drop to the floor.
     function toggleMute() {
+        if (systemVolume) { Quickshell.execDetached(["noctalia", "msg", "volume-mute"]); return; }
         if (muted) { const back = mutedFrom; mutedFrom = NaN; call("volume", { value: back }); }
         else { mutedFrom = volumeDb; call("volume", { value: volumeMin }); }
     }
@@ -149,6 +166,32 @@ Singleton {
         });
         page(0);
     }
+
+    // ---- system volume --------------------------------------------------------
+    // `pactl subscribe` reports every sink change (Super+=, the OSD, other apps):
+    // re-read the default sink then, never on a timer.
+    Process {
+        id: sinkRead
+        command: ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]
+        running: root.systemVolume
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const m = /Volume:\s*([\d.]+)(\s*\[MUTED\])?/.exec(text);
+                if (m) { root.sinkVolume = parseFloat(m[1]); root.sinkMuted = !!m[2]; }
+            }
+        }
+    }
+    Process {
+        id: sinkEvents
+        command: ["pactl", "subscribe"]
+        running: root.systemVolume
+        stdout: SplitParser {
+            onRead: line => { if (/ on (sink|server) #/.test(line)) sinkDebounce.restart(); }
+        }
+        onExited: sinkRestart.restart()
+    }
+    Timer { id: sinkDebounce; interval: 40; onTriggered: if (!sinkRead.running) sinkRead.running = true }
+    Timer { id: sinkRestart; interval: 2000; onTriggered: if (root.systemVolume) { sinkEvents.running = true; sinkRead.running = true; } }
 
     // ---- state stream -------------------------------------------------------
     property int playlistRevision: -1

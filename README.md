@@ -162,6 +162,8 @@ Player de música no terminal (`bjarneo/cliamp`, MIT), instalado do binário ofi
 - **EQUALIZER**: as 10 bandas reais do cliamp (70, 180, 320, 600 Hz, 1, 3, 6, 12, 14, 16 kHz; Q 1.4; ±12 dB), ao vivo, com a curva de resposta calculada dos filtros. Presets do protótipo e os 16 do cliamp. O cliamp não tem pré-amplificador nem bypass: `BYPASS` guarda a curva (`music-eq.json`) e volta a ela. O cliamp grava o EQ na própria configuração ao fechar.
 - **RADIO**: `extras/radio.py` busca no radio-browser.info (servidor tirado de `all.api.radio-browser.info`, só streams funcionando, mais votadas primeiro). `Enter` toca pelo cliamp (`url.load`), `a` salva em `~/.config/cliamp/radios.toml` (`[[station]]`, validado antes de gravar).
 
+O VOL é o volume do sistema (a saída padrão do PipeWire), o mesmo de `Super+=`/`Super+-` e do aviso do Noctalia: a barra, a roda, `+`/`-` e `m` mexem nele, e mudanças feitas por fora aparecem na hora (`pactl subscribe`). O ganho interno do cliamp fica como está.
+
 Teclas globais: `1`–`4` abas, `espaço` play/pause, `n`/`p` próxima/anterior (`p` volta ao início depois de 3 s), `←`/`→` ±5 s, `+` (ou `=` no ABNT2)/`-` volume, `m` mute, `s` shuffle, `r` repeat, `R` rádio, `o` abrir arquivos, `q` fecha. O LW // MUSIC anima em qualquer perfil (`RICE_GUI_MOTION=0 rice music` desliga). `scripts/music-check.sh` testa a camada de controle contra um cliamp real, isolado num `HOME` temporário.
 
 ## yazi
