@@ -67,7 +67,7 @@
   "gui/player/NowScreen.qml": "37502def19ca6278fabbea011baeff8de645f3858b8b8840bdb96a7c3113bd48",
   "gui/player/PlaylistScreen.qml": "c7fe63464d2df79cccecac6244443217d1709e0a68a85c99d762b691537c99e6",
   "gui/player/RadioScreen.qml": "0e536ce2a20f6eec62cfb067e40a36cf21675ca83449d33395668b1c34e56cfa",
-  "gui/player/Visualizer.qml": "35cedb961a8f697d1db3316248986a2a951519ead18010d1b7790154c3bb2d5d",
+  "gui/player/Visualizer.qml": "c49a6fadbb97db8cb73cb72ff9071dae60c3fa1d166dd34b75d4a278b30ce067",
   "gui/reveal/shell.qml": "368a5586e7c0362f37837f73781e962c798b315878705ef1dc4b009d40fc6a88",
   "gui/screens/BackupsScreen.qml": "c11a384a673bd2e07c72e892173b5c5b21324331fd398c76a9760dc0b2ace481",
   "gui/screens/DoctorScreen.qml": "ef5afa5c684f546b1b2fe4632715b22b1d2560fedf6d899ad6f6b89de86ae41d",

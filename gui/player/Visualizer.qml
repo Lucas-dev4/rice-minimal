@@ -133,14 +133,6 @@ Item {
         readonly property int cell: Math.max(8, Math.round(bw))
         readonly property int rows: Math.max(1, Math.floor(height / cell))
         readonly property string glyphs: "▁▂▃▄▅▆▇█"
-        // A whole column of █ coloured by height, laid out once; per frame only the clip
-        // height, the partial glyph on top and the ▔ peak change.
-        readonly property string blocks: {
-            let out = "";
-            for (let r = rows - 1; r >= 0; r--)
-                out += "<font color='" + (r / rows > 0.75 ? Theme.hot : r / rows > 0.3 ? Theme.accent : root.low) + "'>█</font>" + (r ? "<br>" : "");
-            return out;
-        }
         Repeater {
             model: asciiArea.visible ? root.count : 0
             Item {
@@ -153,19 +145,27 @@ Item {
                 x: index * (asciiArea.bw + asciiArea.gap)
                 width: asciiArea.cell
                 height: parent.height
+                // The █ column, painted once (a block glyph is a filled cell), cut to the level.
                 Item {
                     anchors.bottom: parent.bottom
                     width: parent.width
                     height: acol.full * asciiArea.cell
                     clip: true
-                    Text {
+                    Canvas {
                         anchors.bottom: parent.bottom
-                        textFormat: Text.StyledText
-                        text: asciiArea.blocks
-                        font.family: Theme.font
-                        font.pixelSize: asciiArea.cell
-                        lineHeightMode: Text.FixedHeight
-                        lineHeight: asciiArea.cell
+                        width: acol.width
+                        height: asciiArea.rows * asciiArea.cell
+                        property string key: [width, height, asciiArea.cell, Theme.accent, Theme.hot, root.low].join()
+                        onKeyChanged: requestPaint()
+                        onAvailableChanged: requestPaint()
+                        onPaint: {
+                            const ctx = getContext("2d"), cell = asciiArea.cell, rows = asciiArea.rows, w = width * 0.62;
+                            ctx.reset();
+                            for (let r = 0; r < rows; r++) {
+                                ctx.fillStyle = String(r / rows > 0.75 ? Theme.hot : r / rows > 0.3 ? Theme.accent : root.low);
+                                ctx.fillRect(0, height - (r + 1) * cell, w, cell);
+                            }
+                        }
                     }
                 }
                 // ▁▂▃▄▅▆▇ on top and the ▔ peak are block glyphs: drawn as the same
