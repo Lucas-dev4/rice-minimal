@@ -8,6 +8,7 @@ import signal
 import subprocess
 import sys
 import tempfile
+import time
 from theme import theme, profiles
 import backups
 import lockscreen
@@ -323,13 +324,57 @@ def gui():
     os.execvp('qs',['qs','-n','-d','-p',path])
 
 
+def music_instances(path):
+    # PIDs of the Quickshell instances running this config (`qs list --all`).
+    out=subprocess.run(['qs','list','--all'],capture_output=True,text=True,timeout=3).stdout
+    pids,pid=[],None
+    for line in out.splitlines():
+        line=line.strip()
+        if line.startswith('Process ID:'):
+            pid=int(line.split(':',1)[1])
+        elif line.startswith('Config path:') and pid and line.split(':',1)[1].strip()==path:
+            pids.append(pid)
+    return pids
+
+
+def kill_instances(pids):
+    # A frozen instance never answers IPC: kill it and its helpers (events, pactl, cava).
+    for pid in pids:
+        subprocess.run(['pkill','-KILL','-P',str(pid)],capture_output=True)
+        try:
+            os.kill(pid,signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
 def music():
     # LW // MUSIC: a second Quickshell instance of the same config folder (gui/music.qml).
     # A second press closes it. GPU rendering: the visualizer draws every frame.
     path=str(theme.ROOT/'gui'/'music.qml')
-    probe=subprocess.run(['qs','ipc','-p',path,'show'],capture_output=True,text=True)
-    if probe.returncode == 0 and 'target music' in probe.stdout:
-        subprocess.run(['qs','ipc','-p',path,'call','music','close'],capture_output=True)
+    # Several quick presses run one at a time; the extra ones just leave.
+    import fcntl
+    lock=open(Path(os.environ.get('XDG_RUNTIME_DIR','/tmp'))/'lw-music.lock','w')
+    try:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except OSError:
+        return 0
+    # Every call to the running instance has a time limit: Super+M must never hang.
+    try:
+        probe=subprocess.run(['qs','ipc','-p',path,'show'],capture_output=True,text=True,timeout=3)
+        running=probe.returncode == 0 and 'target music' in probe.stdout
+    except subprocess.TimeoutExpired:
+        kill_instances(music_instances(path))
+        running=False
+    if running:
+        try:
+            subprocess.run(['qs','ipc','-p',path,'call','music','close'],capture_output=True,timeout=3)
+        except subprocess.TimeoutExpired:
+            pass
+        for _ in range(30):
+            if not music_instances(path):
+                return 0
+            time.sleep(0.1)
+        kill_instances(music_instances(path))
         return 0
     os.environ.pop('QT_QUICK_BACKEND',None)
     # cliamp installs to ~/.local/bin, which is not on the PATH Hyprland passes to Super+M.
