@@ -15,7 +15,8 @@ FloatingWindow {
     id: window
 
     readonly property var views: [
-        { name: "BIBLIOTECA", source: "arcade/LibraryView.qml" }
+        { name: "BIBLIOTECA", source: "arcade/LibraryView.qml" },
+        { name: "BACKLOG", source: "arcade/BacklogView.qml" }
     ]
     property int current: 0
     property bool statusLoaded: false

@@ -103,6 +103,16 @@ Singleton {
     }
     function hoursText(h) { return h < 0.1 ? "+" + Math.max(1, Math.round(h * 60)) + " min" : "+" + h.toFixed(1).replace(/\.0$/, "") + " h"; }
 
+    // One backlog column in a single write: status and order 1..n for these ids.
+    function arrange(status, ids, message) {
+        run(["arrange", status].concat(ids), (ok, data) => ok ? (message ? changed(message) : null) : failed(data.error));
+    }
+    // Games of one status in backlog order (missing ones last).
+    function column(status) {
+        return games.filter(g => g.status === status)
+                    .sort((a, b) => (a.missing - b.missing) || (a.order || 0) - (b.order || 0) || a.title.localeCompare(b.title, "pt"));
+    }
+
     function remove(id) {
         const g = byId(id);
         run(["remove", id], (ok, data) => ok ? changed("[ - ] " + (g ? g.title : id) + " removido") : failed(data.error));

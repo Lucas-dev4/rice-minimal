@@ -13,6 +13,8 @@
   games.py watch ID             (started by launch) records the session: begins when the game's
                                 process appears, ends when it is gone, even with LW closed
   games.py stop ID              asks the game's processes to quit (SIGTERM)
+  games.py arrange STATUS ID... one backlog column at once: these games get STATUS and
+                                order 1..n in this sequence (drag & drop, H/L, J/K)
 
 Sources: Steam (every library in libraryfolders.vdf, art from appcache/librarycache in
 both the old flat and the newer per-app layout, playtime from userdata localconfig.vdf),
@@ -329,6 +331,25 @@ def set_fields(gid, pairs):
     return {'game': game}
 
 
+def arrange(status, ids):
+    if status not in STATUSES:
+        raise ValueError('status inválido: ' + status)
+    with locked():
+        data = load()
+        by_id = {g['id']: g for g in data['games']}
+        unknown = [i for i in ids if i not in by_id]
+        if unknown:
+            raise ValueError('jogo não encontrado: ' + ', '.join(unknown))
+        for n, gid in enumerate(ids, 1):
+            game = by_id[gid]
+            if game['status'] != status and status == 'done':
+                game['progress'] = 100
+            game['status'] = status
+            game['order'] = n
+        save(data)
+    return {'status': status, 'ids': ids}
+
+
 def remove(gid):
     with locked():
         data = load()
@@ -554,6 +575,9 @@ def main(argv=None):
     for name in ('launch', 'watch', 'stop'):
         sub.add_parser(name).add_argument('id')
     sub.add_parser('recover')
+    ar = sub.add_parser('arrange')
+    ar.add_argument('status')
+    ar.add_argument('ids', nargs='*')
     args = parser.parse_args(argv)
     try:
         if args.action == 'scan':
@@ -574,6 +598,8 @@ def main(argv=None):
             data = stop(args.id)
         elif args.action == 'recover':
             data = recover()
+        elif args.action == 'arrange':
+            data = arrange(args.status, args.ids)
         else:
             data = remove(args.id)
     except Exception as exc:

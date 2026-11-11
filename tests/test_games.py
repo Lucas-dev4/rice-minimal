@@ -176,6 +176,18 @@ class Games(unittest.TestCase):
         self.assertNotIn('open_session', db)
         self.assertEqual(db['last_session']['hours'], 1.5)
 
+    def test_arrange_sets_a_whole_column_in_one_write(self):
+        ids = []
+        for name in ('a', 'b', 'c'):
+            exe = self.home/f'{name}.exe'
+            exe.write_bytes(b'MZ')
+            ids.append(self.cli('add', '--exe', str(exe))[1]['added']['id'])
+        self.assertEqual(self.cli('arrange', 'done', ids[2], ids[0])[0], 0)
+        db = {g['id']: g for g in games.load()['games']}
+        self.assertEqual([(db[i]['status'], db[i]['order'], db[i]['progress']) for i in (ids[2], ids[0])], [('done', 1, 100), ('done', 2, 100)])
+        self.assertEqual(db[ids[1]]['status'], 'want')
+        self.assertEqual(self.cli('arrange', 'zerado', ids[1])[0], 1)
+
 
 if __name__ == '__main__':
     unittest.main()
