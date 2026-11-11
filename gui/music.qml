@@ -460,8 +460,16 @@ FloatingWindow {
                 RiceText {
                     anchors.horizontalCenter: parent.horizontalCenter
                     visible: !Music.connecting
-                    text: "liga o cliamp sem janela (cliamp --daemon) e retoma a última sessão"
+                    text: "liga o cliamp sem janela (cliamp --daemon): retoma a última sessão ou abre ~/Músicas"
                     color: Theme.faint
+                    font.pixelSize: Theme.small
+                }
+                // Only the errors that START cannot fix by itself.
+                RiceText {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    visible: !Music.connecting && /não encontrado/.test(Music.lastError)
+                    text: "[ !! ] " + Music.lastError
+                    color: Theme.red
                     font.pixelSize: Theme.small
                 }
             }

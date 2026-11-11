@@ -22,9 +22,11 @@ Singleton {
     readonly property string status: online ? (snapshot.state || "stopped") : "offline"
     readonly property bool playing: status === "playing"
     readonly property var track: snapshot.track || null
-    readonly property string title: !track ? "" : track.title || fileName(track.path)
-    readonly property string artist: track ? track.artist || "" : ""
-    readonly property string album: track ? track.album || "" : ""
+    readonly property string title: !track ? "" : clean(track.title) || fileName(track.path)
+    readonly property string artist: track ? clean(track.artist) : ""
+    readonly property string album: track ? clean(track.album) : ""
+    // Some tags start with a byte-order mark or carry stray spaces.
+    function clean(text) { return String(text || "").replace(/\uFEFF/g, "").trim(); }
     readonly property real duration: snapshot.duration || 0
     readonly property bool live: online && !!track && duration <= 0     // radio / stream
     readonly property bool seekable: snapshot.seekable === true
@@ -67,6 +69,10 @@ Singleton {
     }
     // Cover art, only when cliamp's MPRIS metadata has one (mpris:artUrl).
     property string artUrl: ""
+
+    // cliamp lives in ~/.local/bin, which Hyprland's PATH lacks: `rice music` adds it, and
+    // RICE_CLIAMP can point somewhere else.
+    readonly property string bin: Quickshell.env("RICE_CLIAMP") || "cliamp"
 
     signal changed()          // any new snapshot
     signal failed(string op, string message)
@@ -118,19 +124,30 @@ Singleton {
     function setBand(band, dB) { call("eq", { band: band, value: Math.max(-12, Math.min(12, Math.round(dB))) }); }
     function setPreset(name) { call("eq", { name: name }); }
 
-    // Starts cliamp headless; it resumes its last session on its own.
+    // Starts cliamp headless: it resumes its last session, or, the first time, opens the
+    // folder of `initial_directory` in its config (~/Músicas) without playing.
     function start() {
         if (online) return;
-        Quickshell.execDetached(["setsid", "cliamp", "--daemon"]);
+        Quickshell.execDetached(["setsid", "bash", "-c",
+            'conf="$HOME/.config/cliamp"; if [ -e "$conf/resume.json" ]; then exec "$1" --daemon; fi; ' +
+            'dir=$(sed -n \'s/^initial_directory *= *"\\(.*\\)"/\\1/p\' "$conf/config.toml" | head -1); dir="${dir/#\\~/$HOME}"; ' +
+            '[ -d "$dir" ] && exec "$1" --daemon "$dir"; exec "$1" --daemon', "lw-music", bin]);
+        startWatch.restart();
         connecting = true;
         retry.interval = 400;
         retry.restart();
     }
+    // cliamp answers at most 200 tracks per call: fetch page by page, then publish once.
     function refreshPlaylist() {
-        call("queue.list", { limit: 10000 }, r => {
-            playlist = (r.tracks || []).map((t, i) => Object.assign({ index: i }, t));
-            playlistLoaded = true;
+        const pages = [];
+        const page = offset => call("queue.list", { offset: offset, limit: 200 }, r => {
+            const got = (r.tracks || []).map((t, i) => ({ index: offset + i, path: t.path,
+                title: clean(t.title), artist: clean(t.artist), album: clean(t.album) }));
+            pages.push(...got);
+            if (got.length && pages.length < (r.total || 0)) page(offset + got.length);
+            else { playlist = pages; playlistLoaded = true; }
         });
+        page(0);
     }
 
     // ---- state stream -------------------------------------------------------
@@ -159,8 +176,10 @@ Singleton {
 
     Process {
         id: events
-        command: ["cliamp", "remote", "events", "runtime.state"]
+        command: [root.bin, "remote", "events", "runtime.state"]
         running: true
+        // A binary that cannot start never reports an exit: notice it here.
+        onRunningChanged: if (!running && !root.online) notStarted.restart()
         stdout: SplitParser {
             onRead: line => {
                 let event;
@@ -175,6 +194,23 @@ Singleton {
             root.lastError = eventsErr.text.trim() || "event stream exited (" + code + ")";
             retry.restart();
         }
+    }
+    Timer {
+        id: notStarted
+        interval: 300
+        onTriggered: {
+            if (events.running || retry.running) return;
+            root.online = false;
+            root.connecting = false;
+            root.lastError = "comando cliamp não encontrado (" + root.bin + ")";
+            retry.restart();
+        }
+    }
+    // START gave cliamp a few seconds and it is still not answering.
+    Timer {
+        id: startWatch
+        interval: 8000
+        onTriggered: if (!root.online) root.failed("start", root.lastError || "o cliamp não respondeu")
     }
     // 0.4 s, then up to 5 s between attempts while cliamp is away.
     Timer {
@@ -248,7 +284,7 @@ Singleton {
             property var params
             property var done
             function start() {
-                command = ["cliamp", "remote", "call", op, "--params", JSON.stringify(params), "--wait"];
+                command = [root.bin, "remote", "call", op, "--params", JSON.stringify(params), "--wait"];
                 running = true;
                 guard.start();
             }
@@ -275,8 +311,9 @@ Singleton {
             property Timer guard: Timer {
                 interval: 4000
                 onTriggered: {
-                    root.failed(proc.op, "cliamp did not answer in 4 s");
-                    proc.signal(9);
+                    // Never started (binary missing) or hung: report it either way.
+                    root.failed(proc.op, proc.running ? "o cliamp não respondeu em 4 s" : "comando cliamp não encontrado (" + root.bin + ")");
+                    if (proc.running) proc.signal(9); else proc.destroy();
                 }
             }
         }
