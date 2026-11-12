@@ -168,7 +168,7 @@ FloatingWindow {
             Component.onCompleted: { Deck.backdrop = blurred; Deck.root = content; }
         }
         // A dark veil keeps text readable over any wallpaper, light ones too.
-        Rectangle { anchors.fill: parent; color: Qt.rgba(0.05, 0.04, 0.035, 0.38) }
+        Rectangle { anchors.fill: parent; color: Qt.rgba(0.05, 0.04, 0.035, 0.5) }
         // Readability: darker at the top and the bottom, like the prototype.
         Rectangle {
             anchors.fill: parent

@@ -6,7 +6,7 @@ import qs
 Item {
     id: root
 
-    property real tint: 0.46          // the prototype's --pa
+    property real tint: 0.62          // darker than the prototype's .46: light wallpapers need it
     property bool k: false
     default property alias content: inner.data
 
