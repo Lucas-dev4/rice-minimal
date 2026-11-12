@@ -6,10 +6,12 @@
   games.py add --exe PATH [--prefix DIR] [--title TEXT] [--args TEXT]
                                 a Windows .exe (run with Wine) or a native executable
   games.py set ID KEY=VALUE...  edit status, progress, est_hours, notes, fav, order,
-                                gamemode, mangohud, title
+                                gamemode, mangohud, proton, gamescope, fsr, title
   games.py remove ID            drop a game (meant for ones marked missing)
   games.py running              ids whose processes are alive now (see running())
-  games.py launch ID            start the game (gamemoderun/mangohud as toggled) and its watcher
+  games.py launch ID            start the game and its watcher; Windows games run with Wine or,
+                                when `proton` is on, Proton-GE through umu-run; gamemoderun,
+                                mangohud and gamescope (fsr: 75% upscaled) as toggled
   games.py watch ID             (started by launch) records the session: begins when the game's
                                 process appears, ends when it is gone, even with LW closed
   games.py stop ID              asks the game's processes to quit (SIGTERM)
@@ -46,7 +48,8 @@ from pathlib import Path
 
 STATUSES = ('want', 'playing', 'done', 'dropped')
 EDITABLE = {'status': str, 'progress': int, 'est_hours': float, 'notes': str, 'fav': bool,
-            'order': int, 'gamemode': bool, 'mangohud': bool, 'title': str}
+            'order': int, 'gamemode': bool, 'mangohud': bool, 'title': str,
+            'proton': bool, 'gamescope': bool, 'fsr': bool}
 # Steam "games" that are tools.
 STEAM_TOOLS = re.compile(r'^(Proton|Steam Linux Runtime|Steamworks Common|SteamVR)', re.I)
 ROM_EXT = {
@@ -371,7 +374,10 @@ def remove(gid):
 # ---- what is running --------------------------------------------------------------------
 # Wine's own helpers inherit LW_GAME_ID too and linger after the game; they are not the game.
 WINE_SYSTEM = {'wineserver', 'services.exe', 'winedevice.exe', 'explorer.exe', 'plugplay.exe', 'svchost.exe',
-               'rpcss.exe', 'conhost.exe', 'start.exe', 'winemenubuilder', 'winemenubuilder.exe', 'tabtip.exe'}
+               'rpcss.exe', 'conhost.exe', 'start.exe', 'winemenubuilder', 'winemenubuilder.exe', 'tabtip.exe',
+               # Proton through umu and the wrappers: alive around the game, not the game.
+               'umu-run', 'reaper', 'pv-bwrap', 'srt-bwrap', 'pressure-vessel', 'steam-runtime-l',
+               'gamescope', 'gamescopereaper', 'mangoapp', 'gamemoderun'}
 
 
 def is_wine_helper(entry):
@@ -413,18 +419,43 @@ HEARTBEAT = 30
 
 def tools():
     from shutil import which
-    return {'gamemode': bool(which('gamemoderun')), 'mangohud': bool(which('mangohud'))}
+    return {'gamemode': bool(which('gamemoderun')), 'mangohud': bool(which('mangohud')),
+            'proton': bool(which('umu-run')), 'gamescope': bool(which('gamescope'))}
+
+
+def screen_size():
+    """The focused monitor's resolution and refresh, for gamescope; 1920x1080@60 without Hyprland."""
+    try:
+        out = subprocess.run(['hyprctl', 'monitors', '-j'], capture_output=True, text=True, timeout=2).stdout
+        mon = next((m for m in json.loads(out) if m.get('focused')), None) or json.loads(out)[0]
+        return int(mon['width']), int(mon['height']), round(float(mon.get('refreshRate', 60)))
+    except (OSError, ValueError, IndexError, KeyError, subprocess.TimeoutExpired):
+        return 1920, 1080, 60
 
 
 def command_for(game):
     """The command LW runs. Steam goes through steam:// (its own launch options decide the
-    wrappers); everything else gets gamemoderun/mangohud in front when toggled and installed."""
+    wrappers). A Windows game runs with Wine, or with Proton-GE through umu-run when `proton`
+    is on (umu downloads and updates GE-Proton itself; the game's prefix is kept). Then, when
+    toggled and installed: mangohud inside, gamescope around (fullscreen at the monitor's size;
+    `fsr` renders at 75% and upscales), gamemoderun outermost."""
     cmd = game['launch']
     if game['source'] == 'steam':
         return cmd
     have = tools()
+    exe = game.get('exe') or ''
+    if game.get('proton') and have['proton'] and exe.lower().endswith('.exe'):
+        prefix = f"WINEPREFIX={shlex.quote(game['prefix'])} " if game.get('prefix') else ''
+        args = cmd.split(shlex.quote(exe), 1)[1] if shlex.quote(exe) in cmd else ''
+        cmd = f"env {prefix}GAMEID=umu-default PROTONPATH=GE-Proton umu-run {shlex.quote(exe)}{args}"
     if game.get('mangohud') and have['mangohud']:
         cmd = 'mangohud ' + cmd
+    if game.get('gamescope') and have['gamescope']:
+        w, h, hz = screen_size()
+        size = f'-W {w} -H {h} -r {hz}'
+        if game.get('fsr'):
+            size += f' -w {w * 3 // 4} -h {h * 3 // 4} -F fsr'
+        cmd = f'gamescope -f {size} -- {cmd}'
     if game.get('gamemode') and have['gamemode']:
         cmd = 'gamemoderun ' + cmd
     return cmd

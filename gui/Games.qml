@@ -87,6 +87,7 @@ Singleton {
         if (session && session.id !== id) { failed("já há uma sessão: " + (sessionGame ? sessionGame.title : session.id)); return; }
         if (session && session.id === id) { changed("● " + g.title + " já está rodando"); return; }
         launching = { id: id, title: g.title, source: g.source, gamemode: !!g.gamemode, mangohud: !!g.mangohud,
+                      proton: !!g.proton, gamescope: !!g.gamescope, fsr: !!g.fsr,
                       command: "", ok: false, error: "", detected: false };
         run(["launch", id], (ok, data) => {
             if (!launching || launching.id !== id) return;

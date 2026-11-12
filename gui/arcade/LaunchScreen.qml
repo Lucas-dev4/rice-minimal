@@ -26,8 +26,10 @@ Rectangle {
         if (!l) return "";
         if (l.source === "steam") return "steam: gamemoderun/mangohud ficam nas opções de lançamento da Steam";
         const t = l.tools || {};
-        const one = (name, on, have) => name + ": " + (!on ? "desligado" : have === false ? "não instalado" : "ligado");
-        return one("gamemoderun", l.gamemode, t.gamemode) + " · " + one("mangohud", l.mangohud, t.mangohud);
+        const on = (name, flag, have) => flag && have !== false ? name : "";
+        const parts = [on(l.proton ? "proton-ge" : "", l.proton, t.proton) || "wine", on(l.fsr ? "gamescope+fsr" : "gamescope", l.gamescope, t.gamescope),
+                       on("gamemoderun", l.gamemode, t.gamemode), on("mangohud", l.mangohud, t.mangohud)].filter(x => x);
+        return "roda com: " + parts.join(" · ");
     }
     readonly property var steps: !l ? [] : [
         { text: wrappers(), state: "ok" },

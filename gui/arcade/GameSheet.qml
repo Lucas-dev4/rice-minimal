@@ -43,10 +43,19 @@ Item {
     // gamemoderun / mangohud: switchable only when installed.
     property bool hasGamemode: false
     property bool hasMangohud: false
+    property bool hasUmu: false
+    property bool hasGamescope: false
+    // Proton applies to Windows games outside Steam; Steam keeps its own launch options.
+    readonly property bool windowsGame: !!game && game.source !== "steam" && /\.exe$/i.test(game.exe || "")
     Process {
         running: true
-        command: ["bash", "-c", "command -v gamemoderun >/dev/null && echo gamemode; command -v mangohud >/dev/null && echo mangohud; true"]
-        stdout: StdioCollector { onStreamFinished: { root.hasGamemode = /gamemode/.test(text); root.hasMangohud = /mangohud/.test(text); } }
+        command: ["bash", "-c", "command -v gamemoderun >/dev/null && echo gamemode; command -v mangohud >/dev/null && echo mangohud; command -v umu-run >/dev/null && echo umu; command -v gamescope >/dev/null && echo gamescope; true"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                root.hasGamemode = /gamemode/.test(text); root.hasMangohud = /mangohud/.test(text);
+                root.hasUmu = /umu/.test(text); root.hasGamescope = /gamescope/.test(text);
+            }
+        }
     }
 
     visible: scrim.opacity > 0
@@ -194,11 +203,15 @@ Item {
                 RiceText { anchors.verticalCenter: parent.verticalCenter; leftPadding: 8; text: "s troca"; color: Theme.faint; font.pixelSize: 10 }
             }
 
-            // gamemoderun / mangohud
-            Row {
+            // How it runs: Proton (umu), gamescope (+FSR), gamemoderun, mangohud.
+            Flow {
+                width: parent.width
                 spacing: 22
                 Repeater {
-                    model: [["gamemode", "gamemoderun", root.hasGamemode, "gamemode"], ["mangohud", "mangohud", root.hasMangohud, "mangohud"]]
+                    model: (root.windowsGame ? [["proton", "proton-ge", root.hasUmu, "umu-launcher"]] : [])
+                        .concat(body.g.source === "steam" ? [] : [["gamescope", "gamescope", root.hasGamescope, "gamescope"],
+                                                                 ["fsr", "fsr 75%", root.hasGamescope && !!body.g.gamescope, "gamescope"]])
+                        .concat([["gamemode", "gamemoderun", root.hasGamemode, "gamemode"], ["mangohud", "mangohud", root.hasMangohud, "mangohud"]])
                     Row {
                         id: toggle
                         required property var modelData
@@ -230,7 +243,7 @@ Item {
                         }
                         RiceText {
                             anchors.verticalCenter: parent.verticalCenter
-                            text: toggle.modelData[1] + (toggle.available ? "" : "  (sudo pacman -S " + toggle.modelData[3] + ")")
+                            text: toggle.modelData[1] + (toggle.available || toggle.modelData[0] === "fsr" && root.hasGamescope ? "" : "  (sudo pacman -S " + toggle.modelData[3] + ")")
                             color: toggle.available ? Theme.fg : Theme.dim
                             font.pixelSize: Theme.small
                         }

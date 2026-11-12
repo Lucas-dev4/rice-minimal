@@ -243,6 +243,31 @@ class Games(unittest.TestCase):
         self.assertTrue(self.cli('install-forget', str(setup))[1]['ok'])
         self.assertNotIn(str(setup), games.load().get('installs', {}))
 
+    # ---- Proton and wrappers ----------------------------------------------------------
+    def wrapped(self, have, **flags):
+        game = games.wine_entry('/g/pfx/drive_c/Jogo/Jogo.exe', '/g/pfx', 'Jogo', args='-dx11')
+        game.update(flags)
+        with patch.object(games, 'tools', return_value=dict({'gamemode': False, 'mangohud': False, 'proton': False, 'gamescope': False}, **have)), \
+             patch.object(games, 'screen_size', return_value=(1920, 1080, 75)):
+            return games.command_for(game)
+
+    def test_wine_by_default_proton_when_on(self):
+        self.assertEqual(self.wrapped({}), 'env WINEPREFIX=/g/pfx wine /g/pfx/drive_c/Jogo/Jogo.exe -dx11')
+        self.assertEqual(self.wrapped({'proton': True}, proton=True),
+                         'env WINEPREFIX=/g/pfx GAMEID=umu-default PROTONPATH=GE-Proton umu-run /g/pfx/drive_c/Jogo/Jogo.exe -dx11')
+        # Toggled but umu-run missing: plain Wine, never a broken command.
+        self.assertTrue(self.wrapped({}, proton=True).startswith('env WINEPREFIX=/g/pfx wine '))
+
+    def test_wrapper_order_and_fsr(self):
+        cmd = self.wrapped({'proton': True, 'gamescope': True, 'mangohud': True, 'gamemode': True},
+                           proton=True, gamescope=True, fsr=True, mangohud=True, gamemode=True)
+        self.assertTrue(cmd.startswith('gamemoderun gamescope -f -W 1920 -H 1080 -r 75 -w 1440 -h 810 -F fsr -- mangohud env '))
+        self.assertNotIn('-F fsr', self.wrapped({'gamescope': True}, gamescope=True))
+
+    def test_proton_helpers_do_not_keep_a_session_open(self):
+        for name in ('umu-run', 'reaper', 'gamescope', 'wineserver'):
+            self.assertIn(name, games.WINE_SYSTEM)
+
 
 if __name__ == '__main__':
     unittest.main()
