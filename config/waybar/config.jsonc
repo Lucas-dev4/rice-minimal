@@ -8,6 +8,7 @@
     "hyprland/window"
   ],
   "modules-right": [
+    "custom/lw",
     "cpu",
     "memory",
     "pulseaudio",
@@ -22,6 +23,14 @@
     "format": "<span alpha='40%'>|</span> {}",
     "max-length": 36,
     "separate-outputs": true
+  },
+  "custom/lw": {
+    "exec": "/usr/bin/python3 /home/lucas/Projetos/rice-minimal/extras/lwbar.py",
+    "return-type": "json",
+    "max-length": 48,
+    "on-click": "/usr/bin/python3 /home/lucas/Projetos/rice-minimal/extras/lwbar.py click",
+    "on-click-right": "/home/lucas/.local/bin/cliamp toggle",
+    "tooltip": true
   },
   "cpu": {
     "format": "CPU {usage:02d}% <span alpha='40%'>|</span>",
