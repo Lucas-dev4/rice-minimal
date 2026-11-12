@@ -17,37 +17,51 @@ Item {
     property int pick: 0
     property var extra: []                   // installers chosen with `o`, not in a download folder
 
-    readonly property var rows: extra.concat(Games.installers.filter(i => !extra.some(e => e.setup === i.setup)))
+    // Ready games first (Hydra downloads: nothing to install), then installers.
+    readonly property var rows: Games.readyGames.map(r => Object.assign({ kind: "ready", setup: r.folder }, r))
+        .concat(extra, Games.installers.filter(i => !extra.some(e => e.setup === i.setup)))
     readonly property var selected: rows[cursor] || null
     // The record in games.json is live; the list's copy is from the last search.
-    function recordOf(item) { return item ? (Games.installs[item.setup] || item.install || null) : null; }
+    function recordOf(item) { return item && item.kind !== "ready" ? (Games.installs[item.setup] || item.install || null) : null; }
+    readonly property bool isReady: !!selected && selected.kind === "ready"
     readonly property var record: recordOf(selected)
-    readonly property var choices: record && record.state === "done" ? record.candidates || [] : []
+    readonly property var choices: isReady ? selected.candidates || [] : record && record.state === "done" ? record.candidates || [] : []
 
     function openSheet() { shown = true; picking = false; cursor = 0; Games.findInstallers(); }
     function close() { shown = false; picking = false; if (keyTarget) keyTarget.forceActiveFocus(); }
 
-    function stateText(r) {
+    function stateText(r, item) {
+        if (item && item.kind === "ready") return "pronto para jogar";
         if (!r) return "novo";
         if (r.state === "running") return "instalando… " + clock(Math.max(0, Math.floor(tick.now / 1000 - r.started)));
         if (r.state === "done") return "pronto · escolha o .exe";
         if (r.state === "failed") return "falhou";
         return "na biblioteca";
     }
-    function stateColor(r) {
+    function stateColor(r, item) {
+        if (item && item.kind === "ready") return Theme.ok;
         return !r ? Theme.faint : r.state === "running" ? Theme.accent : r.state === "done" ? Theme.ok : r.state === "failed" ? Theme.red : Theme.dim;
     }
     function clock(t) { return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); }
-    function inside(exe) { const i = exe.indexOf("/drive_c/"); return i >= 0 ? "C:/" + exe.slice(i + 9) : exe; }
+    // C:/… inside a prefix; a ready game's path starts at its folder.
+    function inside(exe) {
+        if (isReady && exe.startsWith(selected.folder + "/")) return exe.slice(selected.folder.length + 1);
+        const i = exe.indexOf("/drive_c/");
+        return i >= 0 ? "C:/" + exe.slice(i + 9) : exe;
+    }
     function mb(bytes) { return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(bytes / 1024)) + " KB"; }
 
     function act() {
         if (!selected) return;
         const r = record;
         if (picking) {
-            if (choices[pick]) { Games.installAdd(selected.setup, choices[pick].exe); picking = false; }
+            if (!choices[pick]) return;
+            if (isReady) Games.addReady(choices[pick].exe, selected.name);
+            else Games.installAdd(selected.setup, choices[pick].exe);
+            picking = false;
             return;
         }
+        if (isReady) { if (choices.length) { picking = true; pick = 0; } return; }
         if (!r || r.state === "failed") Games.install(selected.setup, selected.name);
         else if (r.state === "done" && choices.length) { picking = true; pick = 0; }
     }
@@ -60,7 +74,7 @@ Item {
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { act(); return true; }
         if (t === "o" && !picking) { if (!pickSetup.running) pickSetup.running = true; return true; }
         if (t === "r" && !picking) { Games.findInstallers(); return true; }
-        if (t === "d" && !picking && record && record.state !== "running") { Games.installForget(selected.setup); return true; }
+        if (t === "d" && !picking && !isReady && record && record.state !== "running") { Games.installForget(selected.setup); return true; }
         return true;   // modal: nothing reaches the library behind it
     }
     onCursorChanged: picking = false
@@ -129,7 +143,9 @@ Item {
                     anchors.left: head.right
                     anchors.leftMargin: 12
                     anchors.baseline: head.baseline
-                    text: Games.findingInstallers ? "procurando…" : root.rows.length + " instalador(es) em Downloads"
+                    text: Games.findingInstallers ? "procurando…"
+                        : [Games.readyGames.length ? Games.readyGames.length + " pronto(s) para jogar" : "",
+                           root.rows.length - Games.readyGames.length ? (root.rows.length - Games.readyGames.length) + " instalador(es)" : ""].filter(x => x).join(" · ") || "nada novo em Downloads"
                     color: Theme.dim
                 }
             }
@@ -177,7 +193,7 @@ Item {
                             width: parent.width - x - stateLabel.width - 24
                             anchors.verticalCenter: parent.verticalCenter
                             elide: Text.ElideMiddle
-                            text: row.modelData.setup.replace(/^\/home\/[^/]+/, "~")
+                            text: (row.modelData.kind === "ready" ? row.modelData.folder : row.modelData.setup).replace(/^\/home\/[^/]+/, "~")
                             color: Theme.faint
                             font.pixelSize: Theme.small
                         }
@@ -186,8 +202,8 @@ Item {
                             anchors.right: parent.right
                             anchors.rightMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
-                            text: root.stateText(row.rec)
-                            color: root.stateColor(row.rec)
+                            text: root.stateText(row.rec, row.modelData)
+                            color: root.stateColor(row.rec, row.modelData)
                             font.pixelSize: Theme.small
                         }
                         MouseArea {
@@ -202,7 +218,7 @@ Item {
                     RiceText {
                         anchors.centerIn: parent
                         visible: root.rows.length === 0
-                        text: Games.findingInstallers ? "[ .. ] procurando instaladores" : "nenhum instalador em Downloads — o: escolher um arquivo"
+                        text: Games.findingInstallers ? "[ .. ] procurando instaladores" : "nada novo em Downloads — o: escolher um instalador"
                         color: Theme.faint
                     }
                 }
@@ -216,7 +232,10 @@ Item {
                 color: Theme.dim
                 font.pixelSize: Theme.small
                 readonly property var r: root.record
+                readonly property string home: "~/Games/" + (root.selected ? root.selected.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "")
                 text: !root.selected ? ""
+                    : root.isReady ? (root.picking ? "↑↓ escolha o executável do jogo · ⏎ adiciona à biblioteca · esc volta"
+                                     : "Já vem pronto (download do Hydra). ⏎ escolhe o executável; o jogo entra com prefixo próprio em <font color='" + Theme.fg + "'>" + home + "</font> e proton-ge ligado.")
                     : !r ? "⏎ instala em <font color='" + Theme.fg + "'>~/Games/" + root.selected.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "</font> (um prefixo Wine só dele). O instalador abre na própria janela: siga os passos; o LW espera ele terminar, mesmo com esta janela fechada."
                     : r.state === "running" ? "O instalador está aberto numa janela do Wine. Quando ele terminar, os executáveis novos aparecem aqui."
                     : r.state === "failed" ? "<font color='" + Theme.red + "'>" + (r.error || "falhou") + "</font> · ⏎ tenta de novo · log em " + r.prefix.replace(/^\/home\/[^/]+/, "~") + "/lw-install.log"

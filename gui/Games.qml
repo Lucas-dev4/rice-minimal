@@ -131,6 +131,7 @@ Singleton {
     // ---- installers: setup.exe → Wine prefix → library ------------------------------
     // The list comes from `games.py installers`; each install's live state is in games.json.
     property var installers: []
+    property var readyGames: []              // Hydra downloads not in the library yet
     property bool findingInstallers: false
     readonly property var installs: doc.installs || ({})
     function findInstallers() {
@@ -138,7 +139,8 @@ Singleton {
         findingInstallers = true;
         run(["installers"], (ok, data) => {
             findingInstallers = false;
-            if (ok) installers = data.installers; else failed(data.error || "busca de instaladores falhou");
+            if (ok) { installers = data.installers; readyGames = data.ready || []; }
+            else failed(data.error || "busca de instaladores falhou");
         });
     }
     function install(setup, name) {
@@ -151,6 +153,14 @@ Singleton {
     }
     function installAdd(setup, exe) {
         run(["install-add", setup, exe], (ok, data) => ok ? changed("[ + ] " + data.added.title + " na biblioteca") : failed(data.error));
+    }
+    // A ready game: own prefix in ~/Games/<name>, Proton on when umu-run exists.
+    function addReady(exe, name) {
+        run(["add-ready", exe, "--name", name], (ok, data) => {
+            if (!ok) { failed(data.error); return; }
+            changed("[ + ] " + data.added.title + " na biblioteca" + (data.added.proton ? " · proton-ge ligado" : ""));
+            findInstallers();
+        });
     }
     function installForget(setup) {
         run(["install-forget", setup], (ok, data) => ok ? changed("[ - ] registro da instalação apagado (o prefixo continua)") : failed(data.error));

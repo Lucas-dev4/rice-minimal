@@ -25,6 +25,9 @@
                                 detached worker waits for it and lists the new .exe files
   games.py install-add SETUP EXE   puts the chosen .exe in the library (with that prefix)
   games.py install-forget SETUP    drops LW's record of that installer (the prefix stays)
+  games.py add-ready EXE --name TEXT
+                                a game that came ready (a Hydra download): library entry with
+                                its own prefix in ~/Games/<name> and Proton on when umu exists
   games.py meta [--all] [ID...]  IGDB data for games that have none yet (or these ids, or all):
                                 cover and est_hours only where empty; genres, year, the three
                                 times to beat and similar games kept in the game's `igdb`
@@ -79,7 +82,7 @@ def db_path():
 
 def config():
     path = data_dir()/'games-config.json'
-    defaults = {'rom_dirs': ['~/ROMs', '~/Jogos/ROMs'],
+    defaults = {'rom_dirs': ['~/ROMs', '~/Jogos/ROMs'], 'ready_dirs': ['~/Downloads/hydra_Jogos'],
                 'retroarch': 'retroarch', 'cores_dir': '/usr/lib/libretro', 'emulators': {}}
     try:
         defaults.update(json.loads(path.read_text()))
@@ -623,6 +626,9 @@ def download_dirs():
 def clean_name(text):
     """'Need For Speed Hot Pursuit - [DODI Repack]' → 'Need For Speed Hot Pursuit'."""
     text = re.sub(r'[\[({][^\])}]*[\])}]', ' ', text)
+    # Site names and release tags: Dark.Souls.Remastered.SteamGG.net → Dark Souls Remastered.
+    text = re.sub(r'[.\s_-]*\b[\w-]+\.(net|com|org|ru|io|to|cc)\b', ' ', text, flags=re.I)
+    text = re.sub(r'\b(repack|dodi|fitgirl|elamigos|steamrip|gog|portable|multi\d*|v\d+(\.\d+)*)\b', ' ', text, flags=re.I)
     text = re.sub(r'[_.]+', ' ', text)
     text = re.sub(r'\s+-\s*$|^\s*-\s+', ' ', re.sub(r'\s+', ' ', text)).strip(' -')
     return re.sub(r'\s+', ' ', text).strip() or 'Jogo'
@@ -654,20 +660,104 @@ def installers():
                 if key not in found or rank < found[key][0]:
                     name = clean_name(folder.name if folder != root else stem)
                     found[key] = (rank, {'setup': str(folder/f), 'name': name, 'folder': str(folder)})
-    records = load().get('installs', {})
+    data = load()
+    records = data.get('installs', {})
+    # An install whose worker is gone (reboot, killed) is not running any more.
+    stale = [k for k, v in records.items() if v.get('state') == 'running' and not worker_alive(k)]
+    if stale:
+        def unstick(d):
+            for k in stale:
+                d['installs'][k].update(state='failed', error='o instalador foi interrompido')
+        update(unstick)
+        records = load().get('installs', {})
     out = [dict(item, install=records.get(item['setup'])) for _, item in found.values()]
     # Records whose installer is gone (moved, deleted) still show, so they can be finished.
     listed = {i['setup'] for i in out}
     out += [{'setup': k, 'name': v.get('name', ''), 'folder': str(Path(k).parent), 'install': v}
             for k, v in records.items() if k not in listed]
-    return {'installers': sorted(out, key=lambda i: i['name'].lower())}
+    library = [g.get('exe') or '' for g in data['games']]
+    return {'installers': sorted(out, key=lambda i: i['name'].lower()), 'ready': ready_games(library)}
+
+
+def rank_exes(found, name, top=8):
+    """(path, size) pairs, the likely game first: words of its name in the path, an .exe named
+    after the game (JogoBom.exe for "Jogo Bom") above a launcher beside it, then size."""
+    words = set(re.findall(r'[a-z0-9]{3,}', name.lower()))
+    joined = ''.join(sorted(words, key=name.lower().find))
+    out = []
+    for path, size in found:
+        hits = len(words & set(re.findall(r'[a-z0-9]{3,}', str(path).lower())))
+        own = re.sub(r'[^a-z0-9]', '', Path(path).stem.lower())
+        if own and (own in joined or any(w in own for w in words)):
+            hits += 5
+        out.append((hits, size, {'exe': str(path), 'size': size}))
+    out.sort(key=lambda c: (-c[0], -c[1]))
+    return [c[2] for c in out[:top]]
+
+
+# Folders of a ready game that hold no game: installers, redistributables, uninstallers.
+NOT_GAME_DIR = re.compile(r'redist|uninstall|directx|support|prereq|^_|vcredist|dotnet|tools?$', re.I)
+
+
+def ready_games(library_exes):
+    """Games that came ready to play (no installer): every folder in `ready_dirs`
+    (~/Downloads/hydra_Jogos) not already in the library, with its likely .exe files."""
+    out = []
+    for root in [Path(d).expanduser() for d in config().get('ready_dirs', [])]:
+        if not root.is_dir():
+            continue
+        for folder in sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith('.')):
+            if any(e.startswith(str(folder) + os.sep) for e in library_exes):
+                continue
+            found, has_setup = [], False
+            base = len(folder.parts)
+            for dirpath, dirs, files in os.walk(folder):
+                if len(Path(dirpath).parts) - base >= 4:
+                    dirs[:] = []
+                dirs[:] = [d for d in dirs if not NOT_GAME_DIR.search(d)]
+                for f in files:
+                    stem, ext = os.path.splitext(f)
+                    if ext.lower() not in ('.exe', '.msi'):
+                        continue
+                    if SETUP_NAME.search(stem) and not NOT_SETUP.search(stem):
+                        has_setup = True
+                    elif ext.lower() == '.exe' and not NOT_GAME.search(stem):
+                        try:
+                            found.append((Path(dirpath)/f, (Path(dirpath)/f).stat().st_size))
+                        except OSError:
+                            pass
+            name = clean_name(folder.name)
+            # A folder with an installer is listed as an installer, not as a ready game.
+            if found and not has_setup:
+                out.append({'folder': str(folder), 'name': name, 'candidates': rank_exes(found, name)})
+    return out
+
+
+def worker_alive(setup):
+    for entry in Path('/proc').iterdir():
+        if entry.name.isdigit():
+            try:
+                cmd = (entry/'cmdline').read_bytes().split(b'\0')
+            except OSError:
+                continue
+            if b'install-run' in cmd and setup.encode() in cmd:
+                return True
+    return False
+
+
+def add_ready(exe, name):
+    from shutil import which
+    added = add(exe, home()/'Games'/slug(name), name)['added']
+    if which('umu-run'):
+        set_fields(added['id'], ['proton=true'])
+        added['proton'] = True
+    return {'added': added}
 
 
 def candidates(prefix, since, name, top=8):
     """New .exe files in the prefix (changed after the install began), the likely game first:
     words of its name in the path, then size."""
     drive = Path(prefix)/'drive_c'
-    words = set(re.findall(r'[a-z0-9]{3,}', name.lower()))
     out = []
     for dirpath, dirs, files in os.walk(drive):
         dirs[:] = [d for d in dirs if d.lower() not in PREFIX_SKIP]
@@ -682,14 +772,10 @@ def candidates(prefix, since, name, top=8):
                 continue
             if max(st.st_mtime, st.st_ctime) < since - 60:
                 continue
-            hits = len(words & set(re.findall(r'[a-z0-9]{3,}', str(path.relative_to(drive)).lower())))
-            # The .exe named after the game (JogoBom.exe for "Jogo Bom") beats a launcher beside it.
-            own = re.sub(r'[^a-z0-9]', '', stem.lower())
-            if own and (own in ''.join(sorted(words, key=name.lower().find)) or any(w in own for w in words)):
-                hits += 5
-            out.append((hits, st.st_size, {'exe': str(path), 'size': st.st_size}))
-    out.sort(key=lambda c: (-c[0], -c[1]))
-    return [c[2] for c in out[:top]]
+            out.append((path, st.st_size))
+    # Ranked on the path inside drive_c: the prefix's own folder name says nothing.
+    ranked = rank_exes([(p.relative_to(drive), size) for p, size in out], name, top)
+    return [dict(c, exe=str(drive/c['exe'])) for c in ranked]
 
 
 def install(setup, name=None):
@@ -951,6 +1037,9 @@ def main(argv=None):
     me = sub.add_parser('meta')
     me.add_argument('ids', nargs='*')
     me.add_argument('--all', action='store_true')
+    ar2 = sub.add_parser('add-ready')
+    ar2.add_argument('exe')
+    ar2.add_argument('--name', required=True)
     ia = sub.add_parser('install-add')
     ia.add_argument('setup')
     ia.add_argument('exe')
@@ -984,6 +1073,8 @@ def main(argv=None):
             data = install(args.setup, args.name)
         elif args.action == 'install-run':
             data = install_run(args.setup)
+        elif args.action == 'add-ready':
+            data = add_ready(args.exe, args.name)
         elif args.action == 'install-add':
             data = install_add(args.setup, args.exe)
         elif args.action == 'install-forget':

@@ -193,6 +193,8 @@ class Games(unittest.TestCase):
     def test_clean_name_drops_tags_and_brackets(self):
         self.assertEqual(games.clean_name('Need For Speed Hot Pursuit - [DODI Repack]'), 'Need For Speed Hot Pursuit')
         self.assertEqual(games.clean_name('Hollow_Knight (GOG)'), 'Hollow Knight')
+        self.assertEqual(games.clean_name('Dark.Souls.Remastered.SteamGG.net'), 'Dark Souls Remastered')
+        self.assertEqual(games.clean_name('Elden Ring v1.10 - FitGirl Repack'), 'Elden Ring')
 
     def test_installers_one_per_folder_without_redistributables(self):
         down = self.home/'Downloads'
@@ -322,6 +324,36 @@ class Games(unittest.TestCase):
             self.cli('set', gid, 'status=done', 'complete=true')
         g = games.load()['games'][0]
         self.assertEqual((g['done_at'], g['complete_at'], g['complete']), (1000, 1000, True))
+
+    # ---- ready games (Hydra downloads) ---------------------------------------------------
+    def test_ready_games_skip_library_installers_and_redist(self):
+        hydra = self.home/'Downloads/hydra_Jogos'
+        game = hydra/'Dark.Souls.Remastered.SteamGG.net/Dark.Souls.Remastered.SteamGG.net'
+        for sub in ('_Redist', 'Uninstall'):
+            (game/sub).mkdir(parents=True)
+        (game/'DarkSoulsRemastered.exe').write_bytes(b'x' * 90)
+        (game/'_Redist/vcredist_x86.exe').write_bytes(b'x' * 900)
+        (game/'Uninstall/unins000.exe').write_bytes(b'x' * 900)
+        (game/'Launcher.exe').write_bytes(b'x' * 10)
+        (hydra/'Outro Jogo - [Repack]').mkdir(parents=True)
+        (hydra/'Outro Jogo - [Repack]/setup.exe').write_bytes(b'x')
+        out = self.cli('installers')[1]
+        ready = {r['name']: [Path(c['exe']).name for c in r['candidates']] for r in out['ready']}
+        self.assertEqual(ready, {'Dark Souls Remastered': ['DarkSoulsRemastered.exe', 'Launcher.exe']})
+        self.assertEqual([i['name'] for i in out['installers']], ['Outro Jogo'])
+        exe = str(game/'DarkSoulsRemastered.exe')
+        with patch('shutil.which', return_value='/usr/bin/umu-run'):
+            added = self.cli('add-ready', exe, '--name', 'Dark Souls Remastered')[1]['added']
+        self.assertEqual((added['prefix'], added['proton']), (str(self.home/'Games/dark-souls-remastered'), True))
+        self.assertEqual(self.cli('installers')[1]['ready'], [])
+
+    def test_install_without_worker_is_not_running_forever(self):
+        def stuck(d):
+            d.setdefault('installs', {})['/x/setup.exe'] = {'name': 'X', 'state': 'running', 'started': 1, 'prefix': '/p'}
+        games.update(stuck)
+        with patch.object(games, 'worker_alive', return_value=False):
+            listed = self.cli('installers')[1]['installers']
+        self.assertEqual(listed[0]['install']['state'], 'failed')
 
 
 if __name__ == '__main__':
