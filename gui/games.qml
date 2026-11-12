@@ -304,7 +304,7 @@ FloatingWindow {
                 { label: "reading games.json: " + Games.games.length + " games", done: Games.loaded },
                 { label: "scanning steam, hydra, roms", done: !Games.scanning },
                 { label: "loading library", done: screen.status === Loader.Ready },
-                { label: "starting LW // GAMES", done: true }
+                { label: "starting LW", done: true }
             ]
             onFinished: keys.forceActiveFocus()
         }

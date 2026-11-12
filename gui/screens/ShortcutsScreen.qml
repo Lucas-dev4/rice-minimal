@@ -368,7 +368,7 @@ Item {
     RiceHeader {
         id: title
         width: parent.width - search.width - 14
-        title: "LW // SHORTCUTS"
+        title: "SHORTCUTS"
         note: root.visibleIds.length + "/" + root.binds.length
     }
 

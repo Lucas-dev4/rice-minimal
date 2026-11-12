@@ -34,7 +34,7 @@ Item {
     function addGame() { if (!pickExe.running) pickExe.running = true; }
     Process {
         id: pickExe
-        command: ["zenity", "--file-selection", "--title=LW // GAMES — escolha o executável do jogo",
+        command: ["zenity", "--file-selection", "--title=LW — escolha o executável do jogo",
                   "--filename=" + Quickshell.env("HOME") + "/", "--file-filter=Jogos | *.exe *.sh *.x86_64 *.AppImage", "--file-filter=Tudo | *"]
         stdout: StdioCollector {
             onStreamFinished: {
@@ -49,7 +49,7 @@ Item {
     Process {
         id: pickPrefix
         command: ["bash", "-c", 'opts=(); for p in "$HOME"/.wine*/ "$HOME"/Games/*/pfx/; do [ -f "$p/system.reg" ] && opts+=("${p%/}"); done; ' +
-                  'zenity --list --title="LW // GAMES — prefixo do Wine" --text="Em qual prefixo do Wine o jogo está instalado?" --column=prefixo "${opts[@]}"']
+                  'zenity --list --title="LW — prefixo do Wine" --text="Em qual prefixo do Wine o jogo está instalado?" --column=prefixo "${opts[@]}"']
         stdout: StdioCollector {
             onStreamFinished: {
                 root.pickedPrefix = text.trim();
@@ -59,7 +59,7 @@ Item {
     }
     Process {
         id: pickName
-        command: ["zenity", "--entry", "--title=LW // GAMES", "--text=Nome do jogo:",
+        command: ["zenity", "--entry", "--title=LW", "--text=Nome do jogo:",
                   "--entry-text=" + root.pickedExe.split("/").pop().replace(/\.[^.]+$/, "")]
         stdout: StdioCollector {
             onStreamFinished: { if (text.trim()) Games.add(root.pickedExe, root.pickedPrefix, text.trim()); }

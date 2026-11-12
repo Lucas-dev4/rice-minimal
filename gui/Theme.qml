@@ -22,7 +22,9 @@ Singleton {
     readonly property string guiStatePath: Quickshell.env("HOME") + "/.local/state/rice-minimal/gui"
 
     // ---- type --------------------------------------------------------------
-    readonly property string font: "JetBrains Mono"
+    // The Nerd Font build is the JetBrains Mono installed here; plain "JetBrains Mono"
+    // fell back to Noto Sans Mono.
+    readonly property string font: "JetBrainsMono Nerd Font Mono"
     readonly property int fontSize: 13
     readonly property int small: 11
 
@@ -55,6 +57,9 @@ Singleton {
     // still see-through when the window is not.
     readonly property color panel: alpha < 1 ? Qt.alpha(fg, 0.025) : mix(bg, fg, 0.025)
     readonly property color raise: alpha < 1 ? Qt.alpha(fg, 0.05) : mix(bg, fg, 0.05)
+    // Things laid over other content (game sheet, log drawer, a dragged card) stay solid
+    // enough to read even in a see-through window.
+    readonly property color sheet: Qt.alpha(mix(bg, fg, 0.025), Math.max(alpha, 0.97))
     readonly property color line: mix(bg, fg, 0.11)
     readonly property color line2: mix(bg, fg, 0.18)
     readonly property color dim: mix(bg, variant, 0.85)

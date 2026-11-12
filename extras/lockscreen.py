@@ -1,4 +1,4 @@
-"""RICE // lock visuals for the existing secure Noctalia locker. No auth changes."""
+"""LW lock visuals for the existing secure Noctalia locker. No auth changes."""
 import json
 import os
 from pathlib import Path
@@ -139,7 +139,7 @@ def effective_dim(palette):
 def render(palette,profile):
     refined=profile == 'refined'
     wallpaper=palette.get('wallpaper','')
-    lines=['# RICE // LOCKED — generated visual settings only.',
+    lines=['# LW lock — generated visual settings only.',
            '[lockscreen]', 'wallpaper = '+json.dumps(wallpaper,ensure_ascii=False),
            'blurred_desktop = false','blur_intensity = 0.0',f'tint_intensity = {effective_dim(palette)}',
            'transition = ["fade"]',f'transition_duration = {150.0 if refined else 100.0}',

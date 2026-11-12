@@ -328,17 +328,17 @@ def render(palette):
     terminal = [c['background'], v['red'], v['green'], v['yellow'], v['blue'], v['magenta'], v['cyan'], c['foreground'],
                 c['muted']] + [mix(v[k], '#ffffff', .2) for k in ('red','green','yellow','blue','magenta','cyan')] + [c['foreground']]
     # Same colors as Kitty, in the format pywal.nvim sources from ~/.cache/wal.
-    wal = '" RICE // minimal: terminal colors for pywal.nvim.\n' + ''.join(
+    wal = '" LW: terminal colors for pywal.nvim.\n' + ''.join(
         f"let g:{key} = '{value}'\n" for key,value in
         [('background',c['background']),('foreground',c['foreground']),('cursor',v['accent'])]
         + [(f'color{i}',value) for i,value in enumerate(terminal)])
     # cliamp theme: same vivid terminal colors; no bg keeps Kitty's transparency.
-    cliamp = '# RICE // minimal: generated on every palette change.\n' + ''.join(
+    cliamp = '# LW: generated on every palette change.\n' + ''.join(
         f'{key} = "{value}"\n' for key,value in (('accent',v['accent']),('bright_fg',c['foreground']),
         ('fg',c['muted']),('green',v['green']),('yellow',v['yellow']),('red',v['red'])))
     # yazi: its default theme already uses ANSI colors; only the fixed blues change.
     a, bg, muted = v['accent'], c['background'], c['muted']
-    yazi = f'''# RICE // minimal: generated on every palette change; edits are overwritten.
+    yazi = f'''# LW: generated on every palette change; edits are overwritten.
 [mgr]
 cwd = {{ fg = "{a}" }}
 border_style = {{ fg = "{muted}" }}

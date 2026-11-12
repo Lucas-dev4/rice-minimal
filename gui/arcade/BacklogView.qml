@@ -210,7 +210,7 @@ Item {
         y: root.dragAt.y - height / 2
         width: root.colWidth - 16
         height: root.cardHeight - 6
-        color: Theme.raise
+        color: Theme.sheet
         border.width: 1
         border.color: Theme.accent
         opacity: 0.92

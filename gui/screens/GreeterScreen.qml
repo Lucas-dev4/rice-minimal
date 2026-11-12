@@ -97,7 +97,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "LW // GREETER"
+        title: "GREETER"
     }
 
     // ================= PREVIEW =================

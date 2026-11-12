@@ -45,7 +45,8 @@ FILES = [
 ]
 # Written once; the program rewrites them with the user's own preferences.
 SEEDS = [('config/cliamp/config.toml', '.config/cliamp/config.toml')]
-LAUNCHERS = [('rice', 'extras/rice.py'), ('supers', 'extras/supers/Supers'),
+# `lw` is the name; `rice` stays so shortcuts and scripts keep working.
+LAUNCHERS = [('lw', 'extras/rice.py'), ('rice', 'extras/rice.py'), ('supers', 'extras/supers/Supers'),
              ('wallpapers', 'extras/wallpapers/wallpaper_tui.py')]
 HYPR_MODULES = ['rice-minimal', 'rice-integration', 'rice-adaptive', 'rice-appearance']
 # Minimal, nearly monochrome themes that ship with the system (adwaita-icon-theme).

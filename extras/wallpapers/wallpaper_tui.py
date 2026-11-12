@@ -23,7 +23,7 @@ def selector(screen):
     while True:
         matches = filtered(paths, query)
         index = min(index, max(0,len(matches)-1))
-        height, _ = ui.frame(screen, f'RICE // WALLPAPERS [{len(matches):02d}]')
+        height, _ = ui.frame(screen, f'WALLPAPERS [{len(matches):02d}]')
         visible = max(1,height-7)
         start = max(0, index-visible+1)
         for row, path in enumerate(matches[start:start+visible], 2):

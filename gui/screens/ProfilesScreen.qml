@@ -87,7 +87,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "LW // PROFILES"
+        title: "PROFILES"
     }
 
     Row {

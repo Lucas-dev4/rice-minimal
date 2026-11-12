@@ -307,7 +307,7 @@ def lock_activate(confirm):
         raise ValueError('Activation requires --confirm')
     uninterruptible()
     backup=lockscreen.activate()
-    theme.log_action('lock','OK','RICE // LOCKED activated')
+    theme.log_action('lock','OK','LW lock activated')
     return {'backup':str(backup)}
 
 
@@ -461,7 +461,7 @@ def failure(action,exc):
 
 
 def main(argv):
-    parser=argparse.ArgumentParser(prog='rice')
+    parser=argparse.ArgumentParser(prog='lw')
     common=argparse.ArgumentParser(add_help=False)
     common.add_argument('--json',action='store_true')
     actions=parser.add_subparsers(dest='action',required=True)

@@ -86,7 +86,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "LW // PALETTE"
+        title: "PALETTE"
         note: root.current.emergency ? "emergency" : ""
     }
 

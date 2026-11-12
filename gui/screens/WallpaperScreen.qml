@@ -134,7 +134,7 @@ Item {
     RiceHeader {
         id: title
         width: parent.width - search.width - 14
-        title: "LW // WALLPAPERS"
+        title: "WALLPAPERS"
         note: root.shown.length + "/" + root.images.length + (maker.running ? "  previews " + root.thumbsDone + "/" + root.thumbsTotal : "")
     }
 

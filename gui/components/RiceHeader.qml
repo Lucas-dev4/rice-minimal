@@ -1,18 +1,18 @@
 import QtQuick
 import qs
 
-// LW // TITLE  [ note ]  - - - - - - -
+// TITLE  [ note ]  - - - - - - -
 // The title "decodes" from noise each time it appears (refined profile only).
 Item {
     id: root
 
     property string title: ""
     property string note: ""
-    // A status chip (LW // MUSIC: PLAYING green, PAUSED yellow); dim by default.
+    // A status chip (MUSIC: PLAYING green, PAUSED yellow); dim by default.
     property color noteColor: Theme.dim
     // Items placed at the right end; the dashed rule stops before them.
     default property alias trailing: rightSlot.data
-    property bool primary: title.indexOf("//") >= 0
+    property bool primary: true
 
     width: parent ? parent.width : 0
     height: label.implicitHeight

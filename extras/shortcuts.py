@@ -148,22 +148,22 @@ def selector(screen, path=None):
         binds = backend.parse_binds(original.splitlines(True))
         entries = [b['key_clean'].replace('mainMod .. ','SUPER')+' | '+b['action_clean'] for b in binds]
         if not entries:
-            ui.page(screen,'RICE // SUPER',['No editable static shortcuts. Dynamic expressions are preserved.'])
+            ui.page(screen,'SUPER',['No editable static shortcuts. Dynamic expressions are preserved.'])
             return
-        choice = ui.choose(screen,'RICE // SUPER SHORTCUTS',entries,message,selected)
+        choice = ui.choose(screen,'SUPER SHORTCUTS',entries,message,selected)
         if choice is None:
             return
         selected = choice
         bind = binds[choice]
         try:
-            key = ui.input_text(screen,'RICE // EDIT SHORTCUT','Combination (empty keeps current):')
+            key = ui.input_text(screen,'EDIT SHORTCUT','Combination (empty keeps current):')
             if key is None:
                 continue
-            command = ui.input_text(screen,'RICE // EDIT SHORTCUT','Command (empty keeps current):')
+            command = ui.input_text(screen,'EDIT SHORTCUT','Command (empty keeps current):')
             if command is None or not (key or command):
                 continue
             replacement = plan_edit(bind,binds,key,command)
-            if ui.confirm(screen,'RICE // SAVE SHORTCUT',replacement.strip()):
+            if ui.confirm(screen,'SAVE SHORTCUT',replacement.strip()):
                 lines=original.splitlines(True)
                 lines[bind['line_idx']]=replacement
                 backup=backend.safe_write(target,original,''.join(lines))

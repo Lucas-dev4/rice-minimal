@@ -110,7 +110,7 @@ Item {
     RiceHeader {
         id: title
         width: parent.width - search.width - 14
-        title: "LW // BACKUPS"
+        title: "BACKUPS"
         note: root.shown.length + "/" + root.backups.length
     }
     SearchBox {

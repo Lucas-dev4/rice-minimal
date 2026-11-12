@@ -17,7 +17,7 @@ Rectangle {
         return time + "  [ " + entry.status + " ] " + entry.action + (entry.detail ? " — " + entry.detail : "");
     }
 
-    color: Theme.panel
+    color: Theme.sheet
 
     Rectangle { width: parent.width; height: 1; color: Theme.rule }
 

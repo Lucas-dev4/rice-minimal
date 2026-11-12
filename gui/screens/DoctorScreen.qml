@@ -136,7 +136,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "LW // DOCTOR"
+        title: "DOCTOR"
         note: root.count("OK") + "/" + root.results.length
     }
 

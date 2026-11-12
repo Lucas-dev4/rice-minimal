@@ -88,7 +88,7 @@ Item {
 
     RiceHeader {
         id: title
-        title: "LW // LOCK"
+        title: "LOCK"
     }
 
     // ================= PREVIEW =================

@@ -396,7 +396,7 @@ FloatingWindow {
 
             RiceHeader {
                 id: header
-                title: "LW // " + window.screens[window.current].name
+                title: window.screens[window.current].name
                 note: Music.online ? Music.status.toUpperCase() : "OFFLINE"
                 noteColor: Music.playing ? Theme.ok : Music.status === "paused" ? Theme.yel : Theme.dim
                 // NOW PLAYING: the visualizer modes (v cycles them).
@@ -547,7 +547,7 @@ FloatingWindow {
                 { label: Music.online ? "connected to cliamp" : "connecting to cliamp", done: !Music.connecting },
                 { label: "reading playlist" + (Music.playlistLoaded ? ": " + Music.playlist.length + " tracks" : ""), done: Music.playlistLoaded || !Music.online },
                 { label: "loading " + window.screens[window.current].name.toLowerCase(), done: screen.status === Loader.Ready },
-                { label: "starting LW // MUSIC", done: true }
+                { label: "starting LW", done: true }
             ]
             onFinished: keys.forceActiveFocus()
         }

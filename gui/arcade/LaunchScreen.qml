@@ -43,7 +43,7 @@ Rectangle {
         anchors.centerIn: parent
         width: 560
         spacing: 6
-        RiceText { text: "LW // PLAY"; color: Theme.accent; font.weight: Font.ExtraBold; font.letterSpacing: 2; font.pixelSize: 16 }
+        RiceText { text: "PLAY"; color: Theme.accent; font.weight: Font.ExtraBold; font.letterSpacing: 2; font.pixelSize: 16 }
         RiceText { width: parent.width; elide: Text.ElideRight; text: root.l ? root.l.title : ""; font.pixelSize: 20; font.weight: Font.ExtraBold; bottomPadding: 14 }
         Repeater {
             model: root.steps

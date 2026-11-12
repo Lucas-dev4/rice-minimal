@@ -68,7 +68,7 @@ Item {
         height: body.implicitHeight + 40
         y: root.shown ? parent.height - height - root.bottomInset : parent.height + 10
         Behavior on y { NumberAnimation { duration: Theme.motion ? 400 : 0; easing.type: Theme.ease } }
-        color: Theme.panel
+        color: Theme.sheet
         border.width: 1
         border.color: Theme.line2
         MouseArea { anchors.fill: parent }   // clicks on the sheet stay on it

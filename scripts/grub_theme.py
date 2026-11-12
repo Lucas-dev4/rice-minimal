@@ -105,7 +105,7 @@ terminal-border: "0"
 + label {{
   left = 10%
   top = 20%
-  text = "LW // BOOT"
+  text = "LW"
   font = "{f[("Bold", 34)]}"
   color = "{c["accent"]}"
 }}

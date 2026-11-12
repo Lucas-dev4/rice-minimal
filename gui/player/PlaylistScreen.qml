@@ -82,7 +82,7 @@ Item {
     Process {
         id: picker
         // Opens in ~/Músicas, cliamp's initial_directory in the rice config.
-        command: ["zenity", "--file-selection", "--multiple", "--separator=\n", "--title=LW // MUSIC — adicionar à fila",
+        command: ["zenity", "--file-selection", "--multiple", "--separator=\n", "--title=LW — adicionar à fila",
                   "--filename=" + Quickshell.env("HOME") + "/Músicas/",
                   "--file-filter=Áudio | *.mp3 *.flac *.ogg *.opus *.m4a *.aac *.wav *.wv *.ape *.aiff *.alac *.wma",
                   "--file-filter=Tudo | *"]
