@@ -47,8 +47,14 @@ Singleton {
     readonly property color bg: dark.mSurface || "#12100e"
     readonly property color fg: dark.mOnSurface || "#c9c1b6"
     readonly property color variant: dark.mOnSurfaceVariant || "#8f8a87"
-    readonly property color panel: mix(bg, fg, 0.025)
-    readonly property color raise: mix(bg, fg, 0.05)
+    // Window opacity: 1 = solid. The separate LW windows set it to the terminal's (kitty
+    // background_opacity 0.85), so the desktop shows through like in kitty.
+    property real alpha: 1
+    readonly property color base: Qt.alpha(bg, alpha)
+    // Panels are a light veil over the window background: the same color when solid,
+    // still see-through when the window is not.
+    readonly property color panel: alpha < 1 ? Qt.alpha(fg, 0.025) : mix(bg, fg, 0.025)
+    readonly property color raise: alpha < 1 ? Qt.alpha(fg, 0.05) : mix(bg, fg, 0.05)
     readonly property color line: mix(bg, fg, 0.11)
     readonly property color line2: mix(bg, fg, 0.18)
     readonly property color dim: mix(bg, variant, 0.85)

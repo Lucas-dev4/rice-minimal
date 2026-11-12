@@ -350,7 +350,7 @@ Item {
         width: parent.width
         height: 22
         gradient: Gradient {
-            GradientStop { position: 0; color: Theme.bg }
+            GradientStop { position: 0; color: Theme.base }
             GradientStop { position: 1; color: Qt.alpha(Theme.bg, 0) }
         }
     }
@@ -360,7 +360,7 @@ Item {
         height: 22
         gradient: Gradient {
             GradientStop { position: 0; color: Qt.alpha(Theme.bg, 0) }
-            GradientStop { position: 1; color: Theme.bg }
+            GradientStop { position: 1; color: Theme.base }
         }
     }
 

@@ -17,7 +17,7 @@ Rectangle {
         leaving.start();
     }
 
-    color: Theme.bg
+    color: Theme.base
     visible: Theme.motion
     z: 50
 
@@ -46,7 +46,7 @@ Rectangle {
                 anchors.right: parent.right
                 width: parent.width * (18 - big.cut) / 18
                 height: parent.height
-                color: Theme.bg
+                color: Theme.base
             }
         }
 

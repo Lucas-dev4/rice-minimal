@@ -242,7 +242,7 @@ Item {
                 width: view.width
                 height: 26
                 z: 2
-                color: Theme.bg
+                color: Theme.base
                 Cells { head: true }
                 Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
             }

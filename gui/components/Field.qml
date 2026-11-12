@@ -25,7 +25,7 @@ Column {
     Rectangle {
         width: root.width
         height: 26
-        color: Theme.bg
+        color: Theme.base
         border.width: 1
         border.color: input.activeFocus ? Theme.accent : Theme.line
         Behavior on border.color { ColorAnimation { duration: Theme.tFast } }

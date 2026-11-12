@@ -121,7 +121,7 @@ Item {
                             width: 90
                             height: 20
                             anchors.verticalCenter: parent.verticalCenter
-                            color: Theme.bg
+                            color: Theme.base
                             border.width: 1
                             border.color: estInput.activeFocus ? Theme.accent : Theme.line2
                             TextInput {
@@ -242,7 +242,7 @@ Item {
             Rectangle {
                 width: parent.width
                 height: 70
-                color: Theme.bg
+                color: Theme.base
                 border.width: 1
                 border.color: notes.activeFocus ? Theme.accent : Theme.line2
                 Flickable {

@@ -27,7 +27,8 @@ FloatingWindow {
     title: "LW // GAMES"
     implicitWidth: 1220
     implicitHeight: 780
-    color: Theme.bg
+    color: "transparent"
+    // See-through like the terminal (RICE_GUI_OPACITY overrides; 1 = solid).
     onVisibleChanged: if (!visible) Qt.quit()
 
     function select(index) { current = Math.max(0, Math.min(views.length - 1, index)); }
@@ -75,7 +76,7 @@ FloatingWindow {
         function onSessionEnded(title, hours) { Status.say(Games.hoursText(hours) + " em " + title, Theme.ok); }
     }
     // The window opens with what games.json has; the scan runs behind it.
-    Component.onCompleted: { Games.recover(); Games.scan(true); }
+    Component.onCompleted: { Theme.alpha = Number(Quickshell.env("RICE_GUI_OPACITY") || 0.85); Games.recover(); Games.scan(true); }
 
     Item {
         id: keys
@@ -99,7 +100,7 @@ FloatingWindow {
     Item {
         id: content
         anchors.fill: parent
-        Rectangle { anchors.fill: parent; color: Theme.bg }
+        Rectangle { anchors.fill: parent; color: Theme.base }
 
         // ================= SIDEBAR =================
         Rectangle {
@@ -304,7 +305,7 @@ FloatingWindow {
         id: clock
         property date now: new Date()
         property bool blink: true
-        readonly property string colon: blink || !Theme.motion ? ":" : "<font color='" + Theme.panel + "'>:</font>"
+        readonly property string colon: blink || !Theme.motion ? ":" : "<font color='transparent'>:</font>"
         readonly property string text: Qt.formatTime(now, "hh") + colon + Qt.formatTime(now, "mm") + colon + Qt.formatTime(now, "ss")
     }
     Timer {

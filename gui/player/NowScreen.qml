@@ -75,7 +75,7 @@ Item {
         id: spec
         width: parent.width
         height: 300
-        color: Theme.bg
+        color: Theme.base
         border.width: 1
         border.color: Theme.line
         clip: true
@@ -84,7 +84,7 @@ Item {
             anchors.fill: parent
             anchors.margins: 1
             gradient: Gradient {
-                GradientStop { position: 0.0; color: Theme.bg }
+                GradientStop { position: 0.0; color: Theme.base }
                 GradientStop { position: 1.0; color: Theme.mix(Theme.bg, Theme.accent, 0.07) }
             }
         }

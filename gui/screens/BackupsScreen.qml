@@ -243,7 +243,7 @@ Item {
             property string text: ""
             width: parent.width
             height: cmd.implicitHeight + 16
-            color: Theme.bg
+            color: Theme.base
             border.width: 1
             border.color: Theme.line
             RiceText {

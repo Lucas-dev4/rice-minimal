@@ -29,7 +29,9 @@ FloatingWindow {
     title: "LW // MUSIC"
     implicitWidth: 1220
     implicitHeight: 780
-    color: Theme.bg
+    color: "transparent"
+    // See-through like the terminal (RICE_GUI_OPACITY overrides; 1 = solid).
+    Component.onCompleted: Theme.alpha = Number(Quickshell.env("RICE_GUI_OPACITY") || 0.85)
     onVisibleChanged: if (!visible) closePlayer()
 
     // Closing saves cliamp's session and switches it off; opening brings it back paused
@@ -200,7 +202,7 @@ FloatingWindow {
     Item {
         id: content
         anchors.fill: parent
-        Rectangle { anchors.fill: parent; color: Theme.bg }
+        Rectangle { anchors.fill: parent; color: Theme.base }
 
         // ================= SIDEBAR =================
         Rectangle {
@@ -546,7 +548,7 @@ FloatingWindow {
         id: clock
         property date now: new Date()
         property bool blink: true
-        readonly property string colon: blink || !Theme.motion ? ":" : "<font color='" + Theme.panel + "'>:</font>"
+        readonly property string colon: blink || !Theme.motion ? ":" : "<font color='transparent'>:</font>"
         readonly property string text: Qt.formatTime(now, "hh") + colon + Qt.formatTime(now, "mm") + colon + Qt.formatTime(now, "ss")
     }
     Timer {
