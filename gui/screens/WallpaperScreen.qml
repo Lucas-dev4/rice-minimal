@@ -18,7 +18,7 @@ Item {
     // Entrance stagger only for the first fill, not for delegates created while scrolling.
     property bool entering: true
 
-    readonly property var hints: [["hjkl", "move"], ["⏎", "apply"], ["f", "fav"], ["F", "filter"], ["/", "search"]]
+    readonly property var hints: [["←↑↓→", "move"], ["⏎", "apply"], ["f", "fav"], ["F", "filter"], ["/", "search"]]
     readonly property int columns: 4
     readonly property int gap: 14
 
@@ -56,10 +56,10 @@ Item {
         if (event.text === "F") { favOnly = !favOnly; grid.currentIndex = 0; return true; }
         if (event.text === "f") { toggleFavorite(); return true; }
         switch (event.key) {
-        case Qt.Key_Left: case Qt.Key_H: grid.moveCurrentIndexLeft(); return true;
-        case Qt.Key_Right: case Qt.Key_L: grid.moveCurrentIndexRight(); return true;
-        case Qt.Key_Up: case Qt.Key_K: grid.moveCurrentIndexUp(); return true;
-        case Qt.Key_Down: case Qt.Key_J: grid.moveCurrentIndexDown(); return true;
+        case Qt.Key_Left: grid.moveCurrentIndexLeft(); return true;
+        case Qt.Key_Right: grid.moveCurrentIndexRight(); return true;
+        case Qt.Key_Up: grid.moveCurrentIndexUp(); return true;
+        case Qt.Key_Down: grid.moveCurrentIndexDown(); return true;
         case Qt.Key_Return: case Qt.Key_Enter: apply(); return true;
         case Qt.Key_Slash: search.focusInput(); return true;
         }

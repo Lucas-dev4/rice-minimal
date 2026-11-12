@@ -317,11 +317,26 @@ def gui():
     path=str(theme.ROOT/'gui')
     probe=subprocess.run(['qs','ipc','-p',path,'show'],capture_output=True,text=True)
     if probe.returncode == 0 and 'target rice' in probe.stdout:
+        # Hidden with Ctrl+J: bring it back instead of closing it.
+        if revealed(path,'rice'):
+            return 0
         subprocess.run(['qs','ipc','-p',path,'call','rice','close'],capture_output=True)
         return 0
     # Software rendering looks the same here and uses ~25% less memory, starting twice as fast.
     os.environ.setdefault('QT_QUICK_BACKEND','software')
     os.execvp('qs',['qs','-n','-d','-p',path])
+
+
+def revealed(path,target):
+    # True when the window was hidden (Ctrl+J) and is now shown again.
+    try:
+        hidden=subprocess.run(['qs','ipc','-p',path,'call',target,'hidden'],capture_output=True,text=True,timeout=3)
+        if hidden.stdout.strip() != 'yes':
+            return False
+        subprocess.run(['qs','ipc','-p',path,'call',target,'reveal'],capture_output=True,timeout=3)
+    except subprocess.TimeoutExpired:
+        return False
+    return True
 
 
 def music_instances(path):
@@ -406,6 +421,9 @@ def lw_app(name):
         running=False
     if running:
         try:
+            # Hidden with Ctrl+J: bring it back instead of closing it.
+            if revealed(path,name):
+                return 0
             subprocess.run(['qs','ipc','-p',path,'call',name,'close'],capture_output=True,timeout=3)
         except subprocess.TimeoutExpired:
             pass

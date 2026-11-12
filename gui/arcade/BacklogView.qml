@@ -13,7 +13,7 @@ Item {
     property string title: ""
     signal open(string id)
     signal launch(string id)
-    readonly property var hints: [["hjkl", "move"], ["HL", "coluna"], ["JK", "prioridade"], ["⏎", "abrir"]]
+    readonly property var hints: [["←↑↓→", "move"], ["⇧←→", "coluna"], ["⇧↑↓", "prioridade"], ["⏎", "abrir"]]
 
     readonly property var columns: [["want", "QUERO JOGAR"], ["playing", "JOGANDO"], ["done", "ZERADO"], ["dropped", "LARGADO"]]
     readonly property var lists: columns.map(c => Games.column(c[0]))
@@ -38,15 +38,19 @@ Item {
     }
     function handleKey(event) {
         const t = event.text;
-        if (t === "h" || event.key === Qt.Key_Left) { col = Math.max(0, col - 1); clampRow(); return true; }
-        if (t === "l" || event.key === Qt.Key_Right) { col = Math.min(3, col + 1); clampRow(); return true; }
-        if (t === "j" || event.key === Qt.Key_Down) { row = Math.min(lists[col].length - 1, row + 1); return true; }
-        if (t === "k" || event.key === Qt.Key_Up) { row = Math.max(0, row - 1); return true; }
+        // Shift+arrows carry the selected game; plain arrows move the cursor.
+        if (event.modifiers & Qt.ShiftModifier) {
+            if (!selected) return false;
+            if (event.key === Qt.Key_Left && col > 0) { place(selected.id, col - 1, row); return true; }
+            if (event.key === Qt.Key_Right && col < 3) { place(selected.id, col + 1, row); return true; }
+            if (event.key === Qt.Key_Down && row < lists[col].length - 1) { place(selected.id, col, row + 1); return true; }
+            if (event.key === Qt.Key_Up && row > 0) { place(selected.id, col, row - 1); return true; }
+        }
+        if (event.key === Qt.Key_Left) { col = Math.max(0, col - 1); clampRow(); return true; }
+        if (event.key === Qt.Key_Right) { col = Math.min(3, col + 1); clampRow(); return true; }
+        if (event.key === Qt.Key_Down) { row = Math.min(lists[col].length - 1, row + 1); return true; }
+        if (event.key === Qt.Key_Up) { row = Math.max(0, row - 1); return true; }
         if (!selected) return false;
-        if (t === "H" && col > 0) { place(selected.id, col - 1, row); return true; }
-        if (t === "L" && col < 3) { place(selected.id, col + 1, row); return true; }
-        if (t === "J" && row < lists[col].length - 1) { place(selected.id, col, row + 1); return true; }
-        if (t === "K" && row > 0) { place(selected.id, col, row - 1); return true; }
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { open(selected.id); return true; }
         return false;
     }

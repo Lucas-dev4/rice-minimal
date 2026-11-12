@@ -11,7 +11,7 @@ Item {
 
     property Item keyTarget: null
     property string title: ""
-    readonly property var hints: [["hl", "banda"], ["jk", "±1 dB"], ["0", "zera"], ["b", "bypass"], ["f", "flat"]]
+    readonly property var hints: [["←→", "banda"], ["↑↓", "±1 dB"], ["0", "zera"], ["b", "bypass"], ["f", "flat"]]
 
     readonly property var freqs: Music.eqFrequencies
     property var gains: Music.eqBands.slice()
@@ -110,10 +110,10 @@ Item {
 
     function handleKey(event) {
         const t = event.text;
-        if (t === "h") { focusBand = Math.max(0, focusBand - 1); return true; }
-        if (t === "l") { focusBand = Math.min(9, focusBand + 1); return true; }
-        if (t === "k" || event.key === Qt.Key_Up) { setGain(focusBand, gains[focusBand] + 1); return true; }
-        if (t === "j" || event.key === Qt.Key_Down) { setGain(focusBand, gains[focusBand] - 1); return true; }
+        if (event.key === Qt.Key_Left) { focusBand = Math.max(0, focusBand - 1); return true; }
+        if (event.key === Qt.Key_Right) { focusBand = Math.min(9, focusBand + 1); return true; }
+        if (event.key === Qt.Key_Up) { setGain(focusBand, gains[focusBand] + 1); return true; }
+        if (event.key === Qt.Key_Down) { setGain(focusBand, gains[focusBand] - 1); return true; }
         if (t === "0") { setGain(focusBand, 0); return true; }
         if (t === "b") { bypass(); return true; }
         if (t === "f") { saved = null; apply([0, 0, 0, 0, 0, 0, 0, 0, 0, 0], "Flat"); return true; }

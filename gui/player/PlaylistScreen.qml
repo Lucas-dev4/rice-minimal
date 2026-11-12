@@ -12,7 +12,7 @@ Item {
     property Item keyTarget: null
     property string title: ""
     property int cursor: 0                 // index into Music.playlist
-    readonly property var hints: [["jk", "move"], ["⏎", "play"], ["JK", "mover"], ["d", "remover"], ["o", "abrir"], ["/", "filtro"]]
+    readonly property var hints: [["↑↓", "move"], ["⏎", "play"], ["⇧↑↓", "mover"], ["d", "remover"], ["o", "abrir"], ["/", "filtro"]]
 
     readonly property string needle: search.text.toLowerCase()
     readonly property var rows: needle === "" ? Music.playlist
@@ -63,10 +63,11 @@ Item {
 
     function handleKey(event) {
         const t = event.text;
-        if (t === "j" || event.key === Qt.Key_Down) { moveCursor(1); return true; }
-        if (t === "k" || event.key === Qt.Key_Up) { moveCursor(-1); return true; }
-        if (t === "J") { reorder(1); return true; }
-        if (t === "K") { reorder(-1); return true; }
+        const shift = event.modifiers & Qt.ShiftModifier;
+        if (shift && event.key === Qt.Key_Down) { reorder(1); return true; }
+        if (shift && event.key === Qt.Key_Up) { reorder(-1); return true; }
+        if (event.key === Qt.Key_Down) { moveCursor(1); return true; }
+        if (event.key === Qt.Key_Up) { moveCursor(-1); return true; }
         if (t === "d" || event.key === Qt.Key_Delete) { remove(); return true; }
         if (t === "o") { openFiles(); return true; }
         if (event.key === Qt.Key_Slash) { search.focusInput(); return true; }

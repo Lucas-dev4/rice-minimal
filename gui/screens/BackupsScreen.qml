@@ -17,7 +17,7 @@ Item {
     property bool armedProfile: false
     property bool armedPalette: false
 
-    readonly property var hints: [["jk", "move"], ["y", "copy cmd"], ["/", "search"]]
+    readonly property var hints: [["↑↓", "move"], ["y", "copy cmd"], ["/", "search"]]
     readonly property var kindColor: ({ files: Theme.dim, snapshot: Theme.blue, full: Theme.accent, lock: Theme.magenta })
     readonly property var kindText: ({
         files: "arquivos alterados por uma etapa de instalação",
@@ -76,8 +76,8 @@ Item {
 
     function handleKey(event) {
         switch (event.key) {
-        case Qt.Key_Up: case Qt.Key_K: move(-1); return true;
-        case Qt.Key_Down: case Qt.Key_J: move(1); return true;
+        case Qt.Key_Up: move(-1); return true;
+        case Qt.Key_Down: move(1); return true;
         case Qt.Key_Y: if (selected && selected.command) copy(selected.command, "comando"); return true;
         case Qt.Key_Slash: search.focusInput(); return true;
         }

@@ -16,7 +16,7 @@ Item {
     property string error: ""
 
     readonly property var groupOrder: ["SESSION", "SERVICES", "BINARIES", "CONFIG"]
-    readonly property var hints: [["jk", "move"], ["hl", "grupos"], ["r", "run"]]
+    readonly property var hints: [["↑↓", "move"], ["←→", "grupos"], ["r", "run"]]
 
     function groupOf(name) {
         if (["Hyprland version", "Hyprland Lua errors", "Lua appearance include", "UWSM graphical session",
@@ -84,10 +84,10 @@ Item {
 
     function handleKey(event) {
         switch (event.key) {
-        case Qt.Key_Up: case Qt.Key_K: move(-1); return true;
-        case Qt.Key_Down: case Qt.Key_J: move(1); return true;
-        case Qt.Key_L: case Qt.Key_Right: closed = []; return true;
-        case Qt.Key_H: case Qt.Key_Left: closed = groupOrder.slice(); return true;
+        case Qt.Key_Up: move(-1); return true;
+        case Qt.Key_Down: move(1); return true;
+        case Qt.Key_Right: closed = []; return true;
+        case Qt.Key_Left: closed = groupOrder.slice(); return true;
         case Qt.Key_R: run(); return true;
         }
         return false;

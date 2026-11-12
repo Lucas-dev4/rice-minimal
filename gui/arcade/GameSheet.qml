@@ -33,8 +33,8 @@ Item {
         if (notes.activeFocus || est.inputFocus) return false;
         const t = event.text;
         if (event.key === Qt.Key_Escape) { close(); return true; }
-        if (event.key === Qt.Key_Left || t === "h") { nudgeProgress(-5); return true; }
-        if (event.key === Qt.Key_Right || t === "l") { nudgeProgress(5); return true; }
+        if (event.key === Qt.Key_Left) { nudgeProgress(-5); return true; }
+        if (event.key === Qt.Key_Right) { nudgeProgress(5); return true; }
         if (t === "s") { cycleStatus(); return true; }
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { launch(gameId); return true; }
         return true;   // the sheet is modal: nothing reaches the grid behind it

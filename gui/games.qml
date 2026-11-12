@@ -29,7 +29,13 @@ FloatingWindow {
     implicitHeight: 780
     color: "transparent"
     // See-through like the terminal (RICE_GUI_OPACITY overrides; 1 = solid).
-    onVisibleChanged: if (!visible) Qt.quit()
+    onVisibleChanged: if (!visible && !parked) Qt.quit()
+    // Ctrl+J hides the window without closing it (music keeps playing, a game session keeps
+    // counting); the same Super shortcut brings it back (`rice` asks `hidden` first).
+    property bool parked: false
+    function park() { parked = true; visible = false; }
+    function unpark() { visible = true; parked = false; keys.forceActiveFocus(); }
+    function isPark(event) { return event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier); }
 
     function select(index) { current = Math.max(0, Math.min(views.length - 1, index)); }
     function launchGame(id) { sheet.close(); Games.launch(id); }
@@ -38,6 +44,8 @@ FloatingWindow {
     IpcHandler {
         target: "games"
         function close(): void { Qt.quit(); }
+        function hidden(): string { return window.parked ? "yes" : "no"; }
+        function reveal(): void { window.unpark(); }
         function open(index: int): void { window.select(index); }
         function shot(path: string): void { content.grabToImage(result => result.saveToFile(path)); }
         function key(name: string): void {
@@ -87,6 +95,7 @@ FloatingWindow {
 
     function handle(event) {
         if (boot.visible) { boot.finish(); event.accepted = true; return; }
+        if (isPark(event)) { park(); event.accepted = true; return; }
         if (launchScreen.shown) { launchScreen.handleKey(event); event.accepted = true; return; }
         if (sheet.shown) { if (sheet.handleKey(event)) event.accepted = true; return; }
         if (screen.item && screen.item.handleKey && screen.item.handleKey(event)) { event.accepted = true; return; }

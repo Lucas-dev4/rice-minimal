@@ -16,7 +16,7 @@ Item {
     property bool glassy: false
     signal open(string id)
     signal launch(string id)
-    readonly property var hints: [["hjkl", "move"], ["⏎", "abrir"], ["tab", "filtro"], ["/", "buscar"], ["a", "adicionar"], ["r", "rescan"]]
+    readonly property var hints: [["←↑↓→", "move"], ["⏎", "abrir"], ["tab", "filtro"], ["/", "buscar"], ["a", "adicionar"], ["r", "rescan"]]
 
     readonly property var filters: [["todos", ""], ["jogando", "playing"], ["quero jogar", "want"], ["zerado", "done"], ["largado", "dropped"]]
     property int filter: 0
@@ -73,10 +73,10 @@ Item {
     function handleKey(event) {
         const t = event.text;
         if (event.key === Qt.Key_Slash) { search.focusInput(); return true; }
-        if (t === "h" || event.key === Qt.Key_Left) { moveCursor(-1); return true; }
-        if (t === "l" || event.key === Qt.Key_Right) { moveCursor(1); return true; }
-        if (t === "j" || event.key === Qt.Key_Down) { moveCursor(grid.columns); return true; }
-        if (t === "k" || event.key === Qt.Key_Up) { moveCursor(-grid.columns); return true; }
+        if (event.key === Qt.Key_Left) { moveCursor(-1); return true; }
+        if (event.key === Qt.Key_Right) { moveCursor(1); return true; }
+        if (event.key === Qt.Key_Down) { moveCursor(grid.columns); return true; }
+        if (event.key === Qt.Key_Up) { moveCursor(-grid.columns); return true; }
         if (event.key === Qt.Key_Tab) { filter = (filter + 1) % filters.length; grid.currentIndex = 0; return true; }
         if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && shown[grid.currentIndex]) { open(shown[grid.currentIndex].id); return true; }
         if (t === "a") { addGame(); return true; }

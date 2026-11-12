@@ -11,7 +11,7 @@ Item {
 
     property Item keyTarget: null
     property string title: ""
-    readonly property var hints: [["/", "buscar"], ["tab", "fonte"], ["jk", "move"], ["⏎", "tocar"], ["a", "próxima"]]
+    readonly property var hints: [["/", "buscar"], ["tab", "fonte"], ["↑↓", "move"], ["⏎", "tocar"], ["a", "próxima"]]
 
     // Local files and radio have their own tabs; "cliamp" is its own radio; podcast results
     // are whole shows, not tracks.
@@ -87,8 +87,8 @@ Item {
         const t = event.text;
         if (event.key === Qt.Key_Slash) { box.focusInput(); return true; }
         if (event.key === Qt.Key_Tab) { cycleProvider(); return true; }
-        if (t === "j" || event.key === Qt.Key_Down) { moveCursor(1); return true; }
-        if (t === "k" || event.key === Qt.Key_Up) { moveCursor(-1); return true; }
+        if (event.key === Qt.Key_Down) { moveCursor(1); return true; }
+        if (event.key === Qt.Key_Up) { moveCursor(-1); return true; }
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { play(selected); return true; }
         if (t === "a") { queueNext(selected); return true; }
         return false;

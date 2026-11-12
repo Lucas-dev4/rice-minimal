@@ -16,7 +16,7 @@ Item {
         // This window follows the profile too (Theme.motion).
         { setting: "LW control animations", minimal: "off", refined: "on" }
     ])
-    readonly property var hints: [["hl", "escolher"], ["⏎", "apply"], ["r", "restore"]]
+    readonly property var hints: [["←→", "escolher"], ["⏎", "apply"], ["r", "restore"]]
     readonly property bool busy: changer.running
 
     function row(name) { return rows.find(r => r.setting === name) || null; }
@@ -49,8 +49,8 @@ Item {
 
     function handleKey(event) {
         switch (event.key) {
-        case Qt.Key_Left: case Qt.Key_H: selected = 0; return true;
-        case Qt.Key_Right: case Qt.Key_L: selected = 1; return true;
+        case Qt.Key_Left: selected = 0; return true;
+        case Qt.Key_Right: selected = 1; return true;
         case Qt.Key_Return: case Qt.Key_Enter: apply(); return true;
         case Qt.Key_R: restore(); return true;
         }

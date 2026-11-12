@@ -18,7 +18,7 @@ Item {
 
     readonly property bool busy: worker.running || trialRunning
     readonly property var presets: [["LIGHT", 55], ["BALANCED", 60], ["DARK", 75]]
-    readonly property var hints: [["hl", "dim"], ["t", "trial"]]
+    readonly property var hints: [["←→", "dim"], ["t", "trial"]]
 
     function refresh() { reader.call(["lock", "status", "--json"]); }
     function run(args, label) {
@@ -45,8 +45,8 @@ Item {
 
     function handleKey(event) {
         switch (event.key) {
-        case Qt.Key_Left: case Qt.Key_H: setDim(dim - 5); return true;
-        case Qt.Key_Right: case Qt.Key_L: setDim(dim + 5); return true;
+        case Qt.Key_Left: setDim(dim - 5); return true;
+        case Qt.Key_Right: setDim(dim + 5); return true;
         case Qt.Key_T: if (!busy && info.session_locked === false) confirm("armedTrial", trial); return true;
         }
         return false;

@@ -24,7 +24,7 @@ Item {
     property bool armedDelete: false
     property bool armedSave: false
 
-    readonly property var hints: recording ? [["esc", "cancelar"]] : [["jk", "move"], ["hl", "grupo"], ["r", "gravar"], ["⏎", "editar"], ["del", "apagar"], ["/", "search"]]
+    readonly property var hints: recording ? [["esc", "cancelar"]] : [["↑↓", "move"], ["←→", "grupo"], ["r", "gravar"], ["⏎", "editar"], ["del", "apagar"], ["/", "search"]]
     readonly property bool busy: saver.running || restorer.running || deleter.running
 
     function idOf(b) { return (b.editable ? "b" : "x") + b.line; }
@@ -242,10 +242,10 @@ Item {
             return true;
         }
         switch (event.key) {
-        case Qt.Key_Up: case Qt.Key_K: move(-1); return true;
-        case Qt.Key_Down: case Qt.Key_J: move(1); return true;
-        case Qt.Key_Left: case Qt.Key_H: if (selected) toggleGroup(info(selected).group, true); return true;
-        case Qt.Key_Right: case Qt.Key_L:
+        case Qt.Key_Up: move(-1); return true;
+        case Qt.Key_Down: move(1); return true;
+        case Qt.Key_Left: if (selected) toggleGroup(info(selected).group, true); return true;
+        case Qt.Key_Right:
             closed = [];
             return true;
         case Qt.Key_R: startRecording(); return true;

@@ -33,7 +33,13 @@ FloatingWindow {
     color: "transparent"
     // See-through like the terminal (RICE_GUI_OPACITY overrides; 1 = solid).
     Component.onCompleted: Theme.alpha = Number(Quickshell.env("RICE_GUI_OPACITY") || 0.85)
-    onVisibleChanged: if (!visible) closePlayer()
+    onVisibleChanged: if (!visible && !parked) closePlayer()
+    // Ctrl+J hides the window without closing it (music keeps playing, a game session keeps
+    // counting); the same Super shortcut brings it back (`rice` asks `hidden` first).
+    property bool parked: false
+    function park() { parked = true; visible = false; }
+    function unpark() { visible = true; parked = false; keys.forceActiveFocus(); }
+    function isPark(event) { return event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier); }
 
     // Closing saves cliamp's session and switches it off; opening brings it back paused
     // (Music.closeSession / Music.startCliamp, shared with the LW window).
@@ -56,6 +62,8 @@ FloatingWindow {
     IpcHandler {
         target: "music"
         function close(): void { window.closePlayer(); }
+        function hidden(): string { return window.parked ? "yes" : "no"; }
+        function reveal(): void { window.unpark(); }
         function open(index: int): void { window.select(index); }
         function shot(path: string): void { content.grabToImage(result => result.saveToFile(path)); }
         function key(name: string): void {
@@ -145,6 +153,7 @@ FloatingWindow {
     // Keyboard: the view first, then the player keys. Esc only leaves text fields (in the views).
     function handle(event) {
         if (boot.visible) { boot.finish(); event.accepted = true; return; }
+        if (isPark(event)) { park(); event.accepted = true; return; }
         if (screen.item && screen.item.handleKey && screen.item.handleKey(event)) { event.accepted = true; return; }
         const t = event.text, digit = parseInt(t);
         if (digit >= 1 && digit <= screens.length) select(digit - 1);

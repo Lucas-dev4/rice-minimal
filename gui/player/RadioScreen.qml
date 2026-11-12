@@ -12,7 +12,7 @@ Item {
 
     property Item keyTarget: null
     property string title: ""
-    readonly property var hints: [["/", "buscar"], ["jk", "move"], ["⏎", "tocar"], ["a", "salvar"]]
+    readonly property var hints: [["/", "buscar"], ["↑↓", "move"], ["⏎", "tocar"], ["a", "salvar"]]
     readonly property var tags: ["lofi", "jazz", "ambient", "synthwave", "chillout", "rock", "classical", "news"]
 
     property var results: []
@@ -66,8 +66,8 @@ Item {
     function handleKey(event) {
         const t = event.text;
         if (event.key === Qt.Key_Slash) { box.focusInput(); return true; }
-        if (t === "j" || event.key === Qt.Key_Down) { moveCursor(1); return true; }
-        if (t === "k" || event.key === Qt.Key_Up) { moveCursor(-1); return true; }
+        if (event.key === Qt.Key_Down) { moveCursor(1); return true; }
+        if (event.key === Qt.Key_Up) { moveCursor(-1); return true; }
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { play(selected); return true; }
         if (t === "a") { save(selected); return true; }
         return false;
