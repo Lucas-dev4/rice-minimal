@@ -13,7 +13,8 @@ Item {
     property string title: ""
     signal open(string id)
     signal launch(string id)
-    readonly property var hints: [["←↑↓→", "move"], ["⏎", "abrir"], ["tab", "filtro"], ["/", "buscar"], ["a", "adicionar"], ["r", "rescan"]]
+    signal installer()           // INSTALAR: the install sheet, owned by the window
+    readonly property var hints: [["←↑↓→", "move"], ["⏎", "abrir"], ["tab", "filtro"], ["/", "buscar"], ["i", "instalar"], ["a", "adicionar"], ["r", "rescan"]]
 
     readonly property var filters: [["todos", ""], ["jogando", "playing"], ["quero jogar", "want"], ["zerado", "done"], ["largado", "dropped"]]
     property int filter: 0
@@ -77,6 +78,7 @@ Item {
         if (event.key === Qt.Key_Tab) { filter = (filter + 1) % filters.length; grid.currentIndex = 0; return true; }
         if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && shown[grid.currentIndex]) { open(shown[grid.currentIndex].id); return true; }
         if (t === "a") { addGame(); return true; }
+        if (t === "i") { installer(); return true; }
         if (t === "r") { Games.scan(); return true; }
         return false;
     }
@@ -107,6 +109,7 @@ Item {
             anchors.verticalCenter: titleText.verticalCenter
             spacing: 8
             AccentButton { ghost: true; label: Games.scanning ? "SCAN…" : "RESCAN (r)"; enabledState: !Games.scanning; onClicked: Games.scan() }
+            AccentButton { ghost: true; label: "INSTALAR (i)"; onClicked: root.installer() }
             AccentButton { label: "+ JOGO (a)"; onClicked: root.addGame() }
         }
     }

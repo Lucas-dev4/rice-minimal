@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -187,6 +188,60 @@ class Games(unittest.TestCase):
         self.assertEqual([(db[i]['status'], db[i]['order'], db[i]['progress']) for i in (ids[2], ids[0])], [('done', 1, 100), ('done', 2, 100)])
         self.assertEqual(db[ids[1]]['status'], 'want')
         self.assertEqual(self.cli('arrange', 'zerado', ids[1])[0], 1)
+
+    # ---- installers ------------------------------------------------------------------
+    def test_clean_name_drops_tags_and_brackets(self):
+        self.assertEqual(games.clean_name('Need For Speed Hot Pursuit - [DODI Repack]'), 'Need For Speed Hot Pursuit')
+        self.assertEqual(games.clean_name('Hollow_Knight (GOG)'), 'Hollow Knight')
+
+    def test_installers_one_per_folder_without_redistributables(self):
+        down = self.home/'Downloads'
+        game = down/'hydra/Jogo Bom - [Repack]'
+        (game/'_Redist').mkdir(parents=True)
+        for f in ('Setup.exe', 'setup-a.bin', 'Install_Helper.exe'):
+            (game/f).write_bytes(b'x')
+        (game/'_Redist/vcredist_x64.exe').write_bytes(b'x')
+        (down/'GOG_installer.exe').write_bytes(b'x')
+        (down/'deep/a/b/c').mkdir(parents=True)
+        (down/'deep/a/b/c/setup.exe').write_bytes(b'x')   # four levels down: not looked at
+        found = {i['name']: i for i in self.cli('installers')[1]['installers']}
+        self.assertEqual(sorted(found), ['GOG installer', 'Jogo Bom'])
+        self.assertTrue(found['Jogo Bom']['setup'].endswith('Setup.exe'))
+        self.assertIsNone(found['Jogo Bom']['install'])
+
+    def test_candidates_prefer_the_game_over_tools(self):
+        prefix = self.home/'Games/jogo-bom'
+        root = prefix/'drive_c/Games/Jogo Bom'
+        (root/'bin').mkdir(parents=True)
+        (prefix/'drive_c/windows/system32').mkdir(parents=True)
+        (root/'bin/JogoBom.exe').write_bytes(b'x' * 50)
+        (root/'Launcher.exe').write_bytes(b'x' * 500)
+        (root/'unins000.exe').write_bytes(b'x' * 900)
+        (prefix/'drive_c/windows/system32/notepad.exe').write_bytes(b'x' * 900)
+        found = [Path(c['exe']).name for c in games.candidates(prefix, time.time() - 30, 'Jogo Bom')]
+        self.assertEqual(found, ['JogoBom.exe', 'Launcher.exe'])
+
+    def test_install_flow_records_and_adds_with_its_prefix(self):
+        setup = self.home/'Downloads/Jogo/setup.exe'
+        setup.parent.mkdir(parents=True)
+        setup.write_bytes(b'x')
+        with patch('shutil.which', return_value='/usr/bin/wine'), patch.object(games.subprocess, 'Popen') as worker:
+            record = self.cli('install', str(setup))[1]['install']
+        self.assertEqual((record['state'], record['prefix']), ('running', str(self.home/'Games/jogo')))
+        self.assertEqual(worker.call_args.args[0][-2:], ['install-run', str(setup)])
+        self.assertFalse(self.cli('install', str(setup))[1]['ok'])   # one at a time
+        exe = self.home/'Games/jogo/drive_c/Games/Jogo/Jogo.exe'
+        exe.parent.mkdir(parents=True)
+        exe.write_bytes(b'x')
+        with patch.object(games.subprocess, 'run') as run:
+            run.return_value.returncode = 0
+            self.assertEqual([Path(c['exe']).name for c in self.cli('install-run', str(setup))[1]['candidates']], ['Jogo.exe'])
+        self.assertEqual(games.load()['installs'][str(setup)]['state'], 'done')
+        added = self.cli('install-add', str(setup), str(exe))[1]['added']
+        self.assertEqual((added['title'], added['prefix']), ('Jogo', str(self.home/'Games/jogo')))
+        self.assertEqual(games.load()['installs'][str(setup)]['state'], 'added')
+        self.assertTrue(self.cli('install-forget', str(setup))[1]['ok'])
+        self.assertNotIn(str(setup), games.load().get('installs', {}))
 
 
 if __name__ == '__main__':

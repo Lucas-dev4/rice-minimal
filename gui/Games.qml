@@ -113,6 +113,34 @@ Singleton {
                     .sort((a, b) => (a.missing - b.missing) || (a.order || 0) - (b.order || 0) || a.title.localeCompare(b.title, "pt"));
     }
 
+    // ---- installers: setup.exe → Wine prefix → library ------------------------------
+    // The list comes from `games.py installers`; each install's live state is in games.json.
+    property var installers: []
+    property bool findingInstallers: false
+    readonly property var installs: doc.installs || ({})
+    function findInstallers() {
+        if (findingInstallers) return;
+        findingInstallers = true;
+        run(["installers"], (ok, data) => {
+            findingInstallers = false;
+            if (ok) installers = data.installers; else failed(data.error || "busca de instaladores falhou");
+        });
+    }
+    function install(setup, name) {
+        const args = ["install", setup];
+        if (name) args.push("--name", name);
+        run(args, (ok, data) => {
+            if (!ok) { failed(data.error || "a instalação não começou"); return; }
+            changed("[ .. ] instalando " + data.install.name + ": siga a janela do instalador");
+        });
+    }
+    function installAdd(setup, exe) {
+        run(["install-add", setup, exe], (ok, data) => ok ? changed("[ + ] " + data.added.title + " na biblioteca") : failed(data.error));
+    }
+    function installForget(setup) {
+        run(["install-forget", setup], (ok, data) => ok ? changed("[ - ] registro da instalação apagado (o prefixo continua)") : failed(data.error));
+    }
+
     function remove(id) {
         const g = byId(id);
         run(["remove", id], (ok, data) => ok ? changed("[ - ] " + (g ? g.title : id) + " removido") : failed(data.error));

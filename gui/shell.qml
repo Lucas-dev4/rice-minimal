@@ -81,6 +81,7 @@ FloatingWindow {
     function selectGroup(index) {
         if (index < 0 || index >= groups.length || index === group) return;
         sheet.close();
+        installSheet.close();
         group = index;
         enterGroup();
     }
@@ -122,6 +123,7 @@ FloatingWindow {
             return "ok";
         }
         function openSheet(id: string): string { if (id) sheet.openGame(id); else sheet.close(); return "ok"; }
+        function installer(): void { window.selectGroup(2); installSheet.openSheet(); }
         // Scriptable state and actions (scripts/music-check.sh, tests).
         function state(): string {
             return JSON.stringify({
@@ -232,6 +234,7 @@ FloatingWindow {
         if (isPark(event) && !(screen.item && screen.item.recording)) { park(); event.accepted = true; return; }
         if (boot.visible) { boot.finish(); event.accepted = true; return; }
         if (launchScreen.shown) { launchScreen.handleKey(event); event.accepted = true; return; }
+        if (installSheet.shown) { installSheet.handleKey(event); event.accepted = true; return; }
         if (sheet.shown) { if (sheet.handleKey(event)) event.accepted = true; return; }
         const t = event.text, digit = parseInt(t);
         // Alt+1/2/3: SISTEMA, MÚSICA, JOGOS. Checked before the screen so no screen eats it.
@@ -684,6 +687,7 @@ FloatingWindow {
                     ignoreUnknownSignals: true
                     function onOpen(id) { sheet.openGame(id); }
                     function onLaunch(id) { window.launchGame(id); }
+                    function onInstaller() { installSheet.openSheet(); }
                 }
             }
 
@@ -819,6 +823,13 @@ FloatingWindow {
             keyTarget: keys
             bottomInset: footer.height
             onLaunch: id => window.launchGame(id)
+        }
+        InstallSheet {
+            id: installSheet
+            anchors.fill: parent
+            z: 30
+            keyTarget: keys
+            bottomInset: footer.height
         }
         LaunchScreen {
             id: launchScreen

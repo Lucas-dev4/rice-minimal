@@ -14,7 +14,14 @@
                                 process appears, ends when it is gone, even with LW closed
   games.py stop ID              asks the game's processes to quit (SIGTERM)
   games.py arrange STATUS ID... one backlog column at once: these games get STATUS and
-                                order 1..n in this sequence (drag & drop, H/L, J/K)
+                                order 1..n in this sequence (drag & drop, Shift+arrows)
+  games.py installers           Windows installers in the download folders (setup.exe, *.msi)
+                                and what LW already did with each
+  games.py install SETUP [--name TEXT]
+                                runs the installer in a new Wine prefix (~/Games/<name>); a
+                                detached worker waits for it and lists the new .exe files
+  games.py install-add SETUP EXE   puts the chosen .exe in the library (with that prefix)
+  games.py install-forget SETUP    drops LW's record of that installer (the prefix stays)
 
 Sources: Steam (every library in libraryfolders.vdf, art from appcache/librarycache in
 both the old flat and the newer per-app layout, playtime from userdata localconfig.vdf),
@@ -556,6 +563,161 @@ def stop(gid):
     return {'signalled': len(pids)}
 
 
+# ---- installers: setup.exe → Wine prefix → library ------------------------------------
+# An installer is a setup/install executable (or .msi); redistributables are not.
+SETUP_NAME = re.compile(r'(^|[\W_])(setup|install(er)?)([\W_]|$)', re.I)
+NOT_SETUP = re.compile(r'unins|uninstall|redist|vc_?redist|directx|dxsetup|dotnet|physx|oalinst|xnafx|prereq', re.I)
+# .exe files an installer leaves that are not the game.
+NOT_GAME = re.compile(r'unins|setup|install|redist|crash|report|dxsetup|vc_?redist|dotnet|physx|helper|update|'
+                      r'7z|unarc|quickbms|cleanup|activat|regist|config(urator)?$', re.I)
+# Parts of drive_c the game is never in.
+PREFIX_SKIP = {'windows', 'programdata', 'users', 'common files', 'internet explorer',
+               'windows media player', 'windows nt', 'microsoft.net', 'windowspowershell'}
+
+
+def download_dirs():
+    return [Path(d).expanduser() for d in config().get('download_dirs', ['~/Downloads'])]
+
+
+def clean_name(text):
+    """'Need For Speed Hot Pursuit - [DODI Repack]' → 'Need For Speed Hot Pursuit'."""
+    text = re.sub(r'[\[({][^\])}]*[\])}]', ' ', text)
+    text = re.sub(r'[_.]+', ' ', text)
+    text = re.sub(r'\s+-\s*$|^\s*-\s+', ' ', re.sub(r'\s+', ' ', text)).strip(' -')
+    return re.sub(r'\s+', ' ', text).strip() or 'Jogo'
+
+
+def slug(text):
+    return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-') or 'jogo'
+
+
+def installers():
+    """Installers under the download folders (three levels deep), one per folder:
+    setup.exe first, then the shortest name. Each carries LW's record, if any."""
+    found = {}
+    for root in download_dirs():
+        if not root.is_dir():
+            continue
+        base = len(root.parts)
+        for dirpath, dirs, files in os.walk(root):
+            if len(Path(dirpath).parts) - base >= 3:
+                dirs[:] = []
+            dirs[:] = [d for d in dirs if not d.startswith('.')]
+            for f in files:
+                stem, ext = os.path.splitext(f)
+                if ext.lower() not in ('.exe', '.msi') or not SETUP_NAME.search(stem) or NOT_SETUP.search(stem):
+                    continue
+                folder = Path(dirpath)
+                key = str(folder) if folder != root else os.path.join(dirpath, f)
+                rank = (f.lower() != 'setup.exe', len(f))
+                if key not in found or rank < found[key][0]:
+                    name = clean_name(folder.name if folder != root else stem)
+                    found[key] = (rank, {'setup': str(folder/f), 'name': name, 'folder': str(folder)})
+    records = load().get('installs', {})
+    out = [dict(item, install=records.get(item['setup'])) for _, item in found.values()]
+    # Records whose installer is gone (moved, deleted) still show, so they can be finished.
+    listed = {i['setup'] for i in out}
+    out += [{'setup': k, 'name': v.get('name', ''), 'folder': str(Path(k).parent), 'install': v}
+            for k, v in records.items() if k not in listed]
+    return {'installers': sorted(out, key=lambda i: i['name'].lower())}
+
+
+def candidates(prefix, since, name, top=8):
+    """New .exe files in the prefix (changed after the install began), the likely game first:
+    words of its name in the path, then size."""
+    drive = Path(prefix)/'drive_c'
+    words = set(re.findall(r'[a-z0-9]{3,}', name.lower()))
+    out = []
+    for dirpath, dirs, files in os.walk(drive):
+        dirs[:] = [d for d in dirs if d.lower() not in PREFIX_SKIP]
+        for f in files:
+            stem, ext = os.path.splitext(f)
+            if ext.lower() != '.exe' or NOT_GAME.search(stem):
+                continue
+            path = Path(dirpath)/f
+            try:
+                st = path.stat()
+            except OSError:
+                continue
+            if max(st.st_mtime, st.st_ctime) < since - 60:
+                continue
+            hits = len(words & set(re.findall(r'[a-z0-9]{3,}', str(path.relative_to(drive)).lower())))
+            # The .exe named after the game (JogoBom.exe for "Jogo Bom") beats a launcher beside it.
+            own = re.sub(r'[^a-z0-9]', '', stem.lower())
+            if own and (own in ''.join(sorted(words, key=name.lower().find)) or any(w in own for w in words)):
+                hits += 5
+            out.append((hits, st.st_size, {'exe': str(path), 'size': st.st_size}))
+    out.sort(key=lambda c: (-c[0], -c[1]))
+    return [c[2] for c in out[:top]]
+
+
+def install(setup, name=None):
+    from shutil import which
+    setup = str(Path(setup).expanduser())
+    if not Path(setup).is_file():
+        raise ValueError('instalador não encontrado: ' + setup)
+    if not which('wine'):
+        raise ValueError('wine não encontrado')
+    name = name or clean_name(Path(setup).parent.name)
+    prefix = home()/'Games'/slug(name)
+    def start(d):
+        live = d.setdefault('installs', {}).get(setup)
+        if live and live.get('state') == 'running':
+            raise ValueError('já está instalando: ' + name)
+        d['installs'][setup] = {'name': name, 'setup': setup, 'prefix': str(prefix), 'state': 'running',
+                                'started': int(time.time())}
+        return dict(d['installs'][setup])
+    record = update(start)
+    subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'install-run', setup], stdin=subprocess.DEVNULL,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    return {'install': record}
+
+
+def install_run(setup):
+    """The detached worker: makes the prefix, runs the installer, waits for every process it
+    started (wineserver -w), then records the new .exe files."""
+    record = load().get('installs', {}).get(setup)
+    if not record:
+        raise ValueError('instalação não registrada: ' + setup)
+    prefix = Path(record['prefix'])
+    prefix.mkdir(parents=True, exist_ok=True)
+    env = dict(os.environ, WINEPREFIX=str(prefix), WINEDEBUG='-all')
+    env.pop('LW_GAME_ID', None)
+    code = None
+    with open(prefix/'lw-install.log', 'w') as out:
+        subprocess.run(['wineboot', '-u'], env=env, stdin=subprocess.DEVNULL, stdout=out, stderr=subprocess.STDOUT)
+        cmd = ['wine', 'msiexec', '/i', setup] if setup.lower().endswith('.msi') else ['wine', setup]
+        code = subprocess.run(cmd, env=env, cwd=str(Path(setup).parent), stdin=subprocess.DEVNULL,
+                              stdout=out, stderr=subprocess.STDOUT).returncode
+        subprocess.run(['wineserver', '-w'], env=env, stdout=out, stderr=subprocess.STDOUT)
+    found = candidates(prefix, record['started'], record['name'])
+    def finish(d):
+        r = d.setdefault('installs', {}).setdefault(setup, record)
+        r.update(state='done' if found else 'failed', ended=int(time.time()), code=code, candidates=found,
+                 error=None if found else 'nenhum .exe novo no prefixo (instalação cancelada ou falhou)')
+    update(finish)
+    return {'candidates': found}
+
+
+def install_add(setup, exe):
+    record = load().get('installs', {}).get(setup)
+    if not record:
+        raise ValueError('instalação não registrada: ' + setup)
+    added = add(exe, record['prefix'], record['name'])['added']
+    def mark(d):
+        d['installs'][setup].update(state='added', game=added['id'])
+    update(mark)
+    return {'added': added}
+
+
+def install_forget(setup):
+    def drop(d):
+        if not d.get('installs', {}).pop(setup, None):
+            raise ValueError('instalação não registrada: ' + setup)
+    update(drop)
+    return {'forgot': setup}
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='action', required=True)
@@ -578,6 +740,15 @@ def main(argv=None):
     ar = sub.add_parser('arrange')
     ar.add_argument('status')
     ar.add_argument('ids', nargs='*')
+    sub.add_parser('installers')
+    i = sub.add_parser('install')
+    i.add_argument('setup')
+    i.add_argument('--name')
+    for name in ('install-run', 'install-forget'):
+        sub.add_parser(name).add_argument('setup')
+    ia = sub.add_parser('install-add')
+    ia.add_argument('setup')
+    ia.add_argument('exe')
     args = parser.parse_args(argv)
     try:
         if args.action == 'scan':
@@ -600,6 +771,16 @@ def main(argv=None):
             data = recover()
         elif args.action == 'arrange':
             data = arrange(args.status, args.ids)
+        elif args.action == 'installers':
+            data = installers()
+        elif args.action == 'install':
+            data = install(args.setup, args.name)
+        elif args.action == 'install-run':
+            data = install_run(args.setup)
+        elif args.action == 'install-add':
+            data = install_add(args.setup, args.exe)
+        elif args.action == 'install-forget':
+            data = install_forget(args.setup)
         else:
             data = remove(args.id)
     except Exception as exc:
