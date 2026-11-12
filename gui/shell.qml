@@ -11,7 +11,7 @@ import qs.arcade
 // LW — one window for the whole system: SISTEMA (wallpapers, shortcuts, profiles…),
 // MÚSICA (cliamp) and JOGOS (library, backlog, play sessions). Opened by `lw gui`,
 // `lw music` and `lw games` (Super+BackSpace / Super+M / Super+G) on that section.
-// Closing it leaves cliamp playing and a game session counting.
+// Closing it on MÚSICA stops the music; elsewhere music and a game session go on.
 // Look and behaviour follow docs/lw-prototype.html; all tokens live in Theme.qml.
 FloatingWindow {
     id: window
@@ -70,8 +70,12 @@ FloatingWindow {
     function unpark() { visible = true; parked = false; keys.forceActiveFocus(); }
     function isPark(event) { return event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier); }
 
-    // cliamp keeps playing: only its session is written, for a start after a reboot.
-    function quit() { Music.saveSession(); Qt.quit(); }
+    // Closing on MÚSICA stops cliamp (its session is saved: it comes back paused there);
+    // closing on SISTEMA or JOGOS leaves it playing and only saves the session.
+    function quit() {
+        if (inMusic) Music.closeSession(); else Music.saveSession();
+        Qt.quit();
+    }
 
     function select(index) {
         const next = lastScreen.slice();

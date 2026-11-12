@@ -1,5 +1,5 @@
 {
-  "README.md": "ab284d4724e396bc486b9177e409aa39b75da415df5d2b8212a357774ca078df",
+  "README.md": "cfa9c4d0136ff14a5c9cd52256cb5437d21146f934f15898b67626cb6f4afdf0",
   "config/autostart/rice-minimal.desktop": "c592575a7c2e736e66bd76410b9c52775b8190c7a69f9b9369efbf593d9477d4",
   "config/cliamp/config.toml": "b7411892f51694364881d0e9be4c590bab6787108215ebbc504fb4b81d2e3f2e",
   "config/fastfetch/config.jsonc": "548e76a29ea67501f11c38dce97279fafee1cea0d1c734cfcd8dedc0bf308f03",
@@ -91,7 +91,7 @@
   "gui/screens/ShortcutWords.js": "5afb062d5ca5f669e4326ae1c143f8d7100a9a971b837f4f06b9dc69a8d37bc4",
   "gui/screens/ShortcutsScreen.qml": "53238cf7093ceb9be3b9ca325b25f984031a7f26fbef7dab10dc82d7af929c49",
   "gui/screens/WallpaperScreen.qml": "6944ac0c131682c179f14548859f963bf737d9dbdb76da4861b997e82c608c89",
-  "gui/shell.qml": "d7ad2ca65890949d213c56995de56c11f445e620c4e756816a1259f90906aff2",
+  "gui/shell.qml": "4668cea7a35811584bf7b3c687644273fd8b948ca851686fa5466a7a9fbce276",
   "scripts/grub_theme.py": "c77d75becac7266d4a70e2c557951e5502992b6f92fd65d72296edb55a3353de",
   "scripts/install.py": "e44b8cba840e29e459ab34156befef74c38bb885e5cce1702fa08cf3b46b5eee",
   "scripts/restore.py": "19f3e09f83139fd429437be9d13aaef5f8e99ca9d5fcd956f557ff694de239e2",
