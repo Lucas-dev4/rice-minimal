@@ -47,6 +47,7 @@ FloatingWindow {
         current = index;
     }
     property int previous: -1
+    function launchGame(id) { sheet.close(); Games.launch(id); }
 
     IpcHandler {
         target: "lw"
@@ -59,6 +60,7 @@ FloatingWindow {
             const code = named[name] || name.toUpperCase().charCodeAt(0);
             window.handle({ key: code, text: named[name] ? (name === "Space" ? " " : "") : name, modifiers: name.length === 1 && name !== name.toLowerCase() ? Qt.ShiftModifier : 0, accepted: false });
         }
+        function openSheet(id: string): string { if (id) sheet.openGame(id); else sheet.close(); return "ok"; }
         function query(text: string): string {
             const item = pageRepeater.itemAt(window.current);
             if (!item || !item.item || !item.item.query) return "no search here";
@@ -110,6 +112,8 @@ FloatingWindow {
         Keys.onPressed: event => window.handle(event)
     }
     function handle(event) {
+        if (launchScreen.shown) { launchScreen.handleKey(event); event.accepted = true; return; }
+        if (sheet.shown) { if (sheet.handleKey(event)) event.accepted = true; return; }
         const page = pageRepeater.itemAt(current);
         if (page && page.item && page.item.handleKey && page.item.handleKey(event)) { event.accepted = true; return; }
         const t = event.text, digit = parseInt(t);
@@ -225,6 +229,13 @@ FloatingWindow {
                     Behavior on x { NumberAnimation { duration: 350; easing.type: Theme.ease } }
                     onXChanged: Deck.bump()
                     onLoaded: if (item.keyTarget !== undefined) item.keyTarget = keys
+                    // GAMES: opening and launching a game happen up here (sheet, launch screen).
+                    Connections {
+                        target: pageLoader.item
+                        ignoreUnknownSignals: true
+                        function onOpen(id) { sheet.openGame(id); }
+                        function onLaunch(id) { window.launchGame(id); }
+                    }
                 }
             }
         }
@@ -293,6 +304,22 @@ FloatingWindow {
             }
         }
 
+        // ================= GAME SHEET / LAUNCH =================
+        // Over the pages, the dock stays visible below the sheet.
+        GameSheet {
+            id: sheet
+            anchors.fill: parent
+            z: 30
+            keyTarget: keys
+            bottomInset: parent.height - dock.y + 10
+            onLaunch: id => window.launchGame(id)
+        }
+        LaunchScreen {
+            id: launchScreen
+            anchors.fill: parent
+            z: 40
+        }
+
         // ================= DOCK =================
         Glass {
             id: dock
@@ -357,7 +384,7 @@ FloatingWindow {
             width: Math.min(parent.width - 60, toastText.implicitWidth + 28)
             height: toastText.implicitHeight + 12
             tint: 0.85
-            z: 20
+            z: 50
             Behavior on opacity { NumberAnimation { duration: 300; easing.type: Theme.ease } }
             Behavior on y { NumberAnimation { duration: 300; easing.type: Theme.ease } }
             Rectangle { anchors.fill: parent; color: "transparent"; border.width: 1; border.color: toast.tone }

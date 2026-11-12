@@ -6,6 +6,8 @@ import qs
 import qs.components
 // Indexes gui/arcade for Quickshell; the views there are loaded by path.
 import qs.arcade
+// LibraryView uses the glass from gui/deck.
+import qs.deck
 
 // LW // GAMES — game library, backlog and play sessions, opened by `rice games` (Super+G).
 // A separate instance from LW // CONTROL and LW // MUSIC with the same theme and

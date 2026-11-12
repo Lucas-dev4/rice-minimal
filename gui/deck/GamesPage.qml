@@ -1,27 +1,10 @@
 import QtQuick
 import qs
-import qs.components
-import qs.deck
+import qs.arcade
 
-// LW // games: filled in its own step.
-Item {
+// LW // games: the LW // GAMES library with glass cards. Opening a game and launching it
+// go up to lw.qml, which owns the sheet and the launch screen.
+LibraryView {
     id: root
-    property Item keyTarget: null
-    readonly property var hints: []
-    function handleKey(event) { return false; }
-
-    Column {
-        width: parent.width
-        spacing: 12
-        Row {
-            spacing: 10
-            RiceText { textFormat: Text.StyledText; text: "games<font color='" + Theme.accent + "'>.</font>"; font.pixelSize: 26; font.weight: Font.ExtraBold }
-        }
-        Glass {
-            k: true
-            width: parent.width
-            height: 160
-            RiceText { anchors.centerIn: parent; text: "[ .. ] games — próxima etapa"; color: Theme.dim }
-        }
-    }
+    glassy: true
 }
