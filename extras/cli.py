@@ -311,19 +311,55 @@ def lock_activate(confirm):
     return {'backup':str(backup)}
 
 
-def gui():
+def gui(section='system'):
+    # LW: one window (gui/shell.qml) with SISTEMA, MÚSICA and JOGOS. Super+BackSpace,
+    # Super+M and Super+G call this with their section: closed → opens there; hidden
+    # (Ctrl+J) → comes back there; open on another section → switches; same → closes.
     (theme.STATE/'actions.jsonl').touch()
-    # A second press closes the open window, so the shortcut works as a toggle.
     path=str(theme.ROOT/'gui')
-    probe=subprocess.run(['qs','ipc','-p',path,'show'],capture_output=True,text=True)
-    if probe.returncode == 0 and 'target rice' in probe.stdout:
-        # Hidden with Ctrl+J: bring it back instead of closing it.
-        if revealed(path,'rice'):
-            return 0
-        subprocess.run(['qs','ipc','-p',path,'call','rice','close'],capture_output=True)
+    # `qs list` names the instance by its root file.
+    root=str(theme.ROOT/'gui'/'shell.qml')
+    import fcntl
+    lock=open(Path(os.environ.get('XDG_RUNTIME_DIR','/tmp'))/'lw-window.lock','w')
+    try:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except OSError:
         return 0
-    # Software rendering looks the same here and uses ~25% less memory, starting twice as fast.
-    os.environ.setdefault('QT_QUICK_BACKEND','software')
+    # Every call to the running window has a time limit: the shortcut must never hang.
+    def ipc(*args):
+        return subprocess.run(['qs','ipc','-p',path,'call','lw',*args],capture_output=True,text=True,timeout=3)
+    try:
+        probe=ipc('section')
+        shown=probe.stdout.strip() if probe.returncode == 0 else ''
+    except subprocess.TimeoutExpired:
+        kill_instances(music_instances(root))
+        shown=''
+    if shown:
+        try:
+            if ipc('hidden').stdout.strip() == 'yes':
+                ipc('reveal')
+                ipc('go',section)
+            elif shown == section:
+                ipc('close')
+                for _ in range(30):
+                    if not music_instances(root):
+                        return 0
+                    time.sleep(0.1)
+                kill_instances(music_instances(root))
+            else:
+                ipc('go',section)
+        except subprocess.TimeoutExpired:
+            kill_instances(music_instances(root))
+        return 0
+    os.environ['LW_START_GROUP']=section
+    # GPU rendering: the visualizer and the cover grid draw a lot.
+    os.environ.pop('QT_QUICK_BACKEND',None)
+    # cliamp and other user tools live in ~/.local/bin, not on the PATH Hyprland passes.
+    local=str(Path.home()/'.local'/'bin')
+    if local not in os.environ.get('PATH','').split(':'):
+        os.environ['PATH']=local+':'+os.environ.get('PATH','')
+    # The window animates in every profile; RICE_GUI_MOTION=0 turns it off.
+    os.environ.setdefault('RICE_GUI_MOTION','1')
     os.execvp('qs',['qs','-n','-d','-p',path])
 
 
@@ -445,11 +481,11 @@ def lw_app(name):
 
 
 def music():
-    return lw_app('music')
+    return gui('music')
 
 
 def games():
-    return lw_app('games')
+    return gui('games')
 
 
 def failure(action,exc):

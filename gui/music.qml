@@ -32,7 +32,7 @@ FloatingWindow {
     implicitHeight: 780
     color: "transparent"
     // See-through like the terminal (RICE_GUI_OPACITY overrides; 1 = solid).
-    Component.onCompleted: Theme.alpha = Number(Quickshell.env("RICE_GUI_OPACITY") || 0.85)
+    Component.onCompleted: { Theme.alpha = Number(Quickshell.env("RICE_GUI_OPACITY") || 0.85); Music.wanted = true; }
     onVisibleChanged: if (!visible && !parked) closePlayer()
     // Ctrl+J hides the window without closing it (music keeps playing, a game session keeps
     // counting); the same Super shortcut brings it back (`rice` asks `hidden` first).

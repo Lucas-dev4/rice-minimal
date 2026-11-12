@@ -103,7 +103,7 @@ FloatingWindow {
         target: Status
         function onStampChanged() { toast.show(Status.message, Status.color); }
     }
-    Component.onCompleted: { Games.recover(); Games.scan(true); }
+    Component.onCompleted: { Music.wanted = true; Games.recover(); Games.scan(true); }
 
     Item {
         id: keys

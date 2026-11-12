@@ -192,17 +192,28 @@ Singleton {
     function startCliamp() { start(savedSession()); }
     function closeSession() {
         if (online && playlist.length) {
-            sessionFile.setText(JSON.stringify(session()) + "\n");
+            saveSession();
             shutdown();
         }
     }
+    // The LW window closes with cliamp still playing: only the session is written, so a
+    // later start (after a reboot, say) comes back to the same place.
+    function saveSession() {
+        if (online && playlist.length)
+            sessionFile.setText(JSON.stringify(session()) + "\n");
+    }
+    // Starting cliamp by itself is up to the window: LW sets `wanted` when MÚSICA opens
+    // (the separate player sets it at once), so opening LW for a wallpaper starts nothing.
+    property bool wanted: false
     property bool autoStarted: false
-    onConnectingChanged: {
-        if (!connecting && !online && !autoStarted && Quickshell.env("RICE_MUSIC_AUTOSTART") !== "0") {
+    function autoStart() {
+        if (wanted && !connecting && !online && !autoStarted && Quickshell.env("RICE_MUSIC_AUTOSTART") !== "0") {
             autoStarted = true;
             startCliamp();
         }
     }
+    onConnectingChanged: autoStart()
+    onWantedChanged: autoStart()
 
     // What to save when the window closes (closeSession writes it).
     function session() {
