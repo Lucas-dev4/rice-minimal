@@ -1,11 +1,12 @@
 import QtQuick
+import Quickshell.Io
 import qs
 import qs.components
 
-// LW // ONLINE: search cliamp's online providers (YouTube, YouTube Music, SoundCloud…,
-// whatever `provider.list` says is searchable) through its v2 IPC. ⏎ plays the result
-// now, `a` puts it next in the queue. The providers that need yt-dlp only exist once
-// it is installed.
+// LW // ONLINE: YouTube through yt-dlp (`ytsearch`, no account) plus cliamp's own
+// searchable online providers (SoundCloud with `[soundcloud] enabled = true`, YouTube with
+// an account…, whatever `provider.list` says) through its v2 IPC. ⏎ plays the result now,
+// `a` puts it next in the queue; cliamp resolves YouTube links with yt-dlp itself.
 Item {
     id: root
 
@@ -16,8 +17,10 @@ Item {
     // Local files and radio have their own tabs; "cliamp" is its own radio; podcast results
     // are whole shows, not tracks.
     readonly property var skip: ["local", "radio", "cliamp", "podcast"]
-    readonly property var order: ["yt", "youtube", "ytmusic", "soundcloud", "bandcamp", "mixcloud", "podcast"]
-    readonly property var names: ({ yt: "YouTube", youtube: "YouTube", ytmusic: "YT Music", soundcloud: "SoundCloud", podcast: "Podcasts" })
+    readonly property var order: ["ytdlp", "soundcloud", "ytmusic", "yt", "youtube", "bandcamp", "mixcloud"]
+    readonly property var names: ({ ytdlp: "YouTube", yt: "YouTube (conta)", youtube: "YouTube (conta)", ytmusic: "YT Music", soundcloud: "SoundCloud" })
+    // YouTube without cliamp's account-based provider: yt-dlp searches, cliamp plays the link.
+    property bool hasYtdlp: false
     property var providers: []
     property string provider: ""
     property bool listed: false
@@ -35,6 +38,7 @@ Item {
         if (!Music.online) return;
         Music.call("provider.list", {}, result => {
             const list = (result.providers || []).filter(p => p.searchable && skip.indexOf(p.key) < 0)
+                .concat(hasYtdlp ? [{ key: "ytdlp", name: "YouTube" }] : [])
                 .sort((a, b) => rank(a.key) - rank(b.key));
             providers = list;
             listed = true;
@@ -47,7 +51,15 @@ Item {
         error = "";
         searching = true;
         lastQuery = query;
+        results = [];             // never show one source's results under another's name
         const mine = ++seq;
+        if (provider === "ytdlp") {
+            ytSearch.mine = mine;
+            ytSearch.command = ["yt-dlp", "--flat-playlist", "--no-warnings", "-J", "ytsearch25:" + query];
+            ytSearch.running = true;
+            ytGuard.restart();
+            return;
+        }
         Music.call("provider.search", { provider: provider, query: query, limit: 30 }, result => {
             if (mine !== seq) return;          // a newer search replaced this one
             searching = false;
@@ -96,6 +108,40 @@ Item {
     // Test hook (music IPC `query`).
     function query(text) { box.text = text; search(); }
 
+    Process {
+        id: ytCheck
+        command: ["sh", "-c", "command -v yt-dlp"]
+        running: true
+        onExited: code => { root.hasYtdlp = code === 0; root.listed = false; root.loadProviders(); }
+    }
+    Process {
+        id: ytSearch
+        property int mine: 0
+        stdout: StdioCollector { id: ytOut }
+        stderr: StdioCollector { id: ytErr }
+        onExited: code => {
+            ytGuard.stop();
+            if (mine !== root.seq) return;
+            root.searching = false;
+            let data = null;
+            try { data = JSON.parse(ytOut.text); } catch (error) {}
+            if (code !== 0 || !data) {
+                root.error = (ytErr.text.trim().split("\n").pop() || "yt-dlp falhou (" + code + ")");
+                root.results = [];
+                return;
+            }
+            root.results = (data.entries || []).filter(e => e && e.url).map(e => ({
+                title: e.title || e.url, artist: e.channel || e.uploader || "",
+                path: e.url, duration_secs: e.duration || 0, stream: true }));
+            root.cursor = 0;
+            view.positionViewAtBeginning();
+        }
+    }
+    Timer {
+        id: ytGuard
+        interval: 30000
+        onTriggered: if (ytSearch.running) { ytSearch.signal(15); root.searching = false; root.error = "o YouTube não respondeu em 30 s"; }
+    }
     Component.onCompleted: loadProviders()
     Connections {
         target: Music
@@ -184,7 +230,7 @@ Item {
                 width: 70
                 anchors.verticalCenter: parent.verticalCenter
                 horizontalAlignment: Text.AlignRight
-                text: line.head ? "DURAÇÃO" : root.duration(line.t.duration || line.t.duration_secs)
+                text: line.head ? "DURAÇÃO" : root.duration(line.t.duration_secs || line.t.duration)
                 color: Theme.faint
                 font.pixelSize: line.head ? Theme.small : Theme.fontSize
                 font.letterSpacing: line.head ? 1.5 : 0
@@ -237,7 +283,7 @@ Item {
                 wrapMode: Text.Wrap
                 visible: root.results.length === 0
                 text: !Music.online ? "[ -- ] cliamp offline — ⏎ na aba NOW PLAYING liga"
-                    : root.listed && !root.providers.length ? "[ !! ] nenhuma fonte online no cliamp — instale o yt-dlp (sudo pacman -S yt-dlp) e reabra o LW // MUSIC"
+                    : root.listed && !root.providers.length ? "[ !! ] nenhuma fonte online — instale o yt-dlp (sudo pacman -S yt-dlp) e reabra o LW // MUSIC"
                     : root.searching ? "[ .. ] buscando em " + (root.names[root.provider] || root.provider) + "…"
                     : root.error ? "[ !! ] " + root.error
                     : root.lastQuery ? "nada encontrado" : "/ para buscar · tab troca a fonte"
@@ -256,7 +302,7 @@ Item {
         RiceText {
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 4
-            text: root.results.length ? root.results.length + " resultados · " + (root.names[root.provider] || root.provider) + " · via cliamp" : ""
+            text: root.results.length ? root.results.length + " resultados · " + (root.names[root.provider] || root.provider) + (root.provider === "ytdlp" ? " · via yt-dlp" : " · via cliamp") : ""
             color: Theme.faint
             font.pixelSize: Theme.small
         }

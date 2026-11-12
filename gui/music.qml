@@ -67,7 +67,7 @@ FloatingWindow {
         function open(index: int): void { window.select(index); }
         function shot(path: string): void { content.grabToImage(result => result.saveToFile(path)); }
         function key(name: string): void {
-            const named = { Return: Qt.Key_Return, Escape: Qt.Key_Escape, Left: Qt.Key_Left, Right: Qt.Key_Right, Up: Qt.Key_Up, Down: Qt.Key_Down, Space: Qt.Key_Space, Slash: Qt.Key_Slash, Plus: Qt.Key_Plus, Minus: Qt.Key_Minus, Equal: Qt.Key_Equal };
+            const named = { Return: Qt.Key_Return, Escape: Qt.Key_Escape, Left: Qt.Key_Left, Right: Qt.Key_Right, Up: Qt.Key_Up, Down: Qt.Key_Down, Tab: Qt.Key_Tab, Space: Qt.Key_Space, Slash: Qt.Key_Slash, Plus: Qt.Key_Plus, Minus: Qt.Key_Minus, Equal: Qt.Key_Equal };
             const text = named[name] ? (name === "Space" ? " " : name === "Plus" ? "+" : name === "Minus" ? "-" : name === "Equal" ? "=" : "") : name;
             const code = named[name] || name.toUpperCase().charCodeAt(0);
             window.handle({ key: code, text: text, modifiers: name.length === 1 && name !== name.toLowerCase() ? Qt.ShiftModifier : 0, accepted: false });

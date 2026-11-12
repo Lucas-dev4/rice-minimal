@@ -19,3 +19,7 @@ padding_horizontal = 2
 padding_vertical = 1
 
 log_level = "warn"
+
+# SoundCloud: busca na aba ONLINE do LW // MUSIC (sem conta).
+[soundcloud]
+enabled = true
