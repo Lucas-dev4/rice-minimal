@@ -37,7 +37,8 @@ FloatingWindow {
         ] },
         { key: "games", label: "JOGOS", screens: [
             { name: "BIBLIOTECA", source: "arcade/LibraryView.qml" },
-            { name: "BACKLOG", source: "arcade/BacklogView.qml" }
+            { name: "BACKLOG", source: "arcade/BacklogView.qml" },
+            { name: "DESEMPENHO", source: "arcade/StatsView.qml" }
         ] }
     ]
     // The section and, inside it, the screen; each section remembers its last screen.

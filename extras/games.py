@@ -6,7 +6,8 @@
   games.py add --exe PATH [--prefix DIR] [--title TEXT] [--args TEXT]
                                 a Windows .exe (run with Wine) or a native executable
   games.py set ID KEY=VALUE...  edit status, progress, est_hours, notes, fav, order,
-                                gamemode, mangohud, proton, gamescope, fsr, title
+                                gamemode, mangohud, proton, gamescope, fsr, complete (100%), title;
+                                becoming done/complete stamps done_at/complete_at
   games.py remove ID            drop a game (meant for ones marked missing)
   games.py running              ids whose processes are alive now (see running())
   games.py launch ID            start the game and its watcher; Windows games run with Wine or,
@@ -52,7 +53,7 @@ from pathlib import Path
 STATUSES = ('want', 'playing', 'done', 'dropped')
 EDITABLE = {'status': str, 'progress': int, 'est_hours': float, 'notes': str, 'fav': bool, 'igdb_id': int,
             'order': int, 'gamemode': bool, 'mangohud': bool, 'title': str,
-            'proton': bool, 'gamescope': bool, 'fsr': bool}
+            'proton': bool, 'gamescope': bool, 'fsr': bool, 'complete': bool}
 # Steam "games" that are tools.
 STEAM_TOOLS = re.compile(r'^(Proton|Steam Linux Runtime|Steamworks Common|SteamVR)', re.I)
 ROM_EXT = {
@@ -337,6 +338,11 @@ def set_fields(gid, pairs):
                 raise ValueError('status inválido: ' + raw)
             if key == 'progress':
                 value = max(0, min(100, value))
+            # When it was finished / completed, for DESEMPENHO; kept if it is undone later.
+            if key == 'status' and value == 'done' and game.get('status') != 'done':
+                game['done_at'] = int(time.time())
+            if key == 'complete' and value and not game.get('complete'):
+                game['complete_at'] = int(time.time())
             game[key] = value
             if key == 'title':
                 game['title_edited'] = True
@@ -357,6 +363,7 @@ def arrange(status, ids):
             game = by_id[gid]
             if game['status'] != status and status == 'done':
                 game['progress'] = 100
+                game['done_at'] = int(time.time())
             game['status'] = status
             game['order'] = n
         save(data)

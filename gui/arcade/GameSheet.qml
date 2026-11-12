@@ -216,6 +216,13 @@ Item {
                         onClicked: root.setStatus(modelData)
                     }
                 }
+                // 100%: everything done, apart from finishing the story (zerado).
+                Item { width: 10; height: 1 }
+                Chip {
+                    label: body.g.complete ? "100% ✓" : "100%"
+                    on: !!body.g.complete
+                    onClicked: Games.set(root.gameId, ["complete=" + !body.g.complete], body.g.complete ? "" : "★ " + body.g.title + " em 100%")
+                }
                 RiceText { anchors.verticalCenter: parent.verticalCenter; leftPadding: 8; text: "s troca"; color: Theme.faint; font.pixelSize: 10 }
             }
 

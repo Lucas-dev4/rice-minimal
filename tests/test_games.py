@@ -312,6 +312,17 @@ class Games(unittest.TestCase):
         with patch.object(games, 'Igdb', side_effect=AssertionError('queried again')):
             self.assertEqual(self.cli('meta')[1], {'ok': True, 'matched': [], 'missed': []})
 
+    def test_done_and_complete_get_their_dates_once(self):
+        exe = self.home/'j.exe'
+        exe.write_bytes(b'x')
+        gid = self.cli('add', '--exe', str(exe), '--title', 'J')[1]['added']['id']
+        with patch.object(games.time, 'time', return_value=1000):
+            self.cli('set', gid, 'status=done', 'complete=true')
+        with patch.object(games.time, 'time', return_value=2000):
+            self.cli('set', gid, 'status=done', 'complete=true')
+        g = games.load()['games'][0]
+        self.assertEqual((g['done_at'], g['complete_at'], g['complete']), (1000, 1000, True))
+
 
 if __name__ == '__main__':
     unittest.main()
