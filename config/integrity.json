@@ -1,5 +1,5 @@
 {
-  "README.md": "fbbdea57d97f3ce538a1800a79be44360d8c38bca0a56a5a17cb91fae27a96c9",
+  "README.md": "8887f1bd59e337e4e935d88d93f5cc3957fc068e431c20f586e1e1c0ba1951f1",
   "config/autostart/rice-minimal.desktop": "c592575a7c2e736e66bd76410b9c52775b8190c7a69f9b9369efbf593d9477d4",
   "config/cliamp/config.toml": "dcfaffefa96c8716254eb13012fe65f6dc97060c40831b17f65cb0e09dcc7b46",
   "config/fastfetch/config.jsonc": "4ea4962fddfaa7a148b892c04def1cd84fccdc00e6b50c6d8e792200db7be80b",
@@ -96,6 +96,7 @@
   "gui/screens/ShortcutsScreen.qml": "2112470469202d640b88762e62fbedad238c7ea913784e3d500d7ba9147822c5",
   "gui/screens/WallpaperScreen.qml": "f75bd13dd97f8b87a1ac615eef2972906855c54cd2f58c5f18427631d5fe2f41",
   "gui/shell.qml": "4a0c76bc7724df8d530afae5a3de254b57da9a61327206bd64430b00566581b6",
+  "scripts/grub_theme.py": "6146c494e16849e1ee1f0a067af3ce04c479ebe27e52f0e1fe02fdeeb29d0c49",
   "scripts/install.py": "bf5d79077a888ce64459d8aeed8933dcdab673a9f2b748d9d63c721a4361840c",
   "scripts/restore.py": "19f3e09f83139fd429437be9d13aaef5f8e99ca9d5fcd956f557ff694de239e2",
   "scripts/restore_greeter.sh": "97593b2431c520c005b313962ff502c59aac1109efb15a74c6d4b3272b50ee18",
@@ -107,6 +108,7 @@
   "scripts/waybar_ipc.py": "71d5e4794378d5ca70bc8fff73e325a38528a68cfcd3c846e3a9541b60334ee7",
   "tests/test_adaptive.py": "da9a69a5d1947bfdf3e6920424ed1e49d446a23f9970bb31332430bff3c8fbc9",
   "tests/test_cli_json.py": "e909af300699857d9fde3be859ffa4e813e82d3985e5bba217fdfb89a569bcd4",
+  "tests/test_grub_theme.py": "7cfcef640a88b2b07219a6c824202982316805c2af511de3970d4746ac5b5d6f",
   "tests/test_install.py": "bdfd7452f8cde2968fb2f7878c7c5ed646c617eedc9c95e775032a82b3784b04",
   "tests/test_profiles.py": "58c750209fc7c67c7dfcec0e77faa011286a807d8c732b56e3cac5f2646867fd",
   "tests/test_restore.py": "d6cb6b8bee4760b7aba076a119debaf569c80fed5c78eb9fcfd88f126e11b627",
