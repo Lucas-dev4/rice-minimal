@@ -14,7 +14,7 @@ import backups
 import lockscreen
 import shortcuts
 
-COMMANDS = {'status','gui','music','games','wallpaper','palette','profile','greeter','sync','shortcuts','lock','backups'}
+COMMANDS = {'status','gui','music','games','lw','wallpaper','palette','profile','greeter','sync','shortcuts','lock','backups'}
 THUMBS = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'rice-minimal/thumbs'
 THUMB_SIZE = 400
 
@@ -347,6 +347,45 @@ def kill_instances(pids):
             pass
 
 
+def lw(page='wall'):
+    # LW: WALL / MUSIC / GAMES in one glass window (gui/lw.qml). Super+W/M/G call this with
+    # their page: closed → opens there; open on another page → switches; same page → closes.
+    path=str(theme.ROOT/'gui'/'lw.qml')
+    import fcntl
+    lock=open(Path(os.environ.get('XDG_RUNTIME_DIR','/tmp'))/'lw-trio.lock','w')
+    try:
+        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except OSError:
+        return 0
+    try:
+        probe=subprocess.run(['qs','ipc','-p',path,'call','lw','page'],capture_output=True,text=True,timeout=3)
+        shown=probe.stdout.strip() if probe.returncode == 0 else ''
+    except subprocess.TimeoutExpired:
+        kill_instances(music_instances(path))
+        shown=''
+    if shown:
+        try:
+            if shown == page:
+                subprocess.run(['qs','ipc','-p',path,'call','lw','close'],capture_output=True,timeout=3)
+                for _ in range(30):
+                    if not music_instances(path):
+                        return 0
+                    time.sleep(0.1)
+                kill_instances(music_instances(path))
+            else:
+                subprocess.run(['qs','ipc','-p',path,'call','lw','open',page],capture_output=True,timeout=3)
+        except subprocess.TimeoutExpired:
+            kill_instances(music_instances(path))
+        return 0
+    os.environ.pop('QT_QUICK_BACKEND',None)
+    local=str(Path.home()/'.local'/'bin')
+    if local not in os.environ.get('PATH','').split(':'):
+        os.environ['PATH']=local+':'+os.environ.get('PATH','')
+    os.environ.setdefault('RICE_GUI_MOTION','1')
+    os.environ['LW_PAGE']=page
+    os.execvp('qs',['qs','-n','-d','-p',path])
+
+
 def lw_app(name):
     # LW // MUSIC and LW // GAMES: further Quickshell instances of the same config folder
     # (gui/<name>.qml, IPC target <name>). A second press closes the window.
@@ -412,6 +451,7 @@ def main(argv):
     actions.add_parser('gui')
     actions.add_parser('music')
     actions.add_parser('games')
+    actions.add_parser('lw').add_argument('page',nargs='?',default='wall',choices=['wall','music','games'])
     wallpaper=actions.add_parser('wallpaper').add_subparsers(dest='operation',required=True)
     wallpaper.add_parser('list',parents=[common])
     wallpaper.add_parser('thumbs')
@@ -460,6 +500,8 @@ def main(argv):
         return music()
     if args.action == 'games':
         return games()
+    if args.action == 'lw':
+        return lw(args.page)
     if getattr(args,'operation','') == 'thumbs':
         wallpaper_thumbs()
         return 0

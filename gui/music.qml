@@ -32,42 +32,16 @@ FloatingWindow {
     color: Theme.bg
     onVisibleChanged: if (!visible) closePlayer()
 
-    // Closing the player (Super+M, Super+Q, q) switches cliamp off after saving the
-    // session; opening it again brings cliamp back paused where it was.
-    readonly property string sessionPath: Theme.guiStatePath + "/music-session.json"
+    // Closing saves cliamp's session and switches it off; opening brings it back paused
+    // (Music.closeSession / Music.startCliamp, shared with the LW window).
     property bool closing: false
     function closePlayer() {
         if (closing) return;
         closing = true;
-        if (Music.online && Music.playlist.length) {
-            sessionFile.setText(JSON.stringify(Music.session()) + "\n");
-            Music.shutdown();
-        }
+        Music.closeSession();
         Qt.quit();
     }
-    function savedSession() {
-        try { const s = JSON.parse(sessionFile.text()); return s.paths && s.paths.length ? s : null; } catch (error) { return null; }
-    }
-    function startCliamp() { Music.start(savedSession()); }
-    FileView {
-        id: sessionFile
-        path: window.sessionPath
-        blockLoading: true
-        blockWrites: true
-        atomicWrites: true
-        printErrors: false
-    }
-    // Opening the player with cliamp off starts it (RICE_MUSIC_AUTOSTART=0 keeps START manual).
-    property bool autoStarted: false
-    Connections {
-        target: Music
-        function onConnectingChanged() {
-            if (!Music.connecting && !Music.online && !window.autoStarted && Quickshell.env("RICE_MUSIC_AUTOSTART") !== "0") {
-                window.autoStarted = true;
-                window.startCliamp();
-            }
-        }
-    }
+    function startCliamp() { Music.startCliamp(); }
 
     function select(index) { current = Math.max(0, Math.min(screens.length - 1, index)); }
     function clock(seconds) {
@@ -194,42 +168,9 @@ FloatingWindow {
         event.accepted = true;
     }
 
-    // ---- spectrum: cava captures only cliamp's own PipeWire stream ----------
-    // 56 log-spaced bands (30 Hz–16 kHz), 60 fps, ASCII 0..1000 per band. Runs only while
-    // cliamp plays and this window is open; empty → the visualizers show their idle motion.
-    property var spectrum: []
-    property string spectrumSource: "idle"
-    readonly property string cavaConfig: Quickshell.env("XDG_RUNTIME_DIR") + "/lw-music-cava.conf"
-    property bool cavaReady: false
-    FileView {
-        id: cavaFile
-        path: window.cavaConfig
-        printErrors: false
-        onSaved: window.cavaReady = true
-        Component.onCompleted: setText([
-            "[general]", "bars = 56", "framerate = 60", "lower_cutoff_freq = 30", "higher_cutoff_freq = 16000",
-            "[input]", "method = pipewire", "source = alsa_playback.cliamp",
-            "[output]", "method = raw", "channels = mono", "raw_target = /dev/stdout", "data_format = ascii",
-            "ascii_max_range = 1000", "bar_delimiter = 59", "frame_delimiter = 10", ""
-        ].join("\n"))
-    }
-    Process {
-        id: cava
-        command: ["cava", "-p", window.cavaConfig]
-        running: window.cavaReady && Music.playing && !cavaRetry.running
-        stdout: SplitParser {
-            onRead: line => {
-                const out = [];
-                for (const v of line.split(";")) if (v !== "") out.push(parseInt(v) / 1000);
-                window.spectrum = out;
-                window.spectrumSource = "cava";
-            }
-        }
-        onRunningChanged: if (!running) { window.spectrum = []; window.spectrumSource = "idle"; }
-        // No cava, or cliamp's stream not there yet: try again shortly.
-        onExited: code => { if (Music.playing) cavaRetry.restart(); }
-    }
-    Timer { id: cavaRetry; interval: 3000 }
+    // The spectrum comes from the shared Spectrum singleton (cava on cliamp's stream).
+    readonly property var spectrum: Spectrum.levels
+    readonly property string spectrumSource: Spectrum.source
 
     // Output format of cliamp's stream, read from PipeWire (pulse API): "44.1 kHz · 2ch".
     property string output: ""

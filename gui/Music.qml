@@ -170,7 +170,37 @@ Singleton {
         retry.restart();
     }
     // cliamp answers at most 200 tracks per call: fetch page by page, then publish once.
-    // What to save when the window closes (music.qml writes it).
+    // ---- the window's session: closing stops cliamp, opening resumes it ------------
+    // Saved in ~/.local/state/rice-minimal/gui/music-session.json; cliamp's daemon does not
+    // read its own resume.json. RICE_MUSIC_AUTOSTART=0 keeps START manual.
+    readonly property string sessionPath: Theme.guiStatePath + "/music-session.json"
+    FileView {
+        id: sessionFile
+        path: root.sessionPath
+        blockLoading: true
+        blockWrites: true
+        atomicWrites: true
+        printErrors: false
+    }
+    function savedSession() {
+        try { const s = JSON.parse(sessionFile.text()); return s.paths && s.paths.length ? s : null; } catch (error) { return null; }
+    }
+    function startCliamp() { start(savedSession()); }
+    function closeSession() {
+        if (online && playlist.length) {
+            sessionFile.setText(JSON.stringify(session()) + "\n");
+            shutdown();
+        }
+    }
+    property bool autoStarted: false
+    onConnectingChanged: {
+        if (!connecting && !online && !autoStarted && Quickshell.env("RICE_MUSIC_AUTOSTART") !== "0") {
+            autoStarted = true;
+            startCliamp();
+        }
+    }
+
+    // What to save when the window closes (closeSession writes it).
     function session() {
         return { paths: playlist.map(t => t.path), index: currentIndex, position: Math.floor(position), volume: volumeDb };
     }
