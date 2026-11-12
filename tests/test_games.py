@@ -382,6 +382,17 @@ class Games(unittest.TestCase):
             game['steam_appid'] = 1245620
             self.assertIn('GAMEID=umu-1245620 ', games.command_for(game))
 
+    def test_controller_mappings_reach_the_game(self):
+        (self.home/'data/lw').mkdir(parents=True, exist_ok=True)
+        (self.home/'data/lw/controllers.txt').write_text('# meu controle\n03000000373500004110000000000000,Pad,a:b0,platform:Linux,\n\nlixo\n')
+        exe = self.home/'j.exe'
+        exe.write_bytes(b'x')
+        gid = self.cli('add', '--exe', str(exe))[1]['added']['id']
+        with patch.object(games.subprocess, 'Popen') as popen:
+            self.cli('launch', gid)
+        env = popen.call_args_list[0].kwargs['env']
+        self.assertEqual(env['SDL_GAMECONTROLLERCONFIG'], '03000000373500004110000000000000,Pad,a:b0,platform:Linux,')
+
 
 if __name__ == '__main__':
     unittest.main()

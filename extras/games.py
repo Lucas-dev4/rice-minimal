@@ -530,6 +530,16 @@ def update(fn):
     return result
 
 
+def controller_mappings():
+    """SDL GameController mappings, one per line, in ~/.local/share/lw/controllers.txt
+    (lines starting with # are comments)."""
+    try:
+        lines = (data_dir()/'controllers.txt').read_text().splitlines()
+    except OSError:
+        return []
+    return [l.strip() for l in lines if l.strip() and not l.lstrip().startswith('#') and l.count(',') >= 3]
+
+
 def launch(gid):
     data = load()
     game = next((g for g in data['games'] if g['id'] == gid), None)
@@ -543,6 +553,11 @@ def launch(gid):
         raise ValueError('já há uma sessão: ' + other)
     cmd = command_for(game)
     env = dict(os.environ, LW_GAME_ID=gid)
+    # Controllers SDL does not know (generic HID pads): mappings from controllers.txt, so
+    # Wine/Proton present them as an Xbox pad (XInput) to the game.
+    mappings = controller_mappings()
+    if mappings:
+        env['SDL_GAMECONTROLLERCONFIG'] = '\n'.join(filter(None, [os.environ.get('SDL_GAMECONTROLLERCONFIG', '')] + mappings))
     if game.get('prefix'):
         env['WINEPREFIX'] = game['prefix']
     cwd = game.get('workdir') if game.get('workdir') and Path(game['workdir']).is_dir() else str(home())
