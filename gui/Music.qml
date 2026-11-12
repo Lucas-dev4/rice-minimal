@@ -95,9 +95,10 @@ Singleton {
     function fileName(path) { return String(path || "").split("/").pop().replace(/\.[^.]+$/, ""); }
 
     // ---- commands -----------------------------------------------------------
-    // op: a v2 operation; params: object. done(result) on success.
-    function call(op, params, done) {
-        const proc = caller.createObject(root, { op: op, params: params || {}, done: done || null });
+    // op: a v2 operation; params: object. done(result) on success. limit: ms before giving
+    // up (4 s; an online search through yt-dlp needs more).
+    function call(op, params, done, limit) {
+        const proc = caller.createObject(root, { op: op, params: params || {}, done: done || null, limit: limit || 4000 });
         proc.start();
     }
     function toggle() { call("toggle"); }
@@ -145,6 +146,9 @@ Singleton {
     }
     function addPath(path) { call("queue", { path: path }, () => refreshPlaylist()); }
     function playUrl(url) { call("url.load", { path: url, play: true }); }
+    // A track from provider.search (YouTube, SoundCloud…): play now or play next.
+    function playTrack(track) { call("track.play", { track: track }, () => refreshPlaylist(), 30000); }
+    function queueTrack(track) { call("track.queue", { track: track }, () => refreshPlaylist(), 30000); }
     function setBand(band, dB) { call("eq", { band: band, value: Math.max(-12, Math.min(12, Math.round(dB))) }); }
     function setPreset(name) { call("eq", { name: name }); }
 
@@ -393,6 +397,7 @@ Singleton {
             property string op
             property var params
             property var done
+            property int limit: 4000
             function start() {
                 command = [root.bin, "remote", "call", op, "--params", JSON.stringify(params), "--wait"];
                 running = true;
@@ -419,10 +424,10 @@ Singleton {
             }
             // Never wait on cliamp for long.
             property Timer guard: Timer {
-                interval: 4000
+                interval: proc.limit
                 onTriggered: {
                     // Never started (binary missing) or hung: report it either way.
-                    root.failed(proc.op, proc.running ? "o cliamp não respondeu em 4 s" : "comando cliamp não encontrado (" + root.bin + ")");
+                    root.failed(proc.op, proc.running ? "o cliamp não respondeu em " + Math.round(proc.limit / 1000) + " s" : "comando cliamp não encontrado (" + root.bin + ")");
                     if (proc.running) proc.signal(9); else proc.destroy();
                 }
             }

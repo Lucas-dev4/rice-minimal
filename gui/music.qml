@@ -18,11 +18,12 @@ FloatingWindow {
         { name: "PLAYLIST", source: "player/PlaylistScreen.qml" },
         { name: "EQUALIZER", source: "player/EqScreen.qml" },
         { name: "RADIO", source: "player/RadioScreen.qml" },
-        { name: "LIBRARY", source: "player/LibraryScreen.qml" }
+        { name: "LIBRARY", source: "player/LibraryScreen.qml" },
+        { name: "ONLINE", source: "player/OnlineScreen.qml" }
     ]
     property int current: 0
     property bool statusLoaded: false
-    readonly property var globalHints: [["1-5", "view"], ["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"], ["o", "abrir"]]
+    readonly property var globalHints: [["1-6", "view"], ["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"], ["o", "abrir"]]
     // The view's own keys when it has them (the status bar has room for about six).
     readonly property var hints: screen.item && screen.item.hints && screen.item.hints.length ? screen.item.hints : globalHints
 
