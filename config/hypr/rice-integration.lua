@@ -6,7 +6,6 @@ hl.bind("SUPER + CONTROL + ALT + N", hl.dsp.exec_cmd("kitty -e nvim"))
 hl.bind("SUPER + BackSpace", hl.dsp.exec_cmd("/home/lucas/.local/bin/lw gui"))
 hl.bind("SUPER + M", hl.dsp.exec_cmd("/home/lucas/.local/bin/lw music"))
 hl.bind("SUPER + G", hl.dsp.exec_cmd("/home/lucas/.local/bin/lw games"))
-hl.window_rule({ match = { class = "^(org\\.quickshell)$", title = "^(LW // MUSIC)$" }, float = true, center = true, size = { "monitor_w*0.62", "monitor_h*0.72" } })
 hl.window_rule({ match = { class = "^(org\\.quickshell)$", title = "^(LW)$" }, float = true, center = true, size = { "monitor_w*0.64", "monitor_h*0.78" } })
 
 -- LW // SHORTCUTS recording: an empty submap, so every combination (Super included)
