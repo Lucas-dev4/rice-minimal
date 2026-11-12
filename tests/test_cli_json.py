@@ -496,18 +496,47 @@ class Backups(Envelope):
 
 
 class Launcher(unittest.TestCase):
-    def test_second_press_closes_open_window(self):
-        running = subprocess.CompletedProcess([],0,stdout='target rice\n  function close(): void\n')
-        with patch.object(cli.subprocess,'run',return_value=running) as run, patch.object(cli.os,'execvp') as launch, patch.object(theme,'STATE',Path(tempfile.gettempdir())):
-            self.assertEqual(cli.gui(),0)
-        self.assertEqual(run.call_args.args[0][-3:],['call','rice','close'])
+    """lw gui|music|games against a fake running window (qs ipc answers)."""
+    def press(self, section, shown='', hidden='no'):
+        calls = []
+        def run(args, **kwargs):
+            calls.append(args)
+            if args[:2] == ['qs','list']:
+                return subprocess.CompletedProcess(args,0,stdout='')
+            op = args[-1] if args[-2] == 'lw' else args[-2]
+            answers = {'section': shown, 'hidden': hidden}
+            if op in answers:
+                return subprocess.CompletedProcess(args,0 if shown else 1,stdout=answers[op]+'\n' if shown else '')
+            return subprocess.CompletedProcess(args,0,stdout='')
+        self.started = None
+        def execvp(*args):
+            self.started = cli.os.environ.get('LW_START_GROUP')
+        with patch.object(cli.subprocess,'run',side_effect=run), patch.object(cli.os,'execvp',side_effect=execvp) as launch, \
+             patch.object(theme,'STATE',Path(tempfile.gettempdir())), patch.dict(cli.os.environ,{'XDG_RUNTIME_DIR':tempfile.mkdtemp()}):
+            self.assertEqual(cli.gui(section),0 if shown else None)
+        ops = [c[c.index('lw')+1:] for c in calls if 'lw' in c]
+        return ops, launch
+
+    def test_closed_window_opens_on_the_section(self):
+        ops, launch = self.press('music')
+        self.assertEqual(launch.call_args.args[1][:3],['qs','-n','-d'])
+        self.assertEqual(self.started,'music')
+
+    def test_same_section_closes(self):
+        ops, launch = self.press('games', shown='games')
+        self.assertIn(['close'],ops)
         launch.assert_not_called()
 
-    def test_first_press_launches_single_instance(self):
-        absent = subprocess.CompletedProcess([],0,stdout='')
-        with patch.object(cli.subprocess,'run',return_value=absent), patch.object(cli.os,'execvp') as launch, patch.object(theme,'STATE',Path(tempfile.gettempdir())):
-            cli.gui()
-        self.assertEqual(launch.call_args.args[1][:3],['qs','-n','-d'])
+    def test_other_section_switches(self):
+        ops, launch = self.press('music', shown='system')
+        self.assertIn(['go','music'],ops)
+        self.assertNotIn(['close'],ops)
+
+    def test_hidden_window_comes_back_on_the_section(self):
+        ops, launch = self.press('system', shown='system', hidden='yes')
+        self.assertIn(['reveal'],ops)
+        self.assertIn(['go','system'],ops)
+        self.assertNotIn(['close'],ops)
 
 if __name__ == '__main__':
     unittest.main()

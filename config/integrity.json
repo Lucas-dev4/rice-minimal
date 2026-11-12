@@ -108,7 +108,7 @@
   "scripts/test_session.py": "2882b431f16b958b640f899bbeb1d26045375e7d14332d81136a7c8030cfcad7",
   "scripts/waybar_ipc.py": "71d5e4794378d5ca70bc8fff73e325a38528a68cfcd3c846e3a9541b60334ee7",
   "tests/test_adaptive.py": "da9a69a5d1947bfdf3e6920424ed1e49d446a23f9970bb31332430bff3c8fbc9",
-  "tests/test_cli_json.py": "e909af300699857d9fde3be859ffa4e813e82d3985e5bba217fdfb89a569bcd4",
+  "tests/test_cli_json.py": "37f725be4b62bffd8818aa93cd9297ff85aefb9f044d353eeafce40cb43a3620",
   "tests/test_grub_theme.py": "7cfcef640a88b2b07219a6c824202982316805c2af511de3970d4746ac5b5d6f",
   "tests/test_install.py": "bdfd7452f8cde2968fb2f7878c7c5ed646c617eedc9c95e775032a82b3784b04",
   "tests/test_profiles.py": "58c750209fc7c67c7dfcec0e77faa011286a807d8c732b56e3cac5f2646867fd",
