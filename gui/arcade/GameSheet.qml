@@ -105,6 +105,22 @@ Item {
                         text: (body.g.source || "") + (body.g.missing ? " · <font color='" + Theme.red + "'>sumiu da fonte</font>" : "")
                         color: Theme.dim
                     }
+                    // What IGDB knows: year, genres and the three times to beat.
+                    RiceText {
+                        readonly property var m: body.g.igdb || null
+                        readonly property var t: m && m.ttb ? m.ttb : ({})
+                        visible: !!m
+                        width: parent.width
+                        elide: Text.ElideRight
+                        textFormat: Text.StyledText
+                        font.pixelSize: Theme.small
+                        color: Theme.faint
+                        text: !m ? "" : !m.name ? "IGDB: sem par para este título"
+                            : [m.year, (m.genres || []).slice(0, 3).join(", ")].filter(x => x).join(" · ")
+                              + (t.normally || t.hastily || t.completely
+                                 ? "  ·  <font color='" + Theme.dim + "'>zerar " + (t.hastily ? t.hastily + "–" : "") + (t.normally || "?") + " h" + (t.completely ? " · 100% " + t.completely + " h" : "") + "</font>"
+                                 : "")
+                    }
                     Item { width: 1; height: 6 }
                     component Kv: Row {
                         property string k: ""

@@ -268,6 +268,50 @@ class Games(unittest.TestCase):
         for name in ('umu-run', 'reaper', 'gamescope', 'wineserver'):
             self.assertIn(name, games.WINE_SYSTEM)
 
+    # ---- IGDB --------------------------------------------------------------------------
+    def test_best_match_wants_the_main_entry_and_refuses_guesses(self):
+        results = [{'id': 1, 'name': 'Need for Speed: Hot Pursuit - Remastered'},
+                   {'id': 2, 'name': 'Need for Speed: Hot Pursuit', 'parent_game': 9},
+                   {'id': 9, 'name': 'Need for Speed: Hot Pursuit', 'total_rating_count': 411},
+                   {'id': 3, 'name': 'Need for Speed: Hot Pursuit 2'}]
+        self.assertEqual(games.best_match('Need For Speed Hot Pursuit', results)['id'], 9)
+        self.assertIsNone(games.best_match('Jogo Inventado', results))
+
+    def test_meta_fills_only_empty_fields(self):
+        mine = self.home/'mine.jpg'
+        mine.write_bytes(b'x')
+        for title, cover in (('Hollow Knight', None), ('Celeste', str(mine)), ('Nada Disso', None)):
+            exe = self.home/(title + '.exe')
+            exe.write_bytes(b'x')
+            self.cli('add', '--exe', str(exe), '--title', title)
+        def setup(d):
+            for g in d['games']:
+                if g['title'] == 'Celeste':
+                    g.update(cover=str(mine), est_hours=40.0)
+        games.update(setup)
+        answers = {'Hollow Knight': [{'id': 11, 'name': 'Hollow Knight', 'genres': [{'name': 'Platform'}], 'cover': {'image_id': 'hk'}, 'similar_games': [21]}],
+                   'Celeste': [{'id': 12, 'name': 'Celeste', 'cover': {'image_id': 'ce'}}],
+                   'Nada Disso': [{'id': 13, 'name': 'Outra Coisa'}]}
+        class Fake:
+            def query(self, endpoint, body):
+                if endpoint == 'game_time_to_beats':
+                    return [{'normally': 27 * 3600, 'completely': 60 * 3600}]
+                if body.startswith('search'):
+                    return answers[body.split('"')[1]]
+                return [{'id': 21, 'name': 'Hollow Knight: Silksong', 'genres': [], 'cover': {'image_id': 'sk'}}]
+        with patch.object(games, 'Igdb', Fake), patch.object(games, 'fetch_cover', side_effect=lambda image, gid: f'/covers/{image}.jpg'):
+            result = self.cli('meta')[1]
+        self.assertEqual((sorted(result['matched']), result['missed']), (['Celeste', 'Hollow Knight'], ['Nada Disso']))
+        by = {g['title']: g for g in games.load()['games']}
+        self.assertEqual((by['Hollow Knight']['cover'], by['Hollow Knight']['est_hours']), ('/covers/hk.jpg', 27.0))
+        self.assertEqual((by['Celeste']['cover'], by['Celeste']['est_hours']), (str(mine), 40.0))   # mine stay
+        self.assertEqual(by['Hollow Knight']['igdb']['ttb'], {'normally': 27.0, 'completely': 60.0})
+        self.assertNotIn('name', by['Nada Disso']['igdb'])
+        self.assertEqual(games.load()['igdb_similar']['21']['name'], 'Hollow Knight: Silksong')
+        # Already looked up: a second run does not even ask Twitch for a token.
+        with patch.object(games, 'Igdb', side_effect=AssertionError('queried again')):
+            self.assertEqual(self.cli('meta')[1], {'ok': True, 'matched': [], 'missed': []})
+
 
 if __name__ == '__main__':
     unittest.main()

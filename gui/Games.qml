@@ -66,10 +66,24 @@ Singleton {
             scanning = false;
             if (!ok) { failed(data.error || "scan falhou"); return; }
             lastScan = data;
+            // Then IGDB data for games never looked up (silent without a key).
+            if (games.some(g => !g.igdb)) meta(true);
             const broken = Object.keys(data.errors || {});
             if (quiet && !data.new && !broken.length) return;
             changed("scan: " + data.total + " jogos · " + data.new + " novos" + (data.missing ? " · " + data.missing + " sumiram" : "")
                     + (broken.length ? " · erro em " + broken.join(", ") : ""));
+        });
+    }
+    // IGDB: cover and est_hours where empty, plus genres, times and similar games.
+    property bool fetchingMeta: false
+    function meta(quiet, ids) {
+        if (fetchingMeta) return;
+        fetchingMeta = true;
+        run(["meta"].concat(ids || []), (ok, data) => {
+            fetchingMeta = false;
+            if (!ok) { if (!quiet) failed(data.error || "IGDB falhou"); return; }
+            if (quiet && !data.matched.length) return;
+            changed("IGDB: " + data.matched.length + " jogo(s) com dados" + (data.missed.length ? " · sem par: " + data.missed.join(", ") : ""));
         });
     }
     function set(id, pairs, message) {

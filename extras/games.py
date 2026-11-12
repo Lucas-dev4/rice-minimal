@@ -24,6 +24,9 @@
                                 detached worker waits for it and lists the new .exe files
   games.py install-add SETUP EXE   puts the chosen .exe in the library (with that prefix)
   games.py install-forget SETUP    drops LW's record of that installer (the prefix stays)
+  games.py meta [--all] [ID...]  IGDB data for games that have none yet (or these ids, or all):
+                                cover and est_hours only where empty; genres, year, the three
+                                times to beat and similar games kept in the game's `igdb`
 
 Sources: Steam (every library in libraryfolders.vdf, art from appcache/librarycache in
 both the old flat and the newer per-app layout, playtime from userdata localconfig.vdf),
@@ -47,7 +50,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 STATUSES = ('want', 'playing', 'done', 'dropped')
-EDITABLE = {'status': str, 'progress': int, 'est_hours': float, 'notes': str, 'fav': bool,
+EDITABLE = {'status': str, 'progress': int, 'est_hours': float, 'notes': str, 'fav': bool, 'igdb_id': int,
             'order': int, 'gamemode': bool, 'mangohud': bool, 'title': str,
             'proton': bool, 'gamescope': bool, 'fsr': bool}
 # Steam "games" that are tools.
@@ -749,6 +752,167 @@ def install_forget(setup):
     return {'forgot': setup}
 
 
+# ---- IGDB: covers, times to beat, genres, similar games -----------------------------------
+# Credentials: ~/.config/lw/igdb.json {"client_id", "client_secret"} (a free Twitch app).
+# Only the game's title goes out. A match must be close to the title or nothing is filled:
+# no data beats wrong data. Existing covers and est_hours are never replaced.
+IGDB_IMAGE = 'https://images.igdb.com/igdb/image/upload/t_cover_big/{}.jpg'
+
+
+def igdb_credentials():
+    path = Path(os.environ.get('XDG_CONFIG_HOME', home()/'.config'))/'lw'/'igdb.json'
+    try:
+        cred = json.loads(path.read_text())
+    except (OSError, ValueError):
+        raise ValueError('sem chave do IGDB: crie ~/.config/lw/igdb.json (client_id, client_secret)')
+    if not cred.get('client_id') or not cred.get('client_secret'):
+        raise ValueError('~/.config/lw/igdb.json sem client_id ou client_secret')
+    return cred
+
+
+def http(url, data=None, headers=None, timeout=20):
+    import urllib.request
+    request = urllib.request.Request(url, data=data, headers=headers or {}, method='POST' if data is not None else 'GET')
+    request.add_header('User-Agent', 'LW-games/1.0')
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read()
+
+
+def igdb_token(cred):
+    """App token from Twitch, cached until a day before it expires."""
+    import urllib.parse
+    cache = data_dir()/'igdb-token.json'
+    try:
+        saved = json.loads(cache.read_text())
+        if saved.get('client_id') == cred['client_id'] and saved.get('expires', 0) > time.time() + 86400:
+            return saved['token']
+    except (OSError, ValueError):
+        pass
+    body = urllib.parse.urlencode({'client_id': cred['client_id'], 'client_secret': cred['client_secret'],
+                                   'grant_type': 'client_credentials'}).encode()
+    got = json.loads(http('https://id.twitch.tv/oauth2/token', body))
+    data_dir().mkdir(parents=True, exist_ok=True)
+    fd = os.open(cache, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, 'w') as out:
+        json.dump({'client_id': cred['client_id'], 'token': got['access_token'],
+                   'expires': int(time.time()) + int(got['expires_in'])}, out)
+    return got['access_token']
+
+
+class Igdb:
+    def __init__(self):
+        self.cred = igdb_credentials()
+        self.token = igdb_token(self.cred)
+        self.last = 0.0
+
+    def query(self, endpoint, body):
+        # IGDB allows 4 requests a second.
+        time.sleep(max(0.0, self.last + 0.26 - time.time()))
+        self.last = time.time()
+        return json.loads(http('https://api.igdb.com/v4/' + endpoint, body.encode(),
+                               {'Client-ID': self.cred['client_id'], 'Authorization': 'Bearer ' + self.token}))
+
+
+def norm_title(text):
+    text = re.sub(r'[\[({][^\])}]*[\])}]', ' ', text.lower())
+    text = re.sub(r'\b(the|of|a|an)\b', ' ', text)
+    return re.sub(r'[^a-z0-9]+', ' ', text).strip()
+
+
+def best_match(title, results):
+    """The result whose name is closest to the title, if close enough (or None)."""
+    from difflib import SequenceMatcher
+    want = norm_title(title)
+    scored = []
+    for r in results:
+        name = norm_title(r.get('name', ''))
+        ratio = SequenceMatcher(None, want, name).ratio()
+        # Exact names first; among equals the main entry (not a port or edition of another)
+        # with the most votes, then the shorter name (the original over remasters).
+        main = not r.get('parent_game') and not r.get('version_parent')
+        scored.append((name == want, ratio, main, r.get('total_rating_count') or 0, -len(name), r))
+    scored.sort(key=lambda s: s[:5], reverse=True)
+    if scored and (scored[0][0] or scored[0][1] >= 0.82):
+        return scored[0][5]
+    return None
+
+
+def year_of(stamp):
+    return time.gmtime(stamp).tm_year if stamp else None
+
+
+def fetch_cover(image_id, gid):
+    folder = data_dir()/'covers'
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder/(re.sub(r'[^A-Za-z0-9_-]', '_', gid) + '.jpg')
+    path.write_bytes(http(IGDB_IMAGE.format(image_id)))
+    return str(path)
+
+
+def meta(ids=None, everything=False):
+    games_now = load()['games']
+    todo = [g for g in games_now if (ids and g['id'] in ids) or (not ids and (everything or 'igdb' not in g))]
+    if not todo:
+        return {'matched': [], 'missed': []}
+    api = Igdb()
+    found = {}
+    for game in todo:
+        title = game.get('title', '')
+        fields = 'id,name,url,first_release_date,cover.image_id,genres.name,similar_games,parent_game,version_parent,total_rating_count'
+        if game.get('igdb_id'):
+            results = api.query('games', f'fields {fields}; where id = {int(game["igdb_id"])};')
+        else:
+            safe = title.replace('"', ' ')
+            results = api.query('games', f'search "{safe}"; fields {fields}; limit 15;')
+        hit = best_match(title, results) if not game.get('igdb_id') else (results[0] if results else None)
+        if not hit:
+            found[game['id']] = {'match': None, 'checked': int(time.time())}
+            continue
+        ttb = api.query('game_time_to_beats', f'fields hastily,normally,completely; where game_id = {hit["id"]};')
+        times = {k: round(ttb[0][k] / 3600, 1) for k in ('hastily', 'normally', 'completely') if ttb and ttb[0].get(k)}
+        info = {'match': {'id': hit['id'], 'name': hit.get('name'), 'url': hit.get('url'),
+                          'year': year_of(hit.get('first_release_date')),
+                          'genres': [x['name'] for x in hit.get('genres', [])],
+                          'ttb': times, 'similar': hit.get('similar_games', [])[:10]},
+                'checked': int(time.time())}
+        image = (hit.get('cover') or {}).get('image_id')
+        if image and not (game.get('cover') and Path(game['cover']).is_file()):
+            try:
+                info['cover'] = fetch_cover(image, game['id'])
+            except OSError:
+                pass
+        found[game['id']] = info
+    # Similar games: one query for all, names and covers for the recommendations.
+    similar_ids = sorted({i for v in found.values() if v['match'] for i in v['match']['similar']})
+    similar = {}
+    for start in range(0, len(similar_ids), 100):
+        chunk = similar_ids[start:start + 100]
+        for s in api.query('games', 'fields id,name,url,first_release_date,cover.image_id,genres.name,total_rating; '
+                                    f'where id = ({",".join(map(str, chunk))}); limit 100;'):
+            similar[str(s['id'])] = {'name': s.get('name'), 'url': s.get('url'), 'year': year_of(s.get('first_release_date')),
+                                     'genres': [x['name'] for x in s.get('genres', [])], 'rating': round(s['total_rating']) if s.get('total_rating') else None,
+                                     'image': (s.get('cover') or {}).get('image_id')}
+    def write(d):
+        matched, missed = [], []
+        for g in d['games']:
+            info = found.get(g['id'])
+            if info is None:
+                continue
+            m = info['match']
+            g['igdb'] = dict(m, checked=info['checked']) if m else {'checked': info['checked']}
+            if m:
+                matched.append(g['title'])
+                if info.get('cover') and not (g.get('cover') and Path(g['cover']).is_file()):
+                    g['cover'] = info['cover']
+                if g.get('est_hours') is None and m['ttb'].get('normally'):
+                    g['est_hours'] = m['ttb']['normally']
+            else:
+                missed.append(g['title'])
+        d.setdefault('igdb_similar', {}).update(similar)
+        return {'matched': matched, 'missed': missed}
+    return update(write)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='action', required=True)
@@ -777,6 +941,9 @@ def main(argv=None):
     i.add_argument('--name')
     for name in ('install-run', 'install-forget'):
         sub.add_parser(name).add_argument('setup')
+    me = sub.add_parser('meta')
+    me.add_argument('ids', nargs='*')
+    me.add_argument('--all', action='store_true')
     ia = sub.add_parser('install-add')
     ia.add_argument('setup')
     ia.add_argument('exe')
@@ -802,6 +969,8 @@ def main(argv=None):
             data = recover()
         elif args.action == 'arrange':
             data = arrange(args.status, args.ids)
+        elif args.action == 'meta':
+            data = meta(args.ids, args.all)
         elif args.action == 'installers':
             data = installers()
         elif args.action == 'install':
