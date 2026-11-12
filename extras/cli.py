@@ -14,7 +14,7 @@ import backups
 import lockscreen
 import shortcuts
 
-COMMANDS = {'status','gui','music','games','lw','wallpaper','palette','profile','greeter','sync','shortcuts','lock','backups'}
+COMMANDS = {'status','gui','music','games','wallpaper','palette','profile','greeter','sync','shortcuts','lock','backups'}
 THUMBS = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'rice-minimal/thumbs'
 THUMB_SIZE = 400
 
@@ -363,18 +363,6 @@ def gui(section='system'):
     os.execvp('qs',['qs','-n','-d','-p',path])
 
 
-def revealed(path,target):
-    # True when the window was hidden (Ctrl+J) and is now shown again.
-    try:
-        hidden=subprocess.run(['qs','ipc','-p',path,'call',target,'hidden'],capture_output=True,text=True,timeout=3)
-        if hidden.stdout.strip() != 'yes':
-            return False
-        subprocess.run(['qs','ipc','-p',path,'call',target,'reveal'],capture_output=True,timeout=3)
-    except subprocess.TimeoutExpired:
-        return False
-    return True
-
-
 def music_instances(path):
     # PIDs of the Quickshell instances running this config (`qs list --all`).
     out=subprocess.run(['qs','list','--all'],capture_output=True,text=True,timeout=3).stdout
@@ -396,88 +384,6 @@ def kill_instances(pids):
             os.kill(pid,signal.SIGKILL)
         except ProcessLookupError:
             pass
-
-
-def lw(page='wall'):
-    # LW: WALL / MUSIC / GAMES in one glass window (gui/lw.qml). Super+W/M/G call this with
-    # their page: closed → opens there; open on another page → switches; same page → closes.
-    path=str(theme.ROOT/'gui'/'lw.qml')
-    import fcntl
-    lock=open(Path(os.environ.get('XDG_RUNTIME_DIR','/tmp'))/'lw-trio.lock','w')
-    try:
-        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-    except OSError:
-        return 0
-    try:
-        probe=subprocess.run(['qs','ipc','-p',path,'call','lw','page'],capture_output=True,text=True,timeout=3)
-        shown=probe.stdout.strip() if probe.returncode == 0 else ''
-    except subprocess.TimeoutExpired:
-        kill_instances(music_instances(path))
-        shown=''
-    if shown:
-        try:
-            if shown == page:
-                subprocess.run(['qs','ipc','-p',path,'call','lw','close'],capture_output=True,timeout=3)
-                for _ in range(30):
-                    if not music_instances(path):
-                        return 0
-                    time.sleep(0.1)
-                kill_instances(music_instances(path))
-            else:
-                subprocess.run(['qs','ipc','-p',path,'call','lw','open',page],capture_output=True,timeout=3)
-        except subprocess.TimeoutExpired:
-            kill_instances(music_instances(path))
-        return 0
-    os.environ.pop('QT_QUICK_BACKEND',None)
-    local=str(Path.home()/'.local'/'bin')
-    if local not in os.environ.get('PATH','').split(':'):
-        os.environ['PATH']=local+':'+os.environ.get('PATH','')
-    os.environ.setdefault('RICE_GUI_MOTION','1')
-    os.environ['LW_PAGE']=page
-    os.execvp('qs',['qs','-n','-d','-p',path])
-
-
-def lw_app(name):
-    # LW // MUSIC and LW // GAMES: further Quickshell instances of the same config folder
-    # (gui/<name>.qml, IPC target <name>). A second press closes the window.
-    path=str(theme.ROOT/'gui'/(name+'.qml'))
-    # Several quick presses run one at a time; the extra ones just leave.
-    import fcntl
-    lock=open(Path(os.environ.get('XDG_RUNTIME_DIR','/tmp'))/f'lw-{name}.lock','w')
-    try:
-        fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-    except OSError:
-        return 0
-    # Every call to the running instance has a time limit: the shortcut must never hang.
-    try:
-        probe=subprocess.run(['qs','ipc','-p',path,'show'],capture_output=True,text=True,timeout=3)
-        running=probe.returncode == 0 and f'target {name}' in probe.stdout
-    except subprocess.TimeoutExpired:
-        kill_instances(music_instances(path))
-        running=False
-    if running:
-        try:
-            # Hidden with Ctrl+J: bring it back instead of closing it.
-            if revealed(path,name):
-                return 0
-            subprocess.run(['qs','ipc','-p',path,'call',name,'close'],capture_output=True,timeout=3)
-        except subprocess.TimeoutExpired:
-            pass
-        for _ in range(30):
-            if not music_instances(path):
-                return 0
-            time.sleep(0.1)
-        kill_instances(music_instances(path))
-        return 0
-    # GPU rendering: the visualizer and the cover grid draw a lot.
-    os.environ.pop('QT_QUICK_BACKEND',None)
-    # cliamp and other user tools live in ~/.local/bin, not on the PATH Hyprland passes.
-    local=str(Path.home()/'.local'/'bin')
-    if local not in os.environ.get('PATH','').split(':'):
-        os.environ['PATH']=local+':'+os.environ.get('PATH','')
-    # These windows animate like their prototypes in every profile; RICE_GUI_MOTION=0 turns it off.
-    os.environ.setdefault('RICE_GUI_MOTION','1')
-    os.execvp('qs',['qs','-n','-d','-p',path])
 
 
 def music():
@@ -505,7 +411,6 @@ def main(argv):
     actions.add_parser('gui')
     actions.add_parser('music')
     actions.add_parser('games')
-    actions.add_parser('lw').add_argument('page',nargs='?',default='wall',choices=['wall','music','games'])
     wallpaper=actions.add_parser('wallpaper').add_subparsers(dest='operation',required=True)
     wallpaper.add_parser('list',parents=[common])
     wallpaper.add_parser('thumbs')
@@ -554,8 +459,6 @@ def main(argv):
         return music()
     if args.action == 'games':
         return games()
-    if args.action == 'lw':
-        return lw(args.page)
     if getattr(args,'operation','') == 'thumbs':
         wallpaper_thumbs()
         return 0

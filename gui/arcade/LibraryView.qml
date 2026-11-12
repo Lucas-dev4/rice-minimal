@@ -3,7 +3,6 @@ import Quickshell
 import Quickshell.Io
 import qs
 import qs.components
-import qs.deck
 
 // LW // GAMES library: games. header, CONTINUE and STATS cards, filter chips + search,
 // a 3:4 cover grid. A click (or ⏎) opens the game's sheet (signal `open`).
@@ -12,8 +11,6 @@ Item {
 
     property Item keyTarget: null
     property string title: ""
-    // Inside LW the two cards are glass over the wallpaper instead of solid panels.
-    property bool glassy: false
     signal open(string id)
     signal launch(string id)
     readonly property var hints: [["←↑↓→", "move"], ["⏎", "abrir"], ["tab", "filtro"], ["/", "buscar"], ["a", "adicionar"], ["r", "rescan"]]
@@ -127,10 +124,9 @@ Item {
         Rectangle {
             width: parent.width - stats.width - 14
             height: parent.height
-            color: root.glassy ? "transparent" : Theme.panel
-            border.width: root.glassy ? 0 : 1
+            color: Theme.panel
+            border.width: 1
             border.color: Theme.line
-            Glass { anchors.fill: parent; z: -1; visible: root.glassy; k: true }
             // During a session the card follows the running game.
             readonly property bool live: !!Games.session
             readonly property var g: Games.sessionGame || Games.continueGame
@@ -201,10 +197,9 @@ Item {
             id: stats
             width: 360
             height: parent.height
-            color: root.glassy ? "transparent" : Theme.panel
-            border.width: root.glassy ? 0 : 1
+            color: Theme.panel
+            border.width: 1
             border.color: Theme.line
-            Glass { anchors.fill: parent; z: -1; visible: root.glassy; k: true }
             Row {
                 anchors.centerIn: parent
                 Repeater {

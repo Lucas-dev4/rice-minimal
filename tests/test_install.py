@@ -36,7 +36,7 @@ class Install(unittest.TestCase):
             self.assertIn(target, targets)
         self.assertIn('.local/bin/rice', targets)
         integration = changes[self.home/'.config/hypr/config/rice-integration.lua'][0]
-        self.assertIn(f'{self.home}/.local/bin/rice gui', integration)
+        self.assertIn(f'{self.home}/.local/bin/lw gui', integration)
         self.assertNotIn('/home/lucas/.local', integration)
         self.assertIn(str(ROOT), changes[self.home/'.local/bin/rice'][0])
         self.assertTrue(changes[self.home/'.config/kitty/kitty.conf'][0].rstrip().endswith('/current/kitty.conf'))

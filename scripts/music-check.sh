@@ -1,6 +1,6 @@
 #!/bin/bash
 # LW // MUSIC control layer check: drives gui/Music.qml against a real cliamp through
-# the `music` IPC hooks of gui/music.qml. Isolated: generated tracks and a temporary
+# the `lw` IPC hooks of gui/shell.qml (LW opened on MÚSICA). Isolated: generated tracks and a temporary
 # HOME, so the real ~/.config/cliamp (history, resume, socket) is never touched.
 # Needs cliamp, ffmpeg and qs. Plays quietly (-30 dB).
 set -u
@@ -20,8 +20,8 @@ ffmpeg -loglevel error -f lavfi -i "sine=f=440:d=60,volume=0.3" c.ogg
 ffmpeg -loglevel error -f lavfi -i "sine=f=550:d=20,volume=0.3" sem-tags.mp3
 cd "$REPO"
 fails=0
-QT_QPA_PLATFORM=offscreen setsid qs -p gui/music.qml > "$WORK/qs.log" 2>&1 & QS=$!
-m() { qs ipc --pid $QS call music "$@"; }
+LW_START_GROUP=music QT_QPA_PLATFORM=offscreen setsid qs -p gui > "$WORK/qs.log" 2>&1 & QS=$!
+m() { qs ipc --pid $QS call lw "$@"; }
 get() { m state | python3 -c "import json,sys;d=json.load(sys.stdin);print(d[sys.argv[1]])" "$1"; }
 check() { # name field expected
     local got; got=$(get "$2")
