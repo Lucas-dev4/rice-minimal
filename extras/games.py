@@ -6,7 +6,8 @@
   games.py add --exe PATH [--prefix DIR] [--title TEXT] [--args TEXT]
                                 a Windows .exe (run with Wine) or a native executable
   games.py set ID KEY=VALUE...  edit status, progress, est_hours, notes, fav, order,
-                                gamemode, mangohud, proton, gamescope, fsr, complete (100%), title;
+                                gamemode, mangohud, proton, gamescope, fsr, complete (100%), title,
+                                prefix (the Wine/Proton prefix; the launch command follows);
                                 becoming done/complete stamps done_at/complete_at
   games.py remove ID            drop a game (meant for ones marked missing)
   games.py running              ids whose processes are alive now (see running())
@@ -56,7 +57,8 @@ from pathlib import Path
 STATUSES = ('want', 'playing', 'done', 'dropped')
 EDITABLE = {'status': str, 'progress': int, 'est_hours': float, 'notes': str, 'fav': bool, 'igdb_id': int,
             'order': int, 'gamemode': bool, 'mangohud': bool, 'title': str,
-            'proton': bool, 'gamescope': bool, 'fsr': bool, 'complete': bool}
+            'proton': bool, 'gamescope': bool, 'fsr': bool, 'complete': bool, 'prefix': str,
+            'steam_appid': int}
 # Steam "games" that are tools.
 STEAM_TOOLS = re.compile(r'^(Proton|Steam Linux Runtime|Steamworks Common|SteamVR)', re.I)
 ROM_EXT = {
@@ -232,6 +234,10 @@ def wine_entry(exe, prefix=None, title=None, args='', source='wine'):
         launch += ' ' + args
     entry = blank(f'{source}:{short_hash(exe)}', title, source, launch)
     entry.update(exe=exe, prefix=str(Path(prefix).expanduser()) if prefix else None, workdir=str(Path(exe).parent))
+    # Windows games run with Proton-GE by default when umu-run is there (a scan never
+    # changes this on games already in the library: `proton` is not refreshed).
+    from shutil import which
+    entry['proton'] = exe.lower().endswith('.exe') and bool(which('umu-run'))
     return entry
 
 
@@ -349,6 +355,11 @@ def set_fields(gid, pairs):
             game[key] = value
             if key == 'title':
                 game['title_edited'] = True
+            if key == 'prefix':
+                value = str(Path(value).expanduser())
+                game['prefix'] = value
+                # The Wine command carries the prefix too: keep the two the same.
+                game['launch'] = re.sub(r'WINEPREFIX=(\'[^\']*\'|\S+)', lambda m: 'WINEPREFIX=' + shlex.quote(value), game['launch'])
         save(data)
     return {'game': game}
 
@@ -446,10 +457,29 @@ def screen_size():
         return 1920, 1080, 60
 
 
+def steam_appid(game):
+    """The game's Steam id: set by hand, or from a steam_appid.txt beside the .exe or up to two
+    folders above it (Steam-emulator releases ship one, often in steam_settings/). umu uses it
+    to apply that game's protonfixes."""
+    if game.get('steam_appid'):
+        return int(game['steam_appid'])
+    exe = Path(game.get('exe') or '')
+    for folder in list(exe.parents)[:3]:
+        for name in ('steam_appid.txt', 'steam_settings/steam_appid.txt'):
+            try:
+                text = (folder/name).read_text().strip()
+            except OSError:
+                continue
+            if text.isdigit():
+                return int(text)
+    return None
+
+
 def command_for(game):
     """The command LW runs. Steam goes through steam:// (its own launch options decide the
     wrappers). A Windows game runs with Wine, or with Proton-GE through umu-run when `proton`
-    is on (umu downloads and updates GE-Proton itself; the game's prefix is kept). Then, when
+    is on (umu downloads and updates GE-Proton itself; the game's prefix is kept; with the
+    Steam id, GAMEID=umu-<id> turns on that game's protonfixes). Then, when
     toggled and installed: mangohud inside, gamescope around (fullscreen at the monitor's size;
     `fsr` renders at 75% and upscales), gamemoderun outermost."""
     cmd = game['launch']
@@ -460,7 +490,9 @@ def command_for(game):
     if game.get('proton') and have['proton'] and exe.lower().endswith('.exe'):
         prefix = f"WINEPREFIX={shlex.quote(game['prefix'])} " if game.get('prefix') else ''
         args = cmd.split(shlex.quote(exe), 1)[1] if shlex.quote(exe) in cmd else ''
-        cmd = f"env {prefix}GAMEID=umu-default PROTONPATH=GE-Proton umu-run {shlex.quote(exe)}{args}"
+        appid = steam_appid(game)
+        gameid = f'umu-{appid}' if appid else 'umu-default'
+        cmd = f"env {prefix}GAMEID={gameid} PROTONPATH=GE-Proton umu-run {shlex.quote(exe)}{args}"
     if game.get('mangohud') and have['mangohud']:
         cmd = 'mangohud ' + cmd
     if game.get('gamescope') and have['gamescope']:

@@ -1,5 +1,5 @@
 {
-  "README.md": "5a3f93c8e363a62e9028bfc7aeef7477fe81667a0e8d94254834c9bf47a5ba08",
+  "README.md": "53ebc3065e97b9e5cbc05a579635cb0dec336b65c293a673f385ccc287535d92",
   "config/autostart/rice-minimal.desktop": "c592575a7c2e736e66bd76410b9c52775b8190c7a69f9b9369efbf593d9477d4",
   "config/cliamp/config.toml": "b7411892f51694364881d0e9be4c590bab6787108215ebbc504fb4b81d2e3f2e",
   "config/fastfetch/config.jsonc": "548e76a29ea67501f11c38dce97279fafee1cea0d1c734cfcd8dedc0bf308f03",
@@ -22,7 +22,7 @@
   "extras/backups.py": "e22aa0b4d9fe102656fa01dd54ae6bbdb0ccb47fd32d4e5ca7de1330d18d1452",
   "extras/cli.py": "fdaf9e3cda573d814164f2f6c907c4b2e7b2c88cf471fd2f621c4a5c0c4d1f16",
   "extras/doctor.py": "4cae6038379de18235098a7260285604221eebbccd394bc60acac2bb865c4f98",
-  "extras/games.py": "e133a8d26b508d530cad7a4addb07b81502fc6b2f10476088fb3cc1177829f7d",
+  "extras/games.py": "23a007f295e1cc527f22e1a91a20faf3453adaaaf3a2797964864aa159ab4866",
   "extras/library.py": "6b47f8c0c80ab07a8a2bae37f93f87aa0281966686a0f7e2cde1076aa9e59b4c",
   "extras/lockscreen.py": "8ebf1f4d565b057922561c8ea6415159be800c6e8782979437348f0b5827f4ce",
   "extras/lwbar.py": "bbe5838e60033440ae2e9df7660664b9b59e8e4bb6d4bf479a009d0fd205aedc",

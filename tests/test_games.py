@@ -355,6 +355,33 @@ class Games(unittest.TestCase):
             listed = self.cli('installers')[1]['installers']
         self.assertEqual(listed[0]['install']['state'], 'failed')
 
+    def test_new_windows_games_use_proton_when_umu_exists(self):
+        with patch('shutil.which', return_value='/usr/bin/umu-run'):
+            self.assertTrue(games.wine_entry('/g/Jogo.exe')['proton'])
+            self.assertFalse(games.wine_entry('/g/jogo.sh')['proton'])
+        with patch('shutil.which', return_value=None):
+            self.assertFalse(games.wine_entry('/g/Jogo.exe')['proton'])
+
+    def test_changing_the_prefix_changes_the_command(self):
+        exe = self.home/'Jogo Bom.exe'
+        exe.write_bytes(b'x')
+        gid = self.cli('add', '--exe', str(exe), '--prefix', str(self.home/'.wine'))[1]['added']['id']
+        game = self.cli('set', gid, 'prefix=' + str(self.home/'Games/jogo bom'))[1]['game']
+        self.assertEqual(game['prefix'], str(self.home/'Games/jogo bom'))
+        self.assertIn("WINEPREFIX='%s' wine" % (self.home/'Games/jogo bom'), game['launch'])
+        self.assertNotIn('.wine', game['launch'])
+
+    def test_steam_id_beside_the_game_turns_on_its_protonfixes(self):
+        folder = self.home/'Jogo'
+        (folder/'steam_settings').mkdir(parents=True)
+        (folder/'steam_settings/steam_appid.txt').write_text('570940\n')
+        game = games.wine_entry(str(folder/'bin/Jogo.exe'), '/p', 'Jogo')
+        game['proton'] = True
+        with patch.object(games, 'tools', return_value={'gamemode': False, 'mangohud': False, 'proton': True, 'gamescope': False}):
+            self.assertIn('GAMEID=umu-570940 ', games.command_for(game))
+            game['steam_appid'] = 1245620
+            self.assertIn('GAMEID=umu-1245620 ', games.command_for(game))
+
 
 if __name__ == '__main__':
     unittest.main()
