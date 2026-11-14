@@ -21,4 +21,4 @@ default = "lucas"
 
 # Só o painel de usuário e senha: sem relógio nem data.
 [clock]
-position = "hidden"
+enabled = false
