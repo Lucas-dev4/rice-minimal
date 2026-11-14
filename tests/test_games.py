@@ -393,6 +393,35 @@ class Games(unittest.TestCase):
         env = popen.call_args_list[0].kwargs['env']
         self.assertEqual(env['SDL_GAMECONTROLLERCONFIG'], '03000000373500004110000000000000,Pad,a:b0,platform:Linux,')
 
+    # ---- emulators by console folder -----------------------------------------------------
+    def test_console_folders_pick_the_emulator(self):
+        roms = self.home/'Jogos/ROMs'
+        emus = self.home/'Jogos/Emuladores'
+        for d in ('ps2', 'gamecube', 'ps1', 'snes', 'switch', 'psp'):
+            (roms/d).mkdir(parents=True)
+        emus.mkdir(parents=True)
+        old, new = emus/'pcsx2-v2.6.0.AppImage', emus/'pcsx2-v2.8.2-linux-appimage-x64-Qt.AppImage'
+        old.write_bytes(b'x'); new.write_bytes(b'x')
+        os.utime(old, (1, 1))
+        (roms/'ps2/God of War (USA).iso').write_bytes(b'x')
+        (roms/'gamecube/Wind Waker.iso').write_bytes(b'x')
+        (roms/'psp/Monster Hunter Freedom Unite.iso').write_bytes(b'x')
+        (roms/'ps1/Crash (USA).cue').write_text('FILE "Crash (USA).bin" BINARY\n')
+        (roms/'ps1/Crash (USA).bin').write_bytes(b'x')
+        (roms/'snes/Super Mario World (USA) [!].sfc').write_bytes(b'x')
+        (roms/'snes/Super Mario World.srm').write_bytes(b'x')      # a save, not a game
+        (roms/'switch/MHGU.nsp').write_bytes(b'x')
+        found = {g['title']: g for g in games.scan_roms()}
+        self.assertEqual(sorted(found), ['Crash', 'God of War', 'MHGU', 'Monster Hunter Freedom Unite', 'Super Mario World', 'Wind Waker'])
+        self.assertIn(str(new), found['God of War']['launch'])
+        self.assertIn('-batch -nogui -fullscreen --', found['God of War']['launch'])
+        self.assertTrue(found['Wind Waker']['launch'].startswith('dolphin-emu -b -e '))
+        self.assertTrue(found['Monster Hunter Freedom Unite']['launch'].startswith('PPSSPPSDL '))
+        self.assertIn('mednafen_psx_hw_libretro.so', found['Crash']['launch'])
+        self.assertTrue(found['Crash']['launch'].endswith('Crash (USA).cue\''))
+        self.assertTrue(found['MHGU']['launch'].startswith('ryujinx '))
+        self.assertEqual((found['God of War']['system'], found['God of War']['system_name']), ('ps2', 'PlayStation 2'))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -102,7 +102,7 @@ Item {
                     RiceText { width: parent.width; elide: Text.ElideRight; text: body.g.title || ""; font.pixelSize: 18; font.weight: Font.ExtraBold }
                     RiceText {
                         textFormat: Text.StyledText
-                        text: (body.g.source || "") + (body.g.missing ? " · <font color='" + Theme.red + "'>sumiu da fonte</font>" : "")
+                        text: (body.g.system_name || body.g.source || "") + (body.g.missing ? " · <font color='" + Theme.red + "'>sumiu da fonte</font>" : "")
                         color: Theme.dim
                     }
                     // What IGDB knows: year, genres and the three times to beat.

@@ -85,6 +85,7 @@ def db_path():
 def config():
     path = data_dir()/'games-config.json'
     defaults = {'rom_dirs': ['~/ROMs', '~/Jogos/ROMs'], 'ready_dirs': ['~/Downloads/hydra_Jogos'],
+                'emulator_dirs': ['~/Jogos/Emuladores'],
                 'retroarch': 'retroarch', 'cores_dir': '/usr/lib/libretro', 'emulators': {}}
     try:
         defaults.update(json.loads(path.read_text()))
@@ -242,6 +243,57 @@ def wine_entry(exe, prefix=None, title=None, args='', source='wine'):
 
 
 # ---- ROMs -------------------------------------------------------------------------------
+# A folder per console under a ROM dir (~/Jogos/ROMs/ps2/…) says which emulator runs it:
+# extensions alone cannot (an .iso is PS2, PSP, GameCube or Wii). (emulator, core, extensions)
+ARCHIVES = {'.zip', '.7z'}
+EMU_SYSTEMS = {
+    'nes': ('retroarch', 'nestopia', {'.nes'} | ARCHIVES),
+    'snes': ('retroarch', 'snes9x', {'.sfc', '.smc'} | ARCHIVES),
+    'megadrive': ('retroarch', 'genesis_plus_gx', {'.md', '.gen', '.smd', '.bin'} | ARCHIVES),
+    'gba': ('retroarch', 'mgba', {'.gba', '.gb', '.gbc'} | ARCHIVES),
+    'n64': ('retroarch', 'mupen64plus_next', {'.n64', '.z64', '.v64'} | ARCHIVES),
+    'nds': ('retroarch', 'melonds', {'.nds'} | ARCHIVES),
+    'ps1': ('retroarch', 'mednafen_psx_hw', {'.cue', '.chd', '.pbp', '.m3u', '.bin'}),
+    'ps2': ('pcsx2', None, {'.iso', '.chd', '.cso', '.gz', '.bin'}),
+    'psp': ('ppsspp', None, {'.iso', '.cso', '.pbp', '.chd'}),
+    '3ds': ('azahar', None, {'.3ds', '.cci', '.cia', '.cxi', '.3dsx'}),
+    'gamecube': ('dolphin', None, {'.iso', '.gcm', '.rvz', '.ciso', '.gcz'}),
+    'wii': ('dolphin', None, {'.iso', '.wbfs', '.rvz', '.wad', '.gcz'}),
+    'switch': ('ryujinx', None, {'.nsp', '.xci', '.nro'}),
+}
+SYSTEM_NAMES = {'nes': 'NES', 'snes': 'SNES', 'megadrive': 'Mega Drive', 'gba': 'Game Boy', 'n64': 'Nintendo 64',
+                'nds': 'Nintendo DS', 'ps1': 'PlayStation', 'ps2': 'PlayStation 2', 'psp': 'PSP', '3ds': 'Nintendo 3DS',
+                'gamecube': 'GameCube', 'wii': 'Wii', 'switch': 'Switch'}
+
+
+def appimage(name, cfg):
+    """The newest AppImage of an emulator in emulator_dirs (pcsx2-v2.8.2-…AppImage), or None."""
+    found = []
+    for folder in cfg.get('emulator_dirs', []):
+        found += [p for p in Path(folder).expanduser().glob('*.AppImage') if name in p.name.lower()]
+    return str(max(found, key=lambda p: p.stat().st_mtime)) if found else None
+
+
+def emulator_command(emulator, core, rom, cfg):
+    q = shlex.quote(str(rom))
+    if emulator == 'retroarch':
+        return f"{cfg['retroarch']} -f -L {shlex.quote(str(Path(cfg['cores_dir'])/f'{core}_libretro.so'))} {q}"
+    if emulator == 'pcsx2':
+        return f"{shlex.quote(appimage('pcsx2', cfg) or 'pcsx2-qt')} -batch -nogui -fullscreen -- {q}"
+    if emulator == 'azahar':
+        return f"{shlex.quote(appimage('azahar', cfg) or 'azahar')} -f {q}"
+    if emulator == 'ppsspp':
+        return f'PPSSPPSDL --fullscreen {q}'
+    if emulator == 'dolphin':
+        return f'dolphin-emu -b -e {q}'
+    return f'ryujinx {q}'
+
+
+def rom_title(stem):
+    """'Super Mario World (USA) [!]' → 'Super Mario World'."""
+    return re.sub(r'\s*[\(\[][^\)\]]*[\)\]]', '', stem).strip() or stem
+
+
 def scan_roms():
     cfg = config()
     found = []
@@ -249,25 +301,47 @@ def scan_roms():
         base = Path(folder).expanduser()
         if not base.is_dir():
             continue
-        for rom in sorted(base.rglob('*')):
-            ext = rom.suffix.lower()
-            if not rom.is_file() or (ext not in ROM_EXT and ext not in cfg['emulators']):
+        files = sorted(p for p in base.rglob('*') if p.is_file())
+        # Discs a .cue or .m3u already points at are not games by themselves.
+        listed = set()
+        for f in files:
+            if f.suffix.lower() in ('.cue', '.m3u'):
+                try:
+                    text = f.read_text(errors='replace')
+                except OSError:
+                    continue
+                for line in text.splitlines():
+                    name = re.sub(r'^\s*FILE\s+"?([^"]+)"?.*$', r'\1', line).strip() if 'FILE' in line.upper() else line.strip()
+                    if name and not name.startswith('#'):
+                        listed.add((f.parent/name).resolve())
+        for rom in files:
+            if rom.resolve() in listed:
                 continue
-            if ext in cfg['emulators']:
+            ext = rom.suffix.lower()
+            system = rom.relative_to(base).parts[0].lower() if len(rom.relative_to(base).parts) > 1 else None
+            if system in EMU_SYSTEMS:
+                emulator, core, exts = EMU_SYSTEMS[system]
+                if ext not in exts:
+                    continue
+                launch = emulator_command(emulator, core, rom, cfg)
+            elif ext in cfg['emulators']:
                 launch = cfg['emulators'][ext].replace('{rom}', shlex.quote(str(rom)))
-            else:
+                system = ext.lstrip('.')
+            elif ext in ROM_EXT:
                 core = Path(cfg['cores_dir'])/f'{ROM_EXT[ext]}_libretro.so'
                 launch = f"{cfg['retroarch']} -L {shlex.quote(str(core))} {shlex.quote(str(rom))}"
-            title = re.sub(r'\s*[\(\[][^\)\]]*[\)\]]', '', rom.stem).strip() or rom.stem
-            entry = blank(f'rom:{short_hash(str(rom))}', title, 'rom', launch)
-            entry.update(rom=str(rom), system=ext.lstrip('.'))
+                system = ext.lstrip('.')
+            else:
+                continue
+            entry = blank(f'rom:{short_hash(str(rom))}', rom_title(rom.stem), 'rom', launch)
+            entry.update(rom=str(rom), system=system, system_name=SYSTEM_NAMES.get(system, system.upper()))
             found.append(entry)
     return found
 
 
 # ---- merge ------------------------------------------------------------------------------
 SCANNED = {'steam': scan_steam, 'hydra': scan_hydra, 'rom': scan_roms}
-REFRESH = ('title', 'launch', 'cover', 'hours_source', 'exe', 'prefix', 'workdir', 'rom', 'system')
+REFRESH = ('title', 'launch', 'cover', 'hours_source', 'exe', 'prefix', 'workdir', 'rom', 'system', 'system_name')
 
 
 def merge(data, fresh):
