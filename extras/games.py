@@ -263,7 +263,7 @@ EMU_SYSTEMS = {
 }
 SYSTEM_NAMES = {'nes': 'NES', 'snes': 'SNES', 'megadrive': 'Mega Drive', 'gba': 'Game Boy', 'n64': 'Nintendo 64',
                 'nds': 'Nintendo DS', 'ps1': 'PlayStation', 'ps2': 'PlayStation 2', 'psp': 'PSP', '3ds': 'Nintendo 3DS',
-                'gamecube': 'GameCube', 'wii': 'Wii', 'switch': 'Switch'}
+                'gamecube': 'GameCube', 'wii': 'Wii', 'switch': 'Switch', 'ps4': 'PlayStation 4'}
 
 
 def appimage(name, cfg):
@@ -286,12 +286,49 @@ def emulator_command(emulator, core, rom, cfg):
         return f'PPSSPPSDL --fullscreen {q}'
     if emulator == 'dolphin':
         return f'dolphin-emu -b -e {q}'
+    if emulator == 'shadps4':
+        return f"{shlex.quote(appimage('shadps4', cfg) or 'shadps4')} -f true -g {q}"
     return f'ryujinx {q}'
 
 
 def rom_title(stem):
     """'Super Mario World (USA) [!]' → 'Super Mario World'."""
     return re.sub(r'\s*[\(\[][^\)\]]*[\)\]]', '', stem).strip() or stem
+
+
+def sfo_fields(path):
+    """The text fields of a PS4 param.sfo ({'TITLE': 'Bloodborne', 'TITLE_ID': 'CUSA03173', …})."""
+    import struct
+    try:
+        data = Path(path).read_bytes()
+        if data[:4] != b'\0PSF':
+            return {}
+        keys, values, count = struct.unpack_from('<III', data, 8)
+        fields = {}
+        for i in range(count):
+            key_off, fmt, length, _, data_off = struct.unpack_from('<HHIII', data, 20 + 16*i)
+            key = data[keys + key_off:data.index(b'\0', keys + key_off)].decode('utf-8', 'replace')
+            if fmt == 0x0204:   # utf-8 text, NUL-terminated
+                fields[key] = data[values + data_off:values + data_off + length].rstrip(b'\0').decode('utf-8', 'replace')
+        return fields
+    except (OSError, ValueError, struct.error):
+        return {}
+
+
+def scan_ps4(base, cfg):
+    """PS4 games are dumped folders (CUSA03173/eboot.bin + sce_sys/param.sfo), not one file."""
+    found = []
+    for eboot in sorted((base/'ps4').glob('*/eboot.bin')):
+        sfo = eboot.parent/'sce_sys/param.sfo'
+        if not sfo.is_file():
+            continue
+        info = sfo_fields(sfo)
+        icon = eboot.parent/'sce_sys/icon0.png'
+        entry = blank(f'rom:{short_hash(str(eboot))}', re.sub(r'[™®©]', '', info.get('TITLE', '')).strip() or eboot.parent.name, 'rom',
+                      emulator_command('shadps4', None, eboot, cfg), cover=str(icon) if icon.is_file() else None)
+        entry.update(rom=str(eboot), system='ps4', system_name=SYSTEM_NAMES['ps4'])
+        found.append(entry)
+    return found
 
 
 def scan_roms():
@@ -301,7 +338,9 @@ def scan_roms():
         base = Path(folder).expanduser()
         if not base.is_dir():
             continue
-        files = sorted(p for p in base.rglob('*') if p.is_file())
+        found += scan_ps4(base, cfg)
+        # A PS4 dump is ~30k files of game data: never walk it file by file.
+        files = sorted(p for p in base.rglob('*') if p.is_file() and not p.relative_to(base).parts[0].lower() == 'ps4')
         # Discs a .cue or .m3u already points at are not games by themselves.
         listed = set()
         for f in files:

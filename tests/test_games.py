@@ -423,5 +423,29 @@ class Games(unittest.TestCase):
         self.assertEqual((found['God of War']['system'], found['God of War']['system_name']), ('ps2', 'PlayStation 2'))
 
 
+    def test_ps4_dump_folder_runs_in_shadps4(self):
+        import struct
+        game = self.home/'Jogos/ROMs/ps4/CUSA03173'
+        (game/'sce_sys').mkdir(parents=True)
+        (game/'dvdroot_ps4').mkdir()
+        (game/'eboot.bin').write_bytes(b'x')
+        (game/'dvdroot_ps4/data.bin').write_bytes(b'x')          # game data, not a game
+        (game/'sce_sys/icon0.png').write_bytes(b'png')
+        keys, vals = b'TITLE\0TITLE_ID\0', b'Bloodborne\0\0CUSA03173\0\0\0'
+        index = struct.pack('<HHIII', 0, 0x0204, 11, 12, 0) + struct.pack('<HHIII', 6, 0x0204, 10, 12, 12)
+        head = b'\0PSF' + struct.pack('<IIII', 0x101, 20 + len(index), 20 + len(index) + len(keys), 2)
+        (game/'sce_sys/param.sfo').write_bytes(head + index + keys + vals)
+        emus = self.home/'Jogos/Emuladores'
+        emus.mkdir(parents=True)
+        (emus/'shadps4-sdl-0.21.0.AppImage').write_bytes(b'x')
+        found = games.scan_roms()
+        self.assertEqual([g['title'] for g in found], ['Bloodborne'])
+        g = found[0]
+        self.assertEqual((g['system'], g['system_name']), ('ps4', 'PlayStation 4'))
+        self.assertIn('shadps4-sdl-0.21.0.AppImage', g['launch'])
+        self.assertTrue(g['launch'].endswith(f"-f true -g {game/'eboot.bin'}"))
+        self.assertEqual(g['cover'], str(game/'sce_sys/icon0.png'))
+
+
 if __name__ == '__main__':
     unittest.main()
