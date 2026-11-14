@@ -8,7 +8,7 @@
   "config/fish/functions/fastfetch.fish": "67901ab1ad4c7893c84478173412d876185eec1db9b3be52564d1377d98b0ce4",
   "config/fish/functions/vim.fish": "9f2c8c61443329484fc66b0586697e3fa088eeb7e3f1df5819c0908c1eb9488d",
   "config/fish/functions/y.fish": "a4a654bbd7e3c033e695a484924f09e3abe1b98d0520899adece2e8aa6b88575",
-  "config/greeter/greeter.toml": "99c431e042e198b0b75219d1776a2e488fdec4b2745ef63b90aa4954800abca9",
+  "config/greeter/greeter.toml": "1bb1808594bcf8669654ff6bdb84041484ea428ab21d1a8ff7c4238577418706",
   "config/hypr/rice-appearance.lua": "02f76b953ec8640e39cb6b385a93001461bb4cf47754fccf2d5d032bc14be4c2",
   "config/hypr/rice-integration.lua": "984f6de8791f43dade0b59208ac5b513e13f68c9c59f187f5cf3729a0bd2b598",
   "config/hypr/rice-minimal.lua": "877dc243a532c3d6611fe2c3de7d72fb95e592ae7295bef52c7a5de74dfe3c32",

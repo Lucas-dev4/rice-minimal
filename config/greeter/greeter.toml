@@ -19,6 +19,6 @@ default = "Hyprland (uwsm-managed)"
 [user]
 default = "lucas"
 
+# Só o painel de usuário e senha: sem relógio nem data.
 [clock]
-position = "above-panel"
-date_format = "LW  %d/%m/%Y"
+position = "hidden"
