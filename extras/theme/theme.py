@@ -167,7 +167,7 @@ def terminal_accent(palette):
     return vivid(hexcolor(colorsys.hls_to_rgb(hue/360, .6, .6)), saturation)
 
 def terminal_colors(palette):
-    # Only terminal text is vivid; bars and Noctalia keep the subdued palette.
+    # The vivid set: terminal text, LW, Waybar tints and Noctalia's accents.
     c = palette['colors']
     return {**{k:vivid(c[k]) for k in ('green','yellow','blue','magenta','cyan')},
             'accent':terminal_accent(palette), 'red':vivid('#ff4040', .95, .68)}
@@ -421,15 +421,17 @@ prepend_conds = [
            # Quoted: an unquoted > breaks how fzf reads the options after it.
            "--pointer='>' --marker='*' --prompt='> ' --gutter=' ' --separator=- --no-scrollbar")
     fish += f'set -gx BAT_THEME ansi\nset -gx FZF_DEFAULT_OPTS "{fzf}"\nset -g rice_accent_sgr \'{sgr(v["accent"])}\'\n'
+    # Noctalia's panels, launcher and widgets use the same vivid accent as LW, Kitty and the
+    # Waybar (the subdued Matugen colors made them look grey next to everything else).
     noctalia = {'dark': {
-        'mPrimary':c['accent'], 'mOnPrimary':ink,
-        'mSecondary':c['green'], 'mOnSecondary':c['background'],
-        'mTertiary':c['yellow'], 'mOnTertiary':c['background'],
-        'mError':c['red'], 'mOnError':c['background'],
+        'mPrimary':v['accent'], 'mOnPrimary':c['background'],
+        'mSecondary':v['accent'], 'mOnSecondary':c['background'],
+        'mTertiary':v['cyan'], 'mOnTertiary':c['background'],
+        'mError':v['red'], 'mOnError':c['background'],
         'mSurface':c['background'], 'mOnSurface':c['foreground'],
         'mSurfaceVariant':mix(c['background'], c['foreground'], .07),
         'mOnSurfaceVariant':c['muted'], 'mOutline':c['muted'],
-        'mShadow':c['background'], 'mHover':c['accent'], 'mOnHover':ink,
+        'mShadow':c['background'], 'mHover':v['accent'], 'mOnHover':c['background'],
     }}
     names = ('black','red','green','yellow','blue','magenta','cyan','white')
     noctalia['dark']['terminal'] = {

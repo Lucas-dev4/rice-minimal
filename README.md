@@ -23,6 +23,9 @@ Fonte em tudo: JetBrains Mono (Nerd Font). Kitty e LW com fundo 85% opaco, sem b
 | `Super+Return` | Kitty |
 | `Super+E` | yazi num Kitty |
 | `Super+=` / `Super+-` | volume |
+| `Super+N` / `Super+Shift+N` | próxima / música anterior (cliamp) |
+| `Super+Shift+Space` | tocar / pausar |
+| `Super+Shift+M` | mudo (som do sistema) |
 | `Super+Space` | lançador do Noctalia |
 | `Super+Ctrl+Alt+W` | Waypaper |
 | `Super+Ctrl+Alt+S` | TUI de atalhos (`supers`) |
@@ -124,7 +127,7 @@ A barra é transparente, com módulos ASCII (`[ 1 ]`, `CPU 12% |`) e texto que s
 
 ## Aparência que segue o wallpaper
 
-Trocar o wallpaper (no LW, no Waypaper ou na TUI) gera uma paleta escura e pouco saturada com o Matugen e publica tudo de uma vez, com trava e cache: Noctalia (`~/.config/noctalia/palettes/RiceMinimal.json`), Kitty, Fish, Neovim (pywal), Waybar, yazi, cliamp, fzf, bat, a tela de bloqueio e a de login. A geração anterior fica guardada e volta com `lw palette restore`. Dois perfis: **Minimal** (sem animações nem efeitos do Hyprland) e **Refined** (animações Lua, Waybar com brilho); `lw profile set minimal|refined`. Detalhes: [extras/theme/README.md](extras/theme/README.md), [extras/wallpapers/README.md](extras/wallpapers/README.md).
+Trocar o wallpaper (no LW, no Waypaper ou na TUI) gera uma paleta escura e pouco saturada com o Matugen (os destaques usam uma versão viva da cor do wallpaper, a mesma no LW, no Kitty, na Waybar e nos painéis do Noctalia) e publica tudo de uma vez, com trava e cache: Noctalia (`~/.config/noctalia/palettes/RiceMinimal.json`), Kitty, Fish, Neovim (pywal), Waybar, yazi, cliamp, fzf, bat, a tela de bloqueio e a de login. A geração anterior fica guardada e volta com `lw palette restore`. Dois perfis: **Minimal** (sem animações nem efeitos do Hyprland) e **Refined** (animações Lua, Waybar com brilho); `lw profile set minimal|refined`. Detalhes: [extras/theme/README.md](extras/theme/README.md), [extras/wallpapers/README.md](extras/wallpapers/README.md).
 
 ## Terminal
 

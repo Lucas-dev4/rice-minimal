@@ -28,6 +28,8 @@ def settings(profile):
         'notification.background_opacity':.94, 'notification.border':True,
         'notification.border_width':1.0, 'notification.border_color':'outline_variant',
         'notification.offset_y':36, 'notification.width':360,
+        # No click when the volume changes (Super+=/-, the bar's wheel).
+        'audio.enable_volume_sounds':False,
     }
 
 
