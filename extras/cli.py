@@ -14,7 +14,7 @@ import backups
 import lockscreen
 import shortcuts
 
-COMMANDS = {'status','gui','music','games','wallpaper','palette','profile','greeter','sync','shortcuts','lock','backups'}
+COMMANDS = {'status','gui','music','games','wallpaper','palette','profile','greeter','sync','shortcuts','lock','backups','bt'}
 THUMBS = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'rice-minimal/thumbs'
 THUMB_SIZE = 400
 
@@ -411,6 +411,7 @@ def main(argv):
     actions.add_parser('gui')
     actions.add_parser('music')
     actions.add_parser('games')
+    actions.add_parser('bt')
     wallpaper=actions.add_parser('wallpaper').add_subparsers(dest='operation',required=True)
     wallpaper.add_parser('list',parents=[common])
     wallpaper.add_parser('thumbs')
@@ -459,6 +460,9 @@ def main(argv):
         return music()
     if args.action == 'games':
         return games()
+    if args.action == 'bt':
+        import bluetooth
+        return bluetooth.run()
     if getattr(args,'operation','') == 'thumbs':
         wallpaper_thumbs()
         return 0
