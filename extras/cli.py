@@ -1,4 +1,7 @@
 """Scriptable commands shared by the GUI: one JSON envelope, no curses."""
+# cli.py — os subcomandos do "lw" (lw status, lw wallpaper apply, lw gui...).
+# É a ponte entre a janela do LW (QML) e o Python: a GUI chama "lw <comando> --json" e recebe
+# sempre o mesmo envelope {"ok", "action", "data", "warnings"} ou {"ok": false, "error"}.
 import argparse
 import hashlib
 import json
@@ -20,6 +23,7 @@ THUMB_SIZE = 400
 
 
 def status():
+    """Resumo geral: perfil, paleta, wallpaper escolhido x ativo, estado do bloqueio e última ação."""
     palette=theme.read_palette()
     selected=theme.selected_wallpaper()
     effective=theme.current_wallpaper()
@@ -45,17 +49,20 @@ def status():
 
 def uninterruptible():
     # Closing the GUI must not stop a change halfway, such as a new image with the old palette.
+    """Ignora SIGTERM/SIGHUP: fechar a janela não pode interromper uma troca pela metade."""
     for number in (signal.SIGTERM,signal.SIGHUP):
         signal.signal(number,signal.SIG_IGN)
 
 
 def thumb_path(path):
+    """Caminho da miniatura de uma imagem no cache (o nome muda se a imagem mudar)."""
     info=path.stat()
     key=f'{path.resolve()}|{info.st_size}|{info.st_mtime_ns}|{THUMB_SIZE}'
     return THUMBS/(hashlib.sha256(key.encode()).hexdigest()[:32]+'.jpg')
 
 
 def make_thumb(path):
+    """Cria a miniatura JPEG (400 px) de um wallpaper."""
     from PIL import Image
     target=thumb_path(path)
     THUMBS.mkdir(parents=True,exist_ok=True)
@@ -74,6 +81,7 @@ def make_thumb(path):
 
 def image_size(path):
     # Only the header is read; the GUI shows it next to the name.
+    """Largura e altura de uma imagem (lê só o cabeçalho)."""
     from PIL import Image  # lazy, like make_thumb
     try:
         with Image.open(path) as image:
@@ -83,6 +91,7 @@ def image_size(path):
 
 
 def wallpaper_list():
+    """Todos os wallpapers com miniatura, tamanho e qual está ativo (tela Wallpapers)."""
     current=theme.current_wallpaper()
     resolved=current.resolve() if current else None
     images=[]
@@ -96,7 +105,9 @@ def wallpaper_list():
 
 def wallpaper_thumbs():
     # One JSON line per finished image, so the grid fills in while this runs.
+    """Gera as miniaturas que faltam, 4 por vez, imprimindo uma linha JSON por imagem pronta."""
     def build(path):
+        """Gera uma miniatura e devolve o resultado (ou o erro) para essa imagem."""
         try:
             return {'path':str(path),'thumb':str(make_thumb(path))}
         except Exception as exc:
@@ -109,6 +120,7 @@ def wallpaper_thumbs():
 
 
 def wallpaper_apply(path):
+    """Aplica um wallpaper e gera a paleta nova; avisa se a cor falhou ou se outro wallpaper ficou ativo."""
     path=Path(path).expanduser()
     if not path.is_file():
         raise FileNotFoundError(f'Wallpaper not found: {path}')
@@ -125,6 +137,7 @@ def wallpaper_apply(path):
 
 
 def thumb_of(wallpaper):
+    """Miniatura já existente de um wallpaper, ou None."""
     try:
         thumb=thumb_path(Path(wallpaper))
     except (OSError,TypeError):
@@ -137,6 +150,7 @@ def generated_colors():
     import re
     current=theme.STATE/'current'
     def read(name):
+        """Lê um arquivo da geração ativa do tema (vazio se não existir)."""
         try:
             return (current/name).read_text()
         except OSError:
@@ -147,6 +161,7 @@ def generated_colors():
 
 
 def palette_show():
+    """A paleta atual e a anterior, para a tela Palette (inclui se dá para restaurar)."""
     palette=theme.read_palette()
     try:
         before=json.loads((theme.STATE/'previous/palette.json').read_text())
@@ -169,6 +184,7 @@ def palette_show():
 
 
 def palette_regenerate(scheme=None):
+    """Gera a paleta de novo, opcionalmente com outro esquema do Matugen; volta o esquema se falhar."""
     uninterruptible()
     with theme.locked():
         before=theme.scheme()
@@ -190,6 +206,7 @@ def palette_regenerate(scheme=None):
 
 
 def palette_restore():
+    """Volta para a paleta anterior (só se as cores forem diferentes)."""
     shown=palette_show()
     if not shown['can_restore']:
         raise ValueError('The previous palette has the same colors as the current one')
@@ -208,6 +225,7 @@ def palette_restore():
 
 
 def previous_profile():
+    """Nome do perfil usado antes do atual, ou None."""
     try:
         return (theme.STATE/'previous-profile').read_text().strip() or None
     except OSError:
@@ -218,6 +236,7 @@ def profile_differences():
     """Only what really changes between the profiles, read from the files that apply them."""
     import re
     def word(value):
+        """Valor → texto curto para a tabela (on/off para booleanos)."""
         return ('on' if value else 'off') if isinstance(value,bool) else str(value)
     rows=[]
     lua=(theme.ROOT/'config/hypr/rice-appearance.lua').read_text()
@@ -238,11 +257,13 @@ def profile_differences():
 
 
 def profile_get():
+    """Perfil atual, anterior e as diferenças entre os dois (tela Profiles)."""
     return {'profile':theme.current_profile(),'previous':previous_profile(),'choices':['minimal','refined'],
             'differences':profile_differences()}
 
 
 def profile_set(name):
+    """Troca o perfil (não faz nada se já for o atual)."""
     if name == theme.current_profile():
         return {**profile_get(),'changed':False},[]
     uninterruptible()
@@ -252,6 +273,7 @@ def profile_set(name):
 
 
 def profile_restore():
+    """Volta para o perfil anterior."""
     name=previous_profile()
     if not name:
         raise ValueError('There is no previous profile')
@@ -259,6 +281,7 @@ def profile_restore():
 
 
 def greeter_sync():
+    """Envia agora o tema atual para a tela de login."""
     uninterruptible()
     result=theme.sync_greeter(force=True)
     if result != 'sent':
@@ -267,6 +290,7 @@ def greeter_sync():
 
 
 def greeter_auto(value):
+    """Liga/desliga o envio automático do tema para a tela de login."""
     flag=theme.STATE/'greeter-sync'
     if value == 'on':
         flag.touch()
@@ -277,17 +301,20 @@ def greeter_auto(value):
 
 
 def sync():
+    """Reaplica tudo em ordem (wallpaper, paleta, bloqueio, greeter) — o botão SYNC ALL."""
     uninterruptible()
     steps=theme.sync_all()
     return {'steps':steps},[f"{s['step']}: {s['detail']}" for s in steps if s['status'] != 'OK']
 
 
 def lock_status():
+    """Estado do bloqueio com a miniatura do wallpaper."""
     data=lockscreen.status()
     return {**data,'thumb':thumb_of(data['wallpaper'])}
 
 
 def lock_trial(confirm):
+    """Teste real de bloqueio (exige --confirm); o visual anterior volta no fim."""
     if not confirm:
         raise ValueError('Real locking requires --confirm')
     # The session stays locked for as long as this waits, and the visuals restore at the end.
@@ -303,6 +330,7 @@ def lock_trial(confirm):
 
 
 def lock_activate(confirm):
+    """Ativa o visual de bloqueio testado (exige --confirm)."""
     if not confirm:
         raise ValueError('Activation requires --confirm')
     uninterruptible()
@@ -315,6 +343,7 @@ def gui(section='system'):
     # LW: one window (gui/shell.qml) with SISTEMA, MÚSICA and JOGOS. Super+BackSpace,
     # Super+M and Super+G call this with their section: closed → opens there; hidden
     # (Ctrl+J) → comes back there; open on another section → switches; same → closes.
+    """Abre/alterna a janela do LW numa seção (system, music, games). Nunca trava o atalho."""
     (theme.STATE/'actions.jsonl').touch()
     path=str(theme.ROOT/'gui')
     # `qs list` names the instance by its root file.
@@ -327,6 +356,7 @@ def gui(section='system'):
         return 0
     # Every call to the running window has a time limit: the shortcut must never hang.
     def ipc(*args):
+        """Chama uma função IPC da janela aberta (com 3 s de limite)."""
         return subprocess.run(['qs','ipc','-p',path,'call','lw',*args],capture_output=True,text=True,timeout=3)
     try:
         probe=ipc('section')
@@ -365,6 +395,7 @@ def gui(section='system'):
 
 def music_instances(path):
     # PIDs of the Quickshell instances running this config (`qs list --all`).
+    """PIDs das janelas do LW rodando (pela lista do Quickshell)."""
     out=subprocess.run(['qs','list','--all'],capture_output=True,text=True,timeout=3).stdout
     pids,pid=[],None
     for line in out.splitlines():
@@ -378,6 +409,7 @@ def music_instances(path):
 
 def kill_instances(pids):
     # A frozen instance never answers IPC: kill it and its helpers (events, pactl, cava).
+    """Mata uma janela travada e os processos filhos dela."""
     for pid in pids:
         subprocess.run(['pkill','-KILL','-P',str(pid)],capture_output=True)
         try:
@@ -387,14 +419,17 @@ def kill_instances(pids):
 
 
 def music():
+    """lw music = abrir o LW em MÚSICA."""
     return gui('music')
 
 
 def games():
+    """lw games = abrir o LW em JOGOS."""
     return gui('games')
 
 
 def failure(action,exc):
+    """Monta o JSON de erro (código not_found/invalid/busy/failed + mensagem)."""
     return {'ok':False,'action':action,'error':{
         'code':'not_found' if isinstance(exc,FileNotFoundError) else 'invalid' if isinstance(exc,ValueError)
                else 'busy' if isinstance(exc,TimeoutError) else 'failed',
@@ -403,6 +438,7 @@ def failure(action,exc):
 
 
 def main(argv):
+    """Lê os argumentos, executa o subcomando e imprime o resultado (JSON com --json)."""
     parser=argparse.ArgumentParser(prog='lw')
     common=argparse.ArgumentParser(add_help=False)
     common.add_argument('--json',action='store_true')

@@ -1,4 +1,8 @@
 """LW lock visuals for the existing secure Noctalia locker. No auth changes."""
+# lockscreen.py — aparência da tela de bloqueio do Noctalia (Super+L). SÓ visual:
+# wallpaper, escurecimento e a caixa de senha. Senha, PAM e autenticação nunca são tocados.
+# Fluxo: update() gera um candidato → run_trial() bloqueia de verdade uma vez para testar →
+# activate() instala. Tudo com backup em backups/lock-visual-* e restore() para voltar.
 import json
 import os
 from pathlib import Path
@@ -15,6 +19,7 @@ VISUAL_KEYS = {'wallpaper','transition','transition_duration','blurred_desktop',
 
 
 def atomic(path,text):
+    """Grava o arquivo de uma vez (temporário + fsync + rename), com permissão 600."""
     path.parent.mkdir(parents=True,exist_ok=True)
     fd,tmp=tempfile.mkstemp(prefix='.rice-',dir=path.parent)
     try:
@@ -27,6 +32,7 @@ def atomic(path,text):
 
 
 def dim():
+    """Escurecimento escolhido para o fundo (entre 35% e 85%; padrão 55%)."""
     try:
         return max(.35,min(.85,float((theme.STATE/'lock-dim').read_text())))
     except (OSError,ValueError):
@@ -34,6 +40,7 @@ def dim():
 
 
 def displays():
+    """Monitores guardados da última captura (ou um 1920x1080 padrão)."""
     try:
         data=json.loads((theme.STATE/'lock-displays.json').read_text())
         if isinstance(data,list) and data: return data
@@ -43,15 +50,18 @@ def displays():
 
 
 def layout(monitors):
+    """Resumo comparável dos monitores (nome, tamanho, escala)."""
     return sorted((m['name'],m['width'],m['height'],m.get('scale',1)) for m in monitors)
 
 
 def live_displays():
+    """Monitores ligados agora, perguntando ao Hyprland."""
     return json.loads(theme.command(['hyprctl','-j','monitors']))
 
 
 def capture_displays():
     # Rewriting an unchanged layout would needlessly invalidate the last trial.
+    """Guarda os monitores atuais, só se mudaram (senão invalidaria o teste já feito)."""
     data=live_displays()
     if layout(data) != layout(displays()) or not (theme.STATE/'lock-displays.json').exists():
         atomic(theme.STATE/'lock-displays.json',json.dumps(data))
@@ -59,6 +69,7 @@ def capture_displays():
 
 def tested():
     # A trial only vouches for the monitor layout it was shown on.
+    """True se o teste de bloqueio foi feito depois da última mudança de monitores."""
     try:
         stamp=(theme.STATE/'lock-tested').stat().st_mtime_ns
     except OSError:
@@ -70,6 +81,7 @@ def tested():
 
 
 def status():
+    """Estado para a tela Lock do LW: ativo, testado, escurecimento, wallpaper, monitores, sessão bloqueada."""
     candidate=tomllib.loads((theme.STATE/'current/lockscreen.toml').read_text())['lockscreen']
     try:
         current=layout(live_displays()) == layout(displays())
@@ -86,11 +98,13 @@ def status():
 
 def require_palette():
     # read_palette() silently falls back, which must not be published as a real generation.
+    """Exige uma paleta publicada antes de gerar o candidato."""
     if not (theme.STATE/'current/palette.json').is_file():
         raise RuntimeError('No published palette to build the lock candidate from')
 
 
 def update():
+    """Gera de novo o candidato com a paleta e os monitores atuais."""
     require_palette()
     with theme.locked():
         capture_displays()
@@ -99,6 +113,7 @@ def update():
 
 
 def set_dim(level):
+    """Muda o escurecimento e gera o candidato de novo."""
     require_palette()
     with theme.locked():
         atomic(theme.STATE/'lock-dim',str(level))
@@ -107,12 +122,14 @@ def set_dim(level):
 
 
 def activate():
+    """Instala o visual de vez — só depois de um teste neste layout de monitores."""
     if not tested():
         raise RuntimeError('Run a lock trial on this monitor layout first')
     return install()
 
 
 def run_trial():
+    """Faz o teste real de bloqueio e marca como testado quando desbloqueia."""
     message=trial()
     atomic(theme.STATE/'lock-tested','unlocked successfully\n')
     return message
@@ -137,6 +154,7 @@ def effective_dim(palette):
 
 
 def render(palette,profile):
+    """Escreve o TOML do visual: wallpaper, escurecimento, transição e a caixa de senha centralizada em cada monitor."""
     refined=profile == 'refined'
     wallpaper=palette.get('wallpaper','')
     lines=['# LW lock — generated visual settings only.',
@@ -167,6 +185,7 @@ def render(palette,profile):
 
 
 def strip_visual_overrides(text):
+    """Tira do settings.toml só as chaves visuais do bloqueio (o resto do Noctalia fica)."""
     lines=[]; section=''
     for line in text.splitlines(True):
         if line.lstrip().startswith('['):
@@ -198,6 +217,7 @@ def visual_snapshot(text):
 
 
 def validate():
+    """Confere que o candidato só tem chaves visuais, sem blur, com wallpaper existente, e que o Noctalia aceita."""
     path=theme.STATE/'current/lockscreen.toml'
     data=tomllib.loads(path.read_text())
     if set(data['lockscreen']) != VISUAL_KEYS:
@@ -212,11 +232,13 @@ def validate():
 
 
 def install():
+    """Instala o visual com a trava do tema."""
     with theme.locked():
         return _install()
 
 
 def _install():
+    """Faz backup, valida a configuração completa numa pasta temporária e só então grava; desfaz se falhar."""
     validate()
     backup=theme.ROOT/'backups'/('lock-visual-'+str(time.time_ns()))
     backup.mkdir(parents=True)
@@ -248,11 +270,13 @@ def _install():
 
 
 def restore(backup=None):
+    """Volta o visual de um backup com a trava do tema."""
     with theme.locked():
         return _restore(backup)
 
 
 def _restore(backup=None):
+    """Salva o estado atual (resgate) e devolve só as chaves visuais do backup."""
     backup=Path(backup or (theme.STATE/'lock-backup').read_text().strip())
     # Save the current visuals/settings before restoring the earlier snapshot.
     rescue=backup/('before-restore-'+str(time.time_ns()))

@@ -52,6 +52,7 @@ def parse_info(text):
 
 
 def load():
+    """Lê o adaptador e todos os aparelhos conhecidos, ordenados (conectados primeiro)."""
     ok, text = ctl('devices')
     devices = []
     for mac, name in parse_devices(text if ok else ''):
@@ -64,6 +65,7 @@ def load():
 
 
 def row(d):
+    """Uma linha da tabela: nome, estado, tipo, bateria, confiável e MAC."""
     state = 'conectado' if d.get('Connected') else 'pareado' if d.get('Paired') else 'novo'
     kind = ICONS.get(d.get('Icon', ''), d.get('Icon', '') or '—')
     battery = f"{d['Battery']}%" if d.get('Battery') is not None else '—'
@@ -72,6 +74,7 @@ def row(d):
 
 
 class App:
+    """Estado da tela: lista de aparelhos, seleção, mensagem e ação em andamento."""
     def __init__(self):
         self.adapter, self.devices = {}, []
         self.index = 0
@@ -82,6 +85,7 @@ class App:
         self.dirty = True
 
     def refresh(self):
+        """Recarrega a lista (roda numa thread para não travar a tela)."""
         adapter, devices = load()
         with self.lock:
             self.adapter, self.devices = adapter, devices
@@ -89,6 +93,7 @@ class App:
             self.dirty = True
 
     def run_bg(self, label, *args, timeout=25):
+        """Executa um comando do bluetoothctl em segundo plano; uma ação por vez."""
         if self.busy:
             self.message = f'aguarde: {self.busy}'
             return
@@ -103,6 +108,7 @@ class App:
         threading.Thread(target=work, daemon=True).start()
 
     def scan(self):
+        """Procura aparelhos novos por 15 segundos."""
         if time.time() < self.scan_until:
             self.message = 'já procurando…'
             return
@@ -116,10 +122,12 @@ class App:
         threading.Thread(target=work, daemon=True).start()
 
     def current(self):
+        """O aparelho selecionado (ou None)."""
         with self.lock:
             return self.devices[self.index] if self.devices else None
 
     def draw(self, screen):
+        """Desenha a tela inteira."""
         h, w = ui.frame(screen, 'LW // BLUETOOTH')
         a = self.adapter
         power = 'ligado' if a.get('Powered') else 'desligado'
@@ -140,6 +148,7 @@ class App:
         ui.present(screen)
 
     def key(self, screen, k):
+        """Trata uma tecla (Enter, p, t, d, s, o, r e as setas)."""
         d = self.current()
         if k in (curses.KEY_UP, ord('k')) and self.devices:
             self.index = (self.index - 1) % len(self.devices)
@@ -168,6 +177,7 @@ class App:
 
 
 def main(screen):
+    """Laço principal: desenha, lê tecla (espera até 0,5 s) e atualiza a lista a cada 3 s."""
     ui.setup(screen)
     app = App()
     threading.Thread(target=app.refresh, daemon=True).start()
@@ -188,6 +198,7 @@ def main(screen):
 
 
 def run():
+    """Abre a TUI (usado por "lw bt")."""
     curses.wrapper(main)
     return 0
 
