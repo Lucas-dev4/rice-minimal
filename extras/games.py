@@ -41,6 +41,11 @@ games and refreshes what the source knows (title, launch, cover, hours_source); 
 your hours, notes and the rest are never touched. Games a source no longer has are marked
 `missing`, not removed. Everything prints one JSON object.
 """
+# games.py — o "cérebro" da seção JOGOS do LW. Só ele escreve em ~/.local/share/lw/games.json.
+# Partes: scanners (Steam, Hydra, ROMs/emuladores, PS4) → merge sem perder seus dados (status, horas, notas);
+# lançar o jogo (Wine/Proton/emulador + gamemode/mangohud/gamescope) e o "vigia" que conta as horas;
+# instaladores de Windows; metadados do IGDB (capa, gêneros, duração).
+# Toda escrita usa a trava games.lock + gravação atômica, então GUI e linha de comando podem rodar juntas.
 import argparse
 import fcntl
 import hashlib
@@ -71,18 +76,22 @@ ROM_EXT = {
 
 # ---- paths and storage --------------------------------------------------------------
 def home():
+    """Pasta pessoal (respeita $HOME, útil nos testes)."""
     return Path(os.environ.get('HOME', str(Path.home())))
 
 
 def data_dir():
+    """Pasta de dados do LW: ~/.local/share/lw."""
     return Path(os.environ.get('XDG_DATA_HOME', home()/'.local'/'share'))/'lw'
 
 
 def db_path():
+    """O arquivo da biblioteca: games.json."""
     return data_dir()/'games.json'
 
 
 def config():
+    """Configuração (games-config.json) por cima dos padrões: pastas de ROMs, prontos, emuladores, RetroArch."""
     path = data_dir()/'games-config.json'
     defaults = {'rom_dirs': ['~/ROMs', '~/Jogos/ROMs'], 'ready_dirs': ['~/Downloads/hydra_Jogos'],
                 'emulator_dirs': ['~/Jogos/Emuladores'],
@@ -96,6 +105,7 @@ def config():
 
 @contextmanager
 def locked():
+    """Trava exclusiva do games.json enquanto o bloco "with locked():" roda."""
     data_dir().mkdir(parents=True, exist_ok=True)
     with open(data_dir()/'games.lock', 'w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -103,6 +113,7 @@ def locked():
 
 
 def load():
+    """Lê o games.json (ou uma biblioteca vazia se não existir/estiver quebrado)."""
     try:
         data = json.loads(db_path().read_text())
         return data if isinstance(data, dict) and isinstance(data.get('games'), list) else {'games': []}
@@ -111,6 +122,7 @@ def load():
 
 
 def save(data):
+    """Grava o games.json de forma atômica (nunca fica pela metade)."""
     fd, tmp = tempfile.mkstemp(dir=data_dir(), prefix='.games-', suffix='.json')
     with os.fdopen(fd, 'w') as stream:
         json.dump(data, stream, ensure_ascii=False, indent=1)
@@ -118,10 +130,12 @@ def save(data):
 
 
 def short_hash(text):
+    """12 caracteres de hash — usado para criar ids estáveis a partir de caminhos."""
     return hashlib.sha1(text.encode()).hexdigest()[:12]
 
 
 def blank(gid, title, source, launch, cover=None, hours_source=None):
+    """Um jogo novo com todos os campos no valor inicial (status "quero jogar", 0 horas...)."""
     return {'id': gid, 'title': title, 'source': source, 'launch': launch, 'cover': cover,
             'status': 'want', 'hours': 0.0, 'hours_source': hours_source, 'est_hours': None,
             'progress': 0, 'fav': False, 'order': 0, 'last_played': None, 'sessions': [],
@@ -133,6 +147,7 @@ def vdf(text):
     """Valve KeyValues text -> nested dicts (keys lower-cased)."""
     tokens = re.findall(r'"((?:[^"\\]|\\.)*)"|([{}])', text)
     def block(i):
+        """Lê um bloco { ... } do VDF recursivamente."""
         out = {}
         while i < len(tokens):
             word, brace = tokens[i]
@@ -150,6 +165,7 @@ def vdf(text):
 
 
 def steam_roots():
+    """Pastas onde a Steam pode estar instalada (normal, ~/.steam e Flatpak), sem repetir."""
     seen, out = set(), []
     for p in (home()/'.local/share/Steam', home()/'.steam/steam', home()/'.steam/root',
               home()/'.var/app/com.valvesoftware.Steam/.local/share/Steam'):
@@ -160,6 +176,7 @@ def steam_roots():
 
 
 def steam_cover(root, appid):
+    """Capa de um jogo da Steam no cache local (vertical primeiro, depois o banner)."""
     cache = root/'appcache'/'librarycache'
     for pattern in (f'{appid}_library_600x900.jpg', f'{appid}/library_600x900.jpg', f'{appid}/*/library_600x900.jpg',
                     f'{appid}_header.jpg', f'{appid}/header.jpg', f'{appid}/*/header.jpg'):
@@ -170,6 +187,7 @@ def steam_cover(root, appid):
 
 
 def steam_playtime(root):
+    """Minutos jogados de cada jogo, lidos do localconfig.vdf da Steam."""
     minutes = {}
     for cfg in (root/'userdata').glob('*/config/localconfig.vdf'):
         try:
@@ -183,6 +201,7 @@ def steam_playtime(root):
 
 
 def scan_steam():
+    """Jogos instalados em todas as bibliotecas da Steam, com capa e horas."""
     found = []
     for root in steam_roots():
         try:
@@ -208,6 +227,7 @@ def scan_steam():
 
 # ---- Hydra Launcher (best effort: only entries that name an executable) ---------------
 def scan_hydra():
+    """Jogos do Hydra Launcher que têm executável (lidos do banco de dados dele)."""
     db = home()/'.config'/'hydralauncher'/'hydra-db'
     found = {}
     for part in sorted(db.glob('*.log')) + sorted(db.glob('*.ldb')):
@@ -224,6 +244,7 @@ def scan_hydra():
 
 # ---- Wine / native executables added by hand ------------------------------------------
 def wine_entry(exe, prefix=None, title=None, args='', source='wine'):
+    """Monta a entrada de um jogo de PC: .exe roda com Wine (prefixo opcional), outro executável roda direto."""
     exe = str(Path(exe).expanduser())
     title = title or Path(exe).stem
     if exe.lower().endswith('.exe'):
@@ -275,6 +296,7 @@ def appimage(name, cfg):
 
 
 def emulator_command(emulator, core, rom, cfg):
+    """O comando que abre a ROM no emulador certo (RetroArch, PCSX2, Azahar, PPSSPP, Dolphin, shadPS4, Ryujinx)."""
     q = shlex.quote(str(rom))
     if emulator == 'retroarch':
         return f"{cfg['retroarch']} -f -L {shlex.quote(str(Path(cfg['cores_dir'])/f'{core}_libretro.so'))} {q}"
@@ -332,6 +354,7 @@ def scan_ps4(base, cfg):
 
 
 def scan_roms():
+    """Varre as pastas de ROMs: a subpasta (ps2, snes...) escolhe o emulador; ignora saves e faixas de CD."""
     cfg = config()
     found = []
     for folder in cfg['rom_dirs']:
@@ -384,6 +407,7 @@ REFRESH = ('title', 'launch', 'cover', 'hours_source', 'exe', 'prefix', 'workdir
 
 
 def merge(data, fresh):
+    """Junta o resultado do scan com a biblioteca: acrescenta novos, atualiza só campos da fonte, marca sumidos."""
     by_id = {g['id']: g for g in data['games']}
     new = 0
     next_order = max([g.get('order', 0) for g in data['games']] + [0]) + 1
@@ -404,6 +428,7 @@ def merge(data, fresh):
 
 
 def scan():
+    """Roda todos os scanners e grava (games.py scan). Nunca apaga seus dados."""
     with locked():
         data = load()
         fresh, errors = [], {}
@@ -427,6 +452,7 @@ def scan():
 
 
 def add(exe, prefix=None, title=None, args=''):
+    """Adiciona um jogo à mão (executável, prefixo, nome)."""
     if not Path(exe).expanduser().is_file():
         raise ValueError('executável não encontrado: ' + exe)
     with locked():
@@ -440,6 +466,7 @@ def add(exe, prefix=None, title=None, args=''):
 
 
 def set_fields(gid, pairs):
+    """Muda campos de um jogo (status, notas, proton...). Mudar o prefixo reescreve o comando junto."""
     with locked():
         data = load()
         game = next((g for g in data['games'] if g['id'] == gid), None)
@@ -478,6 +505,7 @@ def set_fields(gid, pairs):
 
 
 def arrange(status, ids):
+    """Nova ordem dos jogos de um status (arrastar no BACKLOG)."""
     if status not in STATUSES:
         raise ValueError('status inválido: ' + status)
     with locked():
@@ -498,6 +526,7 @@ def arrange(status, ids):
 
 
 def remove(gid):
+    """Tira um jogo da biblioteca."""
     with locked():
         data = load()
         before = len(data['games'])
@@ -518,6 +547,7 @@ WINE_SYSTEM = {'wineserver', 'services.exe', 'winedevice.exe', 'explorer.exe', '
 
 
 def is_wine_helper(entry):
+    """True se o processo é um serviço do Wine (wineserver, services.exe...), não o jogo."""
     try:
         return (entry/'comm').read_text().strip() in WINE_SYSTEM
     except OSError:
@@ -555,6 +585,7 @@ HEARTBEAT = 30
 
 
 def tools():
+    """Quais ferramentas estão instaladas: gamemode, mangohud, umu-run (Proton) e gamescope."""
     from shutil import which
     return {'gamemode': bool(which('gamemoderun')), 'mangohud': bool(which('mangohud')),
             'proton': bool(which('umu-run')), 'gamescope': bool(which('gamescope'))}
@@ -620,6 +651,7 @@ def command_for(game):
 
 
 def pids_of(gid, proc='/proc'):
+    """Processos do jogo, achados pela variável LW_GAME_ID (ou SteamAppId) no ambiente deles."""
     out = []
     want_lw = b'LW_GAME_ID=' + gid.encode()
     want_steam = b'SteamAppId=' + gid.split(':', 1)[1].encode() if gid.startswith('steam:') else None
@@ -636,6 +668,7 @@ def pids_of(gid, proc='/proc'):
 
 
 def update(fn):
+    """Lê, aplica uma função que altera os dados e grava — tudo dentro da trava."""
     with locked():
         data = load()
         result = fn(data)
@@ -654,6 +687,7 @@ def controller_mappings():
 
 
 def launch(gid):
+    """Inicia o jogo e o vigia que conta a sessão."""
     data = load()
     game = next((g for g in data['games'] if g['id'] == gid), None)
     if not game:
@@ -683,6 +717,7 @@ def launch(gid):
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
                      env={k: v for k, v in os.environ.items() if k != 'LW_GAME_ID'})
     def pending(d):
+        """Marca o jogo como "iniciando" no games.json."""
         d['launching'] = {'id': gid, 'at': int(time.time()), 'command': cmd}
     update(pending)
     return {'command': cmd, 'tools': tools(), 'log': str(log)}
@@ -690,6 +725,7 @@ def launch(gid):
 
 def watch(gid):
     # One watcher per game.
+    """O vigia: abre a sessão quando o jogo aparece e fecha quando some (funciona com o LW fechado)."""
     with open(data_dir()/f'watch-{short_hash(gid)}.lock', 'w') as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -722,7 +758,9 @@ def watch(gid):
 
 
 def close_session(gid, end):
+    """Fecha a sessão aberta: soma as horas, guarda a sessão e a data em que jogou."""
     def finish(d):
+        """A parte que altera os dados (rodada dentro da trava)."""
         live = d.get('open_session')
         if not live or live.get('id') != gid:
             return 0
@@ -758,6 +796,7 @@ def recover():
 
 
 def stop(gid):
+    """Pede para o jogo fechar (SIGTERM)."""
     pids = pids_of(gid)
     for pid in pids:
         try:
@@ -780,6 +819,7 @@ PREFIX_SKIP = {'windows', 'programdata', 'users', 'common files', 'internet expl
 
 
 def download_dirs():
+    """Pastas onde procurar instaladores (padrão: ~/Downloads)."""
     return [Path(d).expanduser() for d in config().get('download_dirs', ['~/Downloads'])]
 
 
@@ -795,6 +835,7 @@ def clean_name(text):
 
 
 def slug(text):
+    """Nome → nome de pasta (minúsculas e hífens): "Dark Souls" → "dark-souls"."""
     return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-') or 'jogo'
 
 
@@ -894,6 +935,7 @@ def ready_games(library_exes):
 
 
 def worker_alive(setup):
+    """True se o processo que acompanha a instalação ainda está rodando."""
     for entry in Path('/proc').iterdir():
         if entry.name.isdigit():
             try:
@@ -906,6 +948,7 @@ def worker_alive(setup):
 
 
 def add_ready(exe, name):
+    """Adiciona um jogo "pronto para jogar" com prefixo próprio em ~/Games e Proton ligado."""
     from shutil import which
     added = add(exe, home()/'Games'/slug(name), name)['added']
     if which('umu-run'):
@@ -939,6 +982,7 @@ def candidates(prefix, since, name, top=8):
 
 
 def install(setup, name=None):
+    """Começa a instalar um setup.exe num prefixo Wine novo e registra a instalação."""
     from shutil import which
     setup = str(Path(setup).expanduser())
     if not Path(setup).is_file():
@@ -948,6 +992,7 @@ def install(setup, name=None):
     name = name or clean_name(Path(setup).parent.name)
     prefix = home()/'Games'/slug(name)
     def start(d):
+        """Registra a instalação como "rodando" (recusa se já estiver instalando)."""
         live = d.setdefault('installs', {}).get(setup)
         if live and live.get('state') == 'running':
             raise ValueError('já está instalando: ' + name)
@@ -979,6 +1024,7 @@ def install_run(setup):
         subprocess.run(['wineserver', '-w'], env=env, stdout=out, stderr=subprocess.STDOUT)
     found = candidates(prefix, record['started'], record['name'])
     def finish(d):
+        """Grava o resultado: concluída (com os .exe encontrados) ou falhou."""
         r = d.setdefault('installs', {}).setdefault(setup, record)
         r.update(state='done' if found else 'failed', ended=int(time.time()), code=code, candidates=found,
                  error=None if found else 'nenhum .exe novo no prefixo (instalação cancelada ou falhou)')
@@ -987,18 +1033,22 @@ def install_run(setup):
 
 
 def install_add(setup, exe):
+    """Põe na biblioteca o .exe escolhido de uma instalação concluída."""
     record = load().get('installs', {}).get(setup)
     if not record:
         raise ValueError('instalação não registrada: ' + setup)
     added = add(exe, record['prefix'], record['name'])['added']
     def mark(d):
+        """Marca a instalação como adicionada."""
         d['installs'][setup].update(state='added', game=added['id'])
     update(mark)
     return {'added': added}
 
 
 def install_forget(setup):
+    """Apaga o registro de uma instalação (o prefixo fica no disco)."""
     def drop(d):
+        """Remove o registro de dentro dos dados."""
         if not d.get('installs', {}).pop(setup, None):
             raise ValueError('instalação não registrada: ' + setup)
     update(drop)
@@ -1013,6 +1063,7 @@ IGDB_IMAGE = 'https://images.igdb.com/igdb/image/upload/t_cover_big/{}.jpg'
 
 
 def igdb_credentials():
+    """Lê client_id e client_secret do IGDB em ~/.config/lw/igdb.json."""
     path = Path(os.environ.get('XDG_CONFIG_HOME', home()/'.config'))/'lw'/'igdb.json'
     try:
         cred = json.loads(path.read_text())
@@ -1024,6 +1075,7 @@ def igdb_credentials():
 
 
 def http(url, data=None, headers=None, timeout=20):
+    """Pedido HTTP simples (POST se houver dados) com tempo limite."""
     import urllib.request
     request = urllib.request.Request(url, data=data, headers=headers or {}, method='POST' if data is not None else 'GET')
     request.add_header('User-Agent', 'LW-games/1.0')
@@ -1053,6 +1105,7 @@ def igdb_token(cred):
 
 
 class Igdb:
+    """Cliente da API do IGDB (Twitch): guarda o token e respeita 4 pedidos por segundo."""
     def __init__(self):
         self.cred = igdb_credentials()
         self.token = igdb_token(self.cred)
@@ -1060,6 +1113,7 @@ class Igdb:
 
     def query(self, endpoint, body):
         # IGDB allows 4 requests a second.
+        """Faz uma consulta a um endpoint do IGDB (games, covers...)."""
         time.sleep(max(0.0, self.last + 0.26 - time.time()))
         self.last = time.time()
         return json.loads(http('https://api.igdb.com/v4/' + endpoint, body.encode(),
@@ -1067,6 +1121,7 @@ class Igdb:
 
 
 def norm_title(text):
+    """Título normalizado para comparar (minúsculas, sem artigos, sem pontuação)."""
     text = re.sub(r'[\[({][^\])}]*[\])}]', ' ', text.lower())
     text = re.sub(r'\b(the|of|a|an)\b', ' ', text)
     return re.sub(r'[^a-z0-9]+', ' ', text).strip()
@@ -1091,10 +1146,12 @@ def best_match(title, results):
 
 
 def year_of(stamp):
+    """Data (timestamp) → ano."""
     return time.gmtime(stamp).tm_year if stamp else None
 
 
 def fetch_cover(image_id, gid):
+    """Baixa a capa do IGDB para ~/.local/share/lw/covers."""
     folder = data_dir()/'covers'
     folder.mkdir(parents=True, exist_ok=True)
     path = folder/(re.sub(r'[^A-Za-z0-9_-]', '_', gid) + '.jpg')
@@ -1103,6 +1160,7 @@ def fetch_cover(image_id, gid):
 
 
 def meta(ids=None, everything=False):
+    """Busca metadados no IGDB e preenche só os campos vazios (capa, gêneros, duração estimada...)."""
     games_now = load()['games']
     todo = [g for g in games_now if (ids and g['id'] in ids) or (not ids and (everything or 'igdb' not in g))]
     if not todo:
@@ -1146,6 +1204,7 @@ def meta(ids=None, everything=False):
                                      'genres': [x['name'] for x in s.get('genres', [])], 'rating': round(s['total_rating']) if s.get('total_rating') else None,
                                      'image': (s.get('cover') or {}).get('image_id')}
     def write(d):
+        """Grava o que foi encontrado, dentro da trava."""
         matched, missed = [], []
         for g in d['games']:
             info = found.get(g['id'])
@@ -1167,6 +1226,7 @@ def meta(ids=None, everything=False):
 
 
 def main(argv=None):
+    """Linha de comando: games.py scan | list | add | set | launch | watch | install | meta ..."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='action', required=True)
     sub.add_parser('scan')

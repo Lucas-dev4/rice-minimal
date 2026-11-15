@@ -23,7 +23,7 @@
   "extras/bluetooth.py": "dac5afdfd913d4cb472734be28ba4a1656cc4063e8200e59568e67f6fd9f39d0",
   "extras/cli.py": "2b9f97e25b8c736c5424cafff5138216a945aee9e801df16b8d294e62c763e46",
   "extras/doctor.py": "4b7f134ab4a5044e94a659216df2174f0fd352c6e6b556b1e0caf3079ce32cb9",
-  "extras/games.py": "2484e642ce198d4a2efbc6ee2b2d31ae0c83e1bdf7573a07dbdd98e3e6211593",
+  "extras/games.py": "8fdc6a016363f0cbaa328fc7468f17409531188cafd5567ced914776bf8d746b",
   "extras/library.py": "1d23d210cfb1ed219408c82ea76cec51ec45650d13d6de660b0b8ae79ddd84fa",
   "extras/lockscreen.py": "5c27d49cc2c0d02f6fcab30145035e5dcb592df3e0ddfe41f70bc481113ab985",
   "extras/lwbar.py": "d0e88823ff6634c9dabd06ae42ec4920b7462ff4cfe07f25e05441b1e94fefe4",
