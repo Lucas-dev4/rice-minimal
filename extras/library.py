@@ -19,6 +19,9 @@
       ~/.cache/rice-minimal/music-library.json). Lyrics are cut to 4000 characters, enough
       to search in. Nothing is ever written to the audio files.
 """
+# library.py — índice da biblioteca de música (~/Músicas) para a aba BIBLIOTECA do LW.
+# "scan" lê as tags (com cache); "lookup" + "apply" organizam gênero/ano/capa buscando na internet,
+# sem nunca mexer no áudio (o arquivo novo é conferido por hash e o antigo vai para a lixeira).
 import argparse
 import collections
 import json
@@ -40,14 +43,17 @@ LYRICS_LIMIT = 4000
 
 
 def cache_path():
+    """Onde fica o cache das tags já lidas (~/.cache/rice-minimal/music-library.json)."""
     return Path(os.environ.get('XDG_CACHE_HOME', Path.home()/'.cache'))/'rice-minimal'/'music-library.json'
 
 
 def clean(value):
+    """Tira espaços repetidos e o caractere invisível BOM de um texto de tag."""
     return ' '.join(str(value or '').replace('﻿', '').split())
 
 
 def read_tags(path):
+    """Lê as tags de um arquivo de áudio com ffprobe (título, artista, álbum, gênero, ano, duração, capa, letra)."""
     out = subprocess.run(['ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', str(path)],
                          capture_output=True, text=True, timeout=30).stdout
     data = json.loads(out or '{}')
@@ -65,6 +71,7 @@ def read_tags(path):
 
 
 def scan(root):
+    """Lista todas as músicas com as tags; só relê arquivos novos ou alterados desde a última vez."""
     root = Path(root).expanduser()
     files = sorted(p for p in root.rglob('*') if p.is_file() and p.suffix.lower() in AUDIO)
     cache_file = cache_path()
@@ -104,6 +111,7 @@ AGENT = 'rice-minimal-lw-music/1.0'
 
 
 def fold(text):
+    """Normaliza um texto para comparar: minúsculas, sem acentos, sem parênteses e pontuação."""
     text = unicodedata.normalize('NFKD', str(text).lower())
     text = ''.join(ch for ch in text if not unicodedata.combining(ch))
     text = re.sub(r'[\(\[].*?[\)\]]', ' ', text)
@@ -111,12 +119,14 @@ def fold(text):
 
 
 def fetch(url):
+    """Baixa e decodifica um JSON de uma URL (com tempo limite)."""
     request = urllib.request.Request(url, headers={'User-Agent': AGENT})
     with urllib.request.urlopen(request, timeout=10) as reply:
         return json.load(reply)
 
 
 def best_match(track, candidates):
+    """Entre os resultados online, o mais parecido com artista+título (mínimo de 80% em cada)."""
     artist, title = fold(track['artist'].split(',')[0]), fold(track['title'])
     found = None
     for c in candidates:
@@ -128,17 +138,20 @@ def best_match(track, candidates):
 
 
 class Online:
+    """Busca online de uma faixa: Deezer primeiro e iTunes como reserva, respeitando o limite de pedidos."""
     def __init__(self):
         self.albums = {}
         self.last = {'deezer': 0.0, 'itunes': 0.0}
 
     def pace(self, source, gap):
+        """Espera o intervalo mínimo entre pedidos a um mesmo serviço."""
         wait = self.last[source] + gap - time.monotonic()
         if wait > 0:
             time.sleep(wait)
         self.last[source] = time.monotonic()
 
     def deezer(self, track):
+        """Procura a faixa no Deezer; gênero e ano vêm do álbum (guardado em cache)."""
         self.pace('deezer', 0.15)
         query = urllib.parse.urlencode({'q': track['artist'].split(',')[0] + ' ' + track['title'], 'limit': 8})
         data = fetch('https://api.deezer.com/search?' + query).get('data', [])
@@ -154,6 +167,7 @@ class Online:
         return {'source': 'deezer', 'artist': match['artist'], 'title': match['title'], 'genre': genre, 'year': year, 'cover': match['cover']}
 
     def itunes(self, track):
+        """Procura a faixa no iTunes (mais lento: ~20 pedidos por minuto)."""
         self.pace('itunes', 3.2)  # about 20 requests a minute
         query = urllib.parse.urlencode({'term': track['artist'].split(',')[0] + ' ' + track['title'], 'entity': 'song', 'limit': 8, 'country': 'BR'})
         data = fetch('https://itunes.apple.com/search?' + query).get('results', [])
@@ -163,6 +177,7 @@ class Online:
 
 
 def lookup(root, out):
+    """Monta a proposta de mudanças (plano JSON) para todas as faixas; um gênero por artista."""
     tracks = scan(root)['tracks']
     online, found = Online(), {}
     for n, t in enumerate(tracks, 1):
@@ -206,15 +221,18 @@ def lookup(root, out):
 
 
 def meta_escape(value):
+    """Escapa caracteres especiais para o arquivo de metadados do ffmpeg."""
     return re.sub(r'([=;#\\\n])', r'\\\1', str(value))
 
 
 def audio_md5(path):
+    """Hash só do áudio (sem as tags) — prova que o som não mudou."""
     r = subprocess.run(['ffmpeg', '-v', 'error', '-i', str(path), '-map', '0:a', '-c', 'copy', '-f', 'md5', '-'], capture_output=True, text=True)
     return r.stdout.strip()
 
 
 def apply_one(entry):
+    """Regrava as tags de um arquivo: copia o áudio sem recodificar, confere o hash e manda o original para a lixeira."""
     src = Path(entry['path'])
     change = entry['set']
     if not change or not src.is_file():
@@ -255,6 +273,7 @@ def apply_one(entry):
 
 
 def apply(plan_file):
+    """Aplica o plano inteiro, 4 arquivos por vez."""
     plan = json.loads(Path(plan_file).read_text())
     with ThreadPoolExecutor(4) as pool:
         done = list(pool.map(apply_one, plan))
@@ -263,6 +282,7 @@ def apply(plan_file):
 
 
 def main(argv=None):
+    """Linha de comando: scan | lookup | apply."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='action', required=True)
     s = sub.add_parser('scan')

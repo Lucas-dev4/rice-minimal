@@ -8,6 +8,8 @@ A game session wins over music, as in LW itself. Nothing running → empty text,
 Waybar hides the module. Reads only: games.json (written by extras/games.py) and
 `cliamp remote state`; never starts cliamp.
 """
+# lwbar.py — módulo "custom/lw" da Waybar (config/waybar/config.jsonc).
+# A cada segundo calcula o texto (jogo em sessão > música tocando > vazio) e só imprime quando muda.
 import json
 import os
 import subprocess
@@ -35,6 +37,7 @@ def session():
 
 
 def find_state(node):
+    """Procura, no JSON do cliamp, o objeto que tem "state" e "track" (o formato pode vir aninhado)."""
     if isinstance(node, dict):
         if 'state' in node and 'track' in node:
             return node
@@ -60,15 +63,18 @@ def music():
 
 
 def clock(seconds):
+    """Segundos → "m:ss" ou "h:mm:ss"."""
     h, rest = divmod(seconds, 3600)
     return f'{h}:{rest // 60:02d}:{rest % 60:02d}' if h else f'{rest // 60}:{rest % 60:02d}'
 
 
 def cut(text):
+    """Corta o texto em WIDTH caracteres, com reticências."""
     return text if len(text) <= WIDTH else text[:WIDTH - 1] + '…'
 
 
 def line():
+    """O que a Waybar mostra agora: texto, classe CSS (game/playing/paused/idle) e dica do mouse."""
     game = session()
     if game:
         title, seconds = game
@@ -85,6 +91,7 @@ def line():
 
 
 def stream():
+    """Laço infinito: imprime uma linha JSON sempre que o conteúdo muda (a Waybar lê o stdout)."""
     last = None
     while True:
         now = json.dumps(line(), ensure_ascii=False)
@@ -95,6 +102,7 @@ def stream():
 
 
 def click():
+    """Clique no módulo: abre o LW em JOGOS se houver sessão de jogo, senão em MÚSICA."""
     lw = str(HOME/'.local'/'bin'/'lw')
     os.execv(lw, [lw, 'games' if session() else 'music'])
 

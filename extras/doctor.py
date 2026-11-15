@@ -1,4 +1,6 @@
 """Read-only session diagnostics. Never generates colors, reloads or repairs."""
+# doctor.py — o "lw doctor": confere sessão, serviços, programas, tema e arquivos instalados.
+# Cada checagem vira {status: OK/WARN/FAIL, name, detail}. Nunca conserta nada, só relata.
 import hashlib
 import json
 from pathlib import Path
@@ -11,10 +13,12 @@ def inspect(report=None):
     """report, when given, receives each result as soon as it is known (rice doctor --stream)."""
     results=[]
     def add(status,name,detail=''):
+        """Guarda um resultado e, no modo --stream, já o envia para quem está ouvindo."""
         results.append({'status':status,'name':name,'detail':str(detail)})
         if report:
             report(results[-1])
     def command(name,args,empty=False):
+        """Roda um comando e vira resultado: OK se deu certo. Com empty=True, só é OK se não imprimir nada."""
         try:
             p=subprocess.run([str(x) for x in args],capture_output=True,text=True,timeout=8)
             output=(p.stdout+p.stderr).strip()
@@ -100,4 +104,5 @@ def inspect(report=None):
 
 
 def lines(results):
+    """Formata os resultados como texto para o terminal: "[ OK ] nome — detalhe"."""
     return [f"[ {r['status']} ] {r['name']}"+(' — '+r['detail'] if r['detail'] else '') for r in results]

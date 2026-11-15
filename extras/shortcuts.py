@@ -1,4 +1,7 @@
 """Shared Super UI; reuse its parser, validation, atomic writes and unique backups."""
+# shortcuts.py — lê e edita os atalhos do Hyprland (binds.lua) para a tela Shortcuts do LW e a TUI.
+# Reaproveita o "Supers" (extras/supers/Supers): parser, validação com luac, escrita atômica e backups .bak.
+# Toda edição confere a "revision" (hash do arquivo) para não sobrescrever mudanças feitas por fora.
 from importlib.machinery import SourceFileLoader
 from importlib.util import spec_from_loader, module_from_spec
 import hashlib
@@ -23,6 +26,7 @@ MODIFIERS = {'SHIFT':1,'CONTROL':4,'ALT':8,'SUPER':64}
 
 def display_key(expression):
     # Editing starts from this text, so the key keeps the exact spelling from the file.
+    """Texto da combinação para mostrar, ex.: mainMod .. " + SHIFT + Q" → "SUPER + SHIFT + Q"."""
     match = re.fullmatch(r'mainMod\s*\.\.\s*"([^"]*)"|"([^"]*)"', expression.strip())
     parts = [part.strip() for part in (('SUPER'+match[1]) if match[1] is not None else match[2]).split('+')]
     modifiers = sorted((part.upper() for part in parts[:-1]), key=lambda part: ('SUPER','CONTROL','ALT','SHIFT').index(part) if part in MODIFIERS else 9)
@@ -30,12 +34,14 @@ def display_key(expression):
 
 
 def describe(bind, section=''):
+    """Um atalho do parser vira o dicionário que a GUI usa (linha, tecla, ação, comando, seção)."""
     match = EXEC.match(bind['action_clean'])
     return {'line':bind['line_idx'],'key':display_key(bind['key_clean']),'action':bind['action_clean'],'section':section,
             'command':json.loads(match[2]) if match else None,'editable':True}
 
 
 def read(path=None):
+    """Lê o arquivo de atalhos: lista, seções (pelos comentários), revisão e os atalhos fixos do projeto."""
     target = Path(path or backend.CONFIG_PATH)
     text = target.read_text()
     lines = text.splitlines(True)
@@ -55,6 +61,7 @@ def read(path=None):
 
 def live_conflict(key):
     # Covers what the file parser cannot see: binds built in loops and other config files.
+    """Pergunta ao Hyprland (hyprctl binds) se a combinação já está em uso em qualquer lugar."""
     mask = sum(MODIFIERS.get(part,0) for part in key[:-1])
     name = key[-1]
     code = {'0':19,**{str(d):9+d for d in range(1,10)}}.get(name)
@@ -66,6 +73,7 @@ def live_conflict(key):
 
 
 def plan_edit(bind, binds, key='', command='', replace=False):
+    """Monta a nova linha do atalho (tecla e/ou comando) e recusa combinações repetidas."""
     replacement = bind['raw_line']
     if key:
         new_key = backend.format_lua_key(re.sub(r'\b(super|mainmod)\s*\+\s*','',key,flags=re.IGNORECASE))
@@ -86,6 +94,7 @@ def plan_edit(bind, binds, key='', command='', replace=False):
 
 
 def edit(line, revision, key='', command='', path=None, replace=False):
+    """Grava a mudança de um atalho com backup; falha se o arquivo mudou desde a leitura."""
     target = Path(path or backend.CONFIG_PATH)
     original = target.read_text()
     if hashlib.sha256(original.encode()).hexdigest() != revision:
@@ -103,6 +112,7 @@ def edit(line, revision, key='', command='', path=None, replace=False):
 
 def delete(line, revision, path=None):
     # Removes one bind line; safe_write keeps a .supers-*.bak, so RESTORE brings it back.
+    """Apaga a linha de um atalho (com backup, dá para restaurar)."""
     target = Path(path or backend.CONFIG_PATH)
     original = target.read_text()
     if hashlib.sha256(original.encode()).hexdigest() != revision:
@@ -116,6 +126,7 @@ def delete(line, revision, path=None):
 
 
 def check(path=None):
+    """Valida o Lua com luac e lista combinações duplicadas."""
     target = Path(path or backend.CONFIG_PATH)
     result = subprocess.run(['luac','-p',str(target)],capture_output=True,text=True)
     if result.returncode:
@@ -126,12 +137,14 @@ def check(path=None):
 
 
 def backups(path=None):
+    """Backups .supers-*.bak do arquivo de atalhos, do mais novo ao mais antigo."""
     target = Path(path or backend.CONFIG_PATH)
     found = sorted(target.parent.glob(target.name+'.supers-*.bak'),key=lambda p:p.stat().st_mtime_ns,reverse=True)
     return {'backups':[{'path':str(p),'time_ns':p.stat().st_mtime_ns} for p in found]}
 
 
 def restore(backup, path=None):
+    """Volta um backup .bak do mesmo arquivo (salvando o atual antes)."""
     target = Path(path or backend.CONFIG_PATH)
     source = Path(backup).expanduser().resolve()
     if source.parent != target.resolve().parent or not source.name.startswith(target.name+'.supers-') or source.suffix != '.bak':
@@ -140,6 +153,7 @@ def restore(backup, path=None):
 
 
 def selector(screen, path=None):
+    """Editor de atalhos na TUI: escolhe, digita a nova combinação/comando e confirma."""
     target = Path(path or backend.CONFIG_PATH)
     message = ''
     selected = 0

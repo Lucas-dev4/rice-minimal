@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """Transactional appearance changes; no palette generation and no session restart."""
+# profiles.py — troca o perfil de aparência (minimal/refined) de forma transacional.
+# Muda o Noctalia (via "noctalia msg config-set"), o Hyprland (rice-appearance.lua) e os arquivos do tema;
+# se algo falhar no meio, devolve tudo como estava.
 import argparse
 import json
 from pathlib import Path
@@ -15,6 +18,7 @@ else:
 
 
 def settings(profile):
+    """As opções do Noctalia para cada perfil (Refined liga as animações; o resto é igual)."""
     refined = profile == 'refined'
     return {
         'theme.source':'custom', 'theme.custom_palette':'RiceMinimal', 'theme.mode':'dark',
@@ -34,12 +38,14 @@ def settings(profile):
 
 
 def atomic(path, value):
+    """Grava um arquivo pequeno de uma vez (arquivo temporário + rename)."""
     temporary = path.with_name('.'+path.name+'.tmp')
     temporary.write_text(value)
     temporary.replace(path)
 
 
 def apply_hypr():
+    """Recarrega a aparência do Hyprland na sessão aberta e falha se o Hyprland apontar erro."""
     if theme.os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'):
         theme.command(['hyprctl','eval','dofile('+json.dumps(str(theme.ROOT/'config/hypr/rice-appearance.lua'))+')'])
         errors = theme.command(['hyprctl','configerrors'])
@@ -57,6 +63,7 @@ def same(printed, value):
 
 
 def switch(profile):
+    """Troca o perfil: lê os valores atuais, aplica só o que muda e, em caso de erro, desfaz tudo."""
     if profile not in ('minimal','refined'):
         raise ValueError('Unknown profile: '+profile)
     with theme.locked():
@@ -102,10 +109,12 @@ def switch(profile):
 
 
 def previous():
+    """Volta para o perfil usado antes do atual."""
     return switch((theme.STATE/'previous-profile').read_text().strip())
 
 
 def main():
+    """Linha de comando: minimal | refined | current | restore."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('profile',choices=['minimal','refined','current','restore'])
     args = parser.parse_args()

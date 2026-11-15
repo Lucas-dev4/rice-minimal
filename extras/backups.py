@@ -1,4 +1,6 @@
 """What each backup is and how to restore it. Nothing here restores anything."""
+# backups.py — lista os backups em backups/ e diz como restaurar cada um.
+# Usado pela tela Backups do LW (lw backups list) e pela TUI. Só lê; quem restaura é scripts/restore.py.
 import json
 from pathlib import Path
 from theme import theme
@@ -11,6 +13,7 @@ KINDS = {'full':'Live files and theme state (project code is in git)',
 
 def classify(path):
     # Every format with a manifest goes through scripts/restore.py, which previews first.
+    """Descobre o tipo do backup (full, files, lock, snapshot) e o comando que o restaura."""
     if path.name.startswith('lock-visual-'):
         return 'lock','python3 extras/rice.py lock-restore'
     try:
@@ -24,10 +27,12 @@ def classify(path):
 
 
 def size(path):
+    """Tamanho total em bytes dos arquivos do backup (sem seguir links)."""
     return sum(item.stat().st_size for item in path.rglob('*') if item.is_file() and not item.is_symlink())
 
 
 def listing():
+    """Todos os backups, do mais novo ao mais antigo, mais os comandos de recuperação (greeter, bloqueio, completo)."""
     root = theme.ROOT/'backups'
     found = []
     if root.is_dir():

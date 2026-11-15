@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Navigate Waypaper's existing image library; apply only on Enter."""
+# wallpaper_tui.py — comando "wallpapers": escolher wallpaper no terminal.
+# Aplicar passa pelo mesmo caminho do Waypaper, então a paleta de cores é gerada junto.
 import argparse
 import curses
 import json
@@ -13,9 +15,11 @@ from theme import theme
 import ui
 
 def filtered(paths, query):
+    """Imagens cujo nome contém o texto buscado (sem diferenciar maiúsculas)."""
     return [p for p in paths if query.casefold() in p.name.casefold()]
 
 def selector(screen):
+    """Tela de escolha: j/k move, / busca, r sorteia, Enter aplica."""
     ui.setup(screen)
     paths = theme.images()
     current = theme.current_wallpaper()
@@ -71,6 +75,7 @@ def selector(screen):
                 message = 'Error: '+str(exc)
 
 def main():
+    """Sem argumentos abre a TUI; --list imprime as imagens em JSON; --apply aplica uma imagem."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--list', action='store_true', help='List without starting curses or changing wallpaper')
     parser.add_argument('--apply', type=Path, help='Apply through the same Waypaper hook used by Enter')

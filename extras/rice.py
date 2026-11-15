@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """LW — the terminal control panel: one modular, event-driven curses session."""
+# rice.py — ponto de entrada do comando "lw" (e do nome antigo "rice").
+# Com subcomando (lw gui, lw status, lw bt…) repassa para cli.py; sem nada, abre a TUI em curses.
 import argparse
 import curses
 from pathlib import Path
@@ -16,6 +18,7 @@ import ui
 
 
 def appearance(screen):
+    """Menu da TUI: trocar perfil Minimal/Refined, restaurar o anterior, ligar/desligar animações."""
     message='Active: '+theme.current_profile()
     while True:
         choice=ui.choose(screen,'APPEARANCE',['Minimal','Refined','Current Profile','Restore previous profile','Toggle menu animations'],message)
@@ -27,6 +30,7 @@ def appearance(screen):
 
 
 def palette_menu(screen):
+    """Menu da TUI: ver a paleta atual, gerar de novo a partir do wallpaper ou voltar a anterior."""
     message=''
     while True:
         choice=ui.choose(screen,'COLOR PALETTE',['View current palette','Update adaptive colors','Restore previous palette'],message)
@@ -43,6 +47,7 @@ def palette_menu(screen):
 
 
 def restore_menu(screen):
+    """Menu da TUI: lista de backups e restauração de perfil/paleta."""
     message=''
     while True:
         choice=ui.choose(screen,'RESTORE / BACKUPS',['List backups','Restore previous profile','Restore previous palette','Recovery instructions'],message)
@@ -61,6 +66,7 @@ def restore_menu(screen):
 
 
 def lock_menu(screen):
+    """Menu da TUI da tela de bloqueio (só a aparência; senha/PAM nunca mudam)."""
     message='Existing secure locker: Noctalia; live test requires confirmation.'
     while True:
         choice=ui.choose(screen,'LOCK SCREEN',['View settings','Update colors / candidate','Background dim level','Check configuration','Restore previous lock visuals','Trial lock (restores after unlock)','Activate reviewed RICE // LOCKED'],message)
@@ -93,6 +99,7 @@ def lock_menu(screen):
 
 
 def menu(screen):
+    """Menu principal da TUI; cada entrada chama uma das funções acima."""
     ui.setup(screen)
     message='Profile: '+theme.current_profile()
     actions=[selector,shortcuts.selector,appearance,palette_menu,
@@ -109,6 +116,7 @@ def menu(screen):
 
 
 def main():
+    """Decide o que fazer com os argumentos: subcomando do cli.py, doctor, lock-* ou a TUI."""
     if sys.argv[1:2] and sys.argv[1] in cli.COMMANDS: return cli.main(sys.argv[1:])
     parser=argparse.ArgumentParser(prog="lw", description=__doc__)
     parser.add_argument('action',nargs='?',choices=['doctor','lock-check','lock-trial','lock-restore'])

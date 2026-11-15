@@ -1,7 +1,10 @@
 """Small ASCII curses helpers shared by the two menus."""
+# ui.py — peças de curses usadas por todas as TUIs (lw, wallpapers, supers, lw bt):
+# moldura, texto seguro, lista navegável, confirmação, campo de texto e página com rolagem.
 import curses
 
 def setup(screen):
+    """Prepara a tela: esconde o cursor, liga as setas e a cor de destaque (par 1 = azul)."""
     try:
         curses.curs_set(0)
     except curses.error:
@@ -13,9 +16,11 @@ def setup(screen):
         curses.init_pair(1, curses.COLOR_BLUE, -1)
 
 def selected():
+    """Estilo da linha selecionada (azul, invertido, negrito)."""
     return (curses.color_pair(1) if curses.has_colors() else 0) | curses.A_REVERSE | curses.A_BOLD
 
 def text(screen, y, x, value, attr=0):
+    """Escreve um texto sem nunca estourar a tela (corta no fim da linha e troca caracteres invisíveis por "?")."""
     height, width = screen.getmaxyx()
     if 0 <= y < height and 0 <= x < width-1:
         clean = ''.join(c if c.isprintable() else '?' for c in str(value))
@@ -25,6 +30,7 @@ def text(screen, y, x, value, attr=0):
             pass
 
 def frame(screen, title):
+    """Limpa a tela e desenha a moldura com o título; devolve (altura, largura)."""
     screen.erase()
     height, width = screen.getmaxyx()
     accent = curses.color_pair(1) | curses.A_BOLD if curses.has_colors() else curses.A_BOLD
@@ -33,6 +39,7 @@ def frame(screen, title):
     return height, width
 
 def external(screen, args):
+    """Sai do curses, roda um programa externo no terminal e volta para a TUI."""
     import subprocess
     curses.def_prog_mode()
     curses.endwin()
@@ -43,6 +50,7 @@ def external(screen, args):
         present(screen)
 
 def page(screen, title, lines):
+    """Mostra uma lista de linhas só para leitura, com rolagem (j/k)."""
     offset = 0
     while True:
         height, _ = frame(screen, title)
@@ -67,6 +75,7 @@ _animations = None
 _last_title = None
 
 def animations_enabled():
+    """As animações da TUI só rodam no perfil Refined e se não foram desligadas."""
     if os.environ.get('RICE_NO_ANIMATIONS') == '1':
         return False
     if _animations is not None:
@@ -78,6 +87,7 @@ def animations_enabled():
         return False
 
 def toggle_animations():
+    """Liga/desliga as animações e grava a escolha (arquivo no-tui-animation)."""
     global _animations
     _animations = not animations_enabled()
     root = Path(os.environ.get('RICE_THEME_STATE', Path.home()/'.local/state/rice-minimal/theme'))
@@ -90,6 +100,7 @@ def toggle_animations():
     return _animations
 
 def present(screen):
+    """Envia para o terminal só o que mudou na tela."""
     screen.noutrefresh()
     curses.doupdate()
 
@@ -135,9 +146,11 @@ def choose(screen, title, entries, message='', initial=0):
             screen.erase()
 
 def confirm(screen, title, details):
+    """Pergunta Cancel/Confirm; True só se confirmar."""
     return choose(screen,title,['Cancel','Confirm'],details) == 1
 
 def input_text(screen,title,prompt):
+    """Campo de texto de uma linha; Enter aceita, Esc cancela (None)."""
     value = ''
     while True:
         h,w=frame(screen,title)

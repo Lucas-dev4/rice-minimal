@@ -1,4 +1,5 @@
 """Validated atomic edits, unique backups, conflict checks and restoration."""
+# safe_io.py — escrita segura do arquivo de atalhos usada pelo Supers e pelo LW.
 import fcntl
 import json
 import os
@@ -11,6 +12,7 @@ import time
 
 
 def lua_string(value):
+    """Texto → string Lua com aspas (formato JSON é válido em Lua); recusa caracteres de controle."""
     if any(ord(c) < 32 for c in value):
         raise ValueError('Caracteres de controle não são permitidos')
     return json.dumps(value, ensure_ascii=False)
@@ -18,6 +20,7 @@ def lua_string(value):
 
 def normalize_key(expr):
     # Only static expressions are editable. Loops/digitCode remain untouched.
+    """Combinação → forma comparável (modificadores em ordem + tecla); None se for dinâmica."""
     match = re.fullmatch(r'mainMod\s*\.\.\s*"([^"\\]*)"|"([^"\\]*)"', expr.strip())
     if not match:
         return None
@@ -27,6 +30,7 @@ def normalize_key(expr):
 
 
 def safe_write(path, original, replacement):
+    """Grava com trava, confere que ninguém mudou o arquivo, valida com luac, faz backup e troca atômica."""
     target = Path(path).expanduser()
     if target.is_symlink():
         raise ValueError('Recusando editar link simbólico')

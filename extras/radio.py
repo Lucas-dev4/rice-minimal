@@ -11,6 +11,8 @@
   radio.py add --name NAME --url URL
       Appends one [[station]] to radios.toml; the result must still parse.
 """
+# radio.py — rádios da aba RÁDIO do LW (gui/player/RadioScreen.qml chama este script).
+# Busca no radio-browser.info e lê/grava as estações salvas do cliamp em radios.toml.
 import argparse
 import json
 import os
@@ -28,10 +30,12 @@ TIMEOUT = 6
 
 
 def radios_path():
+    """Caminho do radios.toml do cliamp (respeita XDG_CONFIG_HOME)."""
     return Path(os.environ.get('XDG_CONFIG_HOME', Path.home()/'.config'))/'cliamp'/'radios.toml'
 
 
 def servers():
+    """Lista de servidores do radio-browser, descoberta pelo DNS, em ordem aleatória (divide a carga)."""
     names = set()
     for *_, address in socket.getaddrinfo('all.api.radio-browser.info', 443, proto=socket.IPPROTO_TCP):
         try:
@@ -44,6 +48,7 @@ def servers():
 
 
 def search(name='', tag='', limit=100):
+    """Busca estações por nome e/ou gênero; tenta cada servidor até um responder."""
     query = {'hidebroken': 'true', 'order': 'votes', 'reverse': 'true', 'limit': str(limit)}
     if name:
         query['name'] = name
@@ -69,6 +74,7 @@ def search(name='', tag='', limit=100):
 
 
 def saved():
+    """Estações já salvas no radios.toml."""
     path = radios_path()
     if not path.is_file():
         return {'path': str(path), 'stations': []}
@@ -78,12 +84,14 @@ def saved():
 
 
 def toml_string(value):
+    """Escapa um texto para TOML (aspas e acentos); recusa caracteres de controle."""
     if any(ord(c) < 32 for c in value):
         raise ValueError('caracteres de controle não são permitidos')
     return json.dumps(value, ensure_ascii=False)
 
 
 def add(name, url):
+    """Acrescenta uma estação ao radios.toml com escrita atômica, conferindo que o arquivo continua válido."""
     name, url = name.strip(), url.strip()
     if not name or not urllib.parse.urlparse(url).scheme in ('http', 'https'):
         raise ValueError('a estação precisa de nome e de uma URL http(s)')
@@ -103,6 +111,7 @@ def add(name, url):
 
 
 def main(argv=None):
+    """Linha de comando: search | saved | add. Sempre imprime um único JSON (ok/erro)."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='action', required=True)
     find = sub.add_parser('search')
