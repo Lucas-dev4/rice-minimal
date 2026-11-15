@@ -6,6 +6,9 @@ new file, saves a backup that scripts/restore.py can undo, writes everything,
 and rolls back on any failure. Paths are rendered for the current user and
 checkout, so the repository never needs /home/lucas to exist.
 """
+# install.py — instala o rice a partir deste repositório (python3 scripts/install.py [--apply|--check]).
+# Sem --apply só mostra o que mudaria. Com --apply: valida cada arquivo, faz backup em backups/install-*,
+# grava tudo e desfaz se algo falhar. Pacotes do sistema e a tela de login (sudo) ficam de fora.
 import argparse
 import configparser
 import datetime
@@ -70,16 +73,19 @@ THEME_KEYS = [
 def render(text):
     # The repository records the author's paths; install them for this user and checkout.
     # A placeholder keeps the checkout path from being rewritten twice.
+    """Troca os caminhos do autor (/home/lucas/...) pelos do usuário e da pasta atuais."""
     marker = '\0ROOT\0'
     return (text.replace('/home/lucas/Projetos/rice-minimal', marker)
             .replace('/home/lucas', str(HOME)).replace(marker, str(ROOT)))
 
 
 def read(path):
+    """Conteúdo do arquivo, ou None se não existir."""
     return path.read_text() if path.exists() else None
 
 
 def hook_installed(command):
+    """True se o post_command do Waypaper já é o gancho do tema."""
     return 'extras/theme/theme.py' in command and command.rstrip().endswith(' wallpaper')
 
 
@@ -168,6 +174,7 @@ def validate(path, text):
 
 
 def apply(changes, backups=ROOT/'backups'):
+    """Valida tudo, faz o backup e grava; em caso de erro devolve os arquivos originais."""
     for path, (text, _) in changes.items():
         validate(path, text)
     backup = backups/('install-'+datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f'))
@@ -211,6 +218,7 @@ def post_install():
     """Publish the palette and bring the running session up to date (best effort)."""
     steps = []
     def run(label, args):
+        """Roda um passo pós-instalação e anota OK/WARN."""
         result = subprocess.run(args, capture_output=True, text=True, cwd=ROOT)
         steps.append(f"{'OK' if result.returncode == 0 else 'WARN'}  {label}")
     run('theme files', [sys.executable, str(ROOT/'extras/theme/theme.py'), 'cached'])
@@ -228,6 +236,7 @@ def post_install():
 
 
 def main():
+    """Mostra o plano; com --apply instala, com --check só diz se falta algo (código de saída 1)."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--apply', action='store_true', help='write the changes (otherwise only list them)')
     parser.add_argument('--check', action='store_true', help='exit 1 when anything is not installed')

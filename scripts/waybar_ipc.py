@@ -14,6 +14,7 @@ import threading
 
 
 def translate(request):
+    """Converte comandos antigos de workspace da Waybar para a sintaxe nova do Hyprland."""
     text = request.decode()
     for command in ('workspace','focusworkspaceoncurrentmonitor'):
         prefix = 'dispatch '+command+' '
@@ -30,6 +31,7 @@ def translate(request):
 
 @contextmanager
 def compatible_environment():
+    """Cria um socket intermediário entre a Waybar e o Hyprland que traduz os comandos."""
     environment = os.environ.copy()
     runtime = Path(environment['XDG_RUNTIME_DIR'])/'hypr'
     actual = runtime/environment['HYPRLAND_INSTANCE_SIGNATURE']

@@ -12,6 +12,7 @@ from waybar_ipc import compatible_environment
 ROOT = Path(__file__).resolve().parents[1]
 
 def main():
+    """Inicia a Waybar do rice uma única vez por sessão (trava em XDG_RUNTIME_DIR) e a mantém rodando."""
     runtime = Path(os.environ['XDG_RUNTIME_DIR'])
     with (runtime / 'rice-minimal.lock').open('w') as lock:
         try:

@@ -5,6 +5,9 @@
   scripts/integrity.py           rewrite the list (same files, plus every gui/**/*.qml|js)
   scripts/integrity.py --check   only report files whose hash changed; exit 1 if any
 """
+# integrity.py — atualiza config/integrity.json (hash SHA-256 de cada arquivo gerenciado).
+# O "lw doctor" e os testes usam essa lista para saber se algo mudou sem passar por aqui.
+# Rode depois de editar qualquer arquivo do projeto; --check só mostra o que mudou.
 import hashlib
 import json
 import sys
@@ -15,12 +18,14 @@ LIST = ROOT/'config'/'integrity.json'
 
 
 def wanted(current):
+    """Arquivos que entram na lista: os já listados que existem + todos os .qml/.js da GUI."""
     names = {n for n in current if (ROOT/n).is_file()}
     names |= {str(p.relative_to(ROOT)) for p in ROOT.glob('gui/**/*') if p.suffix in ('.qml', '.js')}
     return sorted(names)
 
 
 def main(argv):
+    """Recalcula os hashes; grava (ou, com --check, só lista as diferenças)."""
     current = json.loads(LIST.read_text())
     fresh = {n: hashlib.sha256((ROOT/n).read_bytes()).hexdigest() for n in wanted(current)}
     changed = sorted(n for n in fresh if current.get(n) != fresh[n]) + sorted(n for n in current if n not in fresh)

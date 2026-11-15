@@ -11,6 +11,8 @@ full backups). Without --apply it only lists what would happen. With --apply it:
 Project code is never touched: it lives in git (git log, git checkout).
 The login screen has its own restorer: sudo sh /var/backups/rice-greeter/restore.sh
 """
+# restore.py — restaura um backup feito pelo install.py (python3 scripts/restore.py backups/<nome> [--apply]).
+# Confere o backup inteiro antes, salva o estado atual num backup de resgate e desfaz se algo falhar.
 import argparse
 import datetime
 import json
@@ -24,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BackupError(Exception):
+    """Erro de backup inválido ou incompleto."""
     pass
 
 
@@ -65,6 +68,7 @@ def snapshot(entries, state, rescue, home):
 
 
 def put(target, source):
+    """Coloca no lugar o arquivo do backup (ou apaga, se no backup ele não existia)."""
     if target.is_symlink() or target.exists():
         target.unlink()
     if source is not None:
@@ -73,6 +77,7 @@ def put(target, source):
 
 
 def restore(backup, *, home=None, reload=True):
+    """Restaura todos os arquivos do backup, com resgate e volta automática em caso de erro."""
     home = home or Path.home()
     backup = Path(backup).resolve()
     state = home/'.local/state/rice-minimal/theme'
@@ -115,6 +120,7 @@ def reload_session():
 
 
 def main():
+    """Sem --apply mostra o que mudaria; com --apply restaura."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('backup', type=Path)
     parser.add_argument('--apply', action='store_true', help='restore (otherwise only list what would change)')

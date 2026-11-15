@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 """Event-driven palette generation and the shared Waypaper/Noctalia bridge."""
+# theme.py — o motor de cores do rice. Quando o wallpaper muda (pelo Waypaper, LW ou TUI):
+# 1) gera a paleta com o Matugen a partir da imagem;  2) escreve os arquivos de tema de cada programa
+# (Kitty, Waybar, Fish, Neovim, Noctalia, yazi, cliamp, bloqueio...) numa pasta "geração" nova;
+# 3) troca o link "current" para ela de uma vez e avisa os programas para recarregar.
+# A geração anterior fica em "previous" (lw palette restore). Tudo sob a trava generation.lock.
+# Estado em ~/.local/state/rice-minimal/theme/.
 import argparse
 import colorsys
 import configparser
@@ -33,20 +39,24 @@ LOG_LIMIT = 256*1024
 TERMINAL_WORST_BACKGROUND = '#3a3a3a'  # dark terminal at 0.85 opacity over a white wallpaper
 
 def command(args, **kwargs):
+    """Roda um comando e devolve a saída; lança erro se falhar (limite de 30 s)."""
     return subprocess.run([str(a) for a in args], check=True, capture_output=True,
                           text=True, timeout=30, **kwargs).stdout.strip()
 
 def waypaper_settings():
+    """Seção [Settings] do config.ini do Waypaper."""
     cf = configparser.ConfigParser(interpolation=None)
     cf.read(WAYPAPER)
     return cf['Settings'] if cf.has_section('Settings') else {}
 
 def selected_wallpaper():
+    """O wallpaper escolhido no Waypaper (se o arquivo existir)."""
     value = waypaper_settings().get('wallpaper', '')
     path = Path(value).expanduser() if value else None
     return path if path and path.is_file() else None
 
 def current_wallpaper():
+    """O wallpaper que o Noctalia está mostrando agora (ou o do Waypaper como reserva)."""
     try:
         path = Path(command(['noctalia', 'msg', 'wallpaper-get'])).expanduser()
         if path.is_file():
@@ -56,6 +66,7 @@ def current_wallpaper():
     return selected_wallpaper()
 
 def library():
+    """Pasta de wallpapers configurada no Waypaper e se a busca é recursiva."""
     settings = waypaper_settings()
     folder = settings.get('folder', '')
     if not folder:
@@ -66,6 +77,7 @@ def library():
     return path, recursive
 
 def images():
+    """Todas as imagens da pasta de wallpapers, em ordem alfabética."""
     folder, recursive = library()
     extensions = {'.png', '.jpg', '.jpeg', '.webp', '.bmp', '.gif', '.tif', '.tiff'}
     return sorted((p for p in (folder.rglob('*') if recursive else folder.iterdir())
@@ -74,6 +86,7 @@ def images():
 @contextmanager
 def locked(timeout=None):
     # Not reentrant: flock on a second descriptor deadlocks the same process.
+    """Trava exclusiva do tema (uma mudança por vez). Não chame dentro de outro "with locked()"."""
     STATE.mkdir(parents=True, exist_ok=True)
     with (STATE/'generation.lock').open('a') as stream:
         if timeout is None:
@@ -92,6 +105,7 @@ def locked(timeout=None):
 
 def log_action(action, status, detail=''):
     # Shared history for the GUI; losing a line must never fail the change itself.
+    """Acrescenta uma linha ao histórico actions.jsonl (o painel LOG do LW lê dali)."""
     path = STATE/'actions.jsonl'
     try:
         STATE.mkdir(parents=True, exist_ok=True)
@@ -105,25 +119,30 @@ def log_action(action, status, detail=''):
         pass
 
 def read_palette():
+    """A paleta publicada atual, ou cores de emergência se não houver."""
     try:
         return json.loads((STATE/'current/palette.json').read_text())
     except (OSError, ValueError):
         return {'colors': FALLBACK.copy(), 'generator': 'static-emergency'}
 
 def rgb(color):
+    """"#rrggbb" → (r, g, b) entre 0 e 1; valida o formato."""
     if not re.fullmatch(r'#[0-9a-fA-F]{6}', color):
         raise ValueError(f'Invalid color: {color!r}')
     return tuple(int(color[i:i+2], 16)/255 for i in (1, 3, 5))
 
 def hexcolor(values):
+    """(r, g, b) entre 0 e 1 → "#rrggbb"."""
     return '#'+''.join(f'{max(0, min(255, round(v*255))):02x}' for v in values)
 
 def subdued(color, cap=0.23):
+    """Mesma cor com saturação limitada (o visual "pouco saturado" do rice)."""
     h, l, s = colorsys.rgb_to_hls(*rgb(color))
     return hexcolor(colorsys.hls_to_rgb(h, l, min(s, cap)))
 
 def vivid(color, saturation=.7, lightness=.72):
     # Keeps the wallpaper's hue but makes it readable as a color in terminal text.
+    """Mesma tonalidade, mas viva e clara o bastante para texto colorido no terminal."""
     h, _, s = colorsys.rgb_to_hls(*rgb(color))
     if s < .02:
         return color
@@ -137,6 +156,7 @@ def vivid(color, saturation=.7, lightness=.72):
 def image_hue(path):
     # Matugen picks its most suitable color, not the most present one, which can be
     # the opposite of what the image looks like. Weight each pixel by how colorful it is.
+    """Tonalidade dominante da imagem, dando mais peso aos pixels mais coloridos."""
     from PIL import Image
     with Image.open(path) as image:
         image = image.convert('RGB')
@@ -152,6 +172,7 @@ def image_hue(path):
     return {'hue':top*10+5, 'colorful':round(colorful/(len(data)//3), 3)}
 
 def terminal_accent(palette):
+    """A cor de destaque viva (terminal, LW, Waybar, Noctalia) a partir da tonalidade do wallpaper."""
     info = palette.get('terminal') or {}
     hue = info.get('hue')
     if hue is None:
@@ -168,22 +189,27 @@ def terminal_accent(palette):
 
 def terminal_colors(palette):
     # The vivid set: terminal text, LW, Waybar tints and Noctalia's accents.
+    """O conjunto de cores vivas usadas no texto do terminal e nos destaques."""
     c = palette['colors']
     return {**{k:vivid(c[k]) for k in ('green','yellow','blue','magenta','cyan')},
             'accent':terminal_accent(palette), 'red':vivid('#ff4040', .95, .68)}
 
 def sgr(color):
+    """Cor → código de escape ANSI de 24 bits (para o fish/fzf)."""
     return '38;2;'+';'.join(str(round(x*255)) for x in rgb(color))
 
 def luminance(color):
+    """Luminância relativa (fórmula do WCAG) — base do cálculo de contraste."""
     values = [v/12.92 if v <= 0.04045 else ((v+0.055)/1.055)**2.4 for v in rgb(color)]
     return sum(v*w for v, w in zip(values, (.2126, .7152, .0722)))
 
 def ratio(a, b):
+    """Contraste entre duas cores (1 a 21; 4.5 é o mínimo bom para texto)."""
     x, y = sorted((luminance(a), luminance(b)))
     return (y+.05)/(x+.05)
 
 def mix(a, b, amount):
+    """Mistura duas cores (amount 0 = só a primeira, 1 = só a segunda)."""
     return hexcolor(x*(1-amount)+y*amount for x, y in zip(rgb(a), rgb(b)))
 
 def bar_contrast(path, colors, size=(1920, 1080), tints=None):
@@ -198,6 +224,7 @@ def bar_contrast(path, colors, size=(1920, 1080), tints=None):
         samples = [hexcolor(v/255 for v in pixel) for pixel in strip.get_flattened_data()]
     values = [luminance(sample) for sample in samples]
     def scorer(region):
+        """Cria a função que mede o contraste de uma cor contra a faixa amostrada."""
         def score(color):
             lum = luminance(color)
             contrasts = sorted((max(lum,v)+.05)/(min(lum,v)+.05) for v in region)
@@ -212,6 +239,7 @@ def bar_contrast(path, colors, size=(1920, 1080), tints=None):
         hexcolor(colorsys.hls_to_rgb(h,l/100,.08)) for l in range(0,101,4)]
     tints = tints or {}
     def choose(scoring, tint=None):
+        """Escolhe a cor de texto da barra mais legível, mantendo a tonalidade do wallpaper se der."""
         foreground = max(candidates, key=scoring)
         accent = tint or subdued(colors['accent'])
         # Retain the wallpaper hue as far as the sampled background allows.
@@ -255,6 +283,7 @@ def bar_contrast(path, colors, size=(1920, 1080), tints=None):
             'sample': 'top 28px, cover, estimated module bounds, focused monitor'}
 
 def monitor_size():
+    """Tamanho lógico do monitor em foco (para recortar a faixa da barra igual à tela)."""
     try:
         monitors = json.loads(command(['hyprctl', '-j', 'monitors']))
         monitor = next((m for m in monitors if m.get('focused')), monitors[0])
@@ -267,6 +296,7 @@ def monitor_size():
 SCHEMES = ('scheme-neutral', 'scheme-tonal-spot', 'scheme-vibrant', 'scheme-expressive')
 
 def scheme():
+    """Esquema do Matugen escolhido (neutral, tonal-spot, vibrant, expressive)."""
     try:
         value = (STATE/'scheme').read_text().strip()
         return value if value in SCHEMES else SCHEMES[0]
@@ -274,6 +304,7 @@ def scheme():
         return SCHEMES[0]
 
 def set_scheme(value):
+    """Grava o esquema do Matugen escolhido."""
     if value not in SCHEMES:
         raise ValueError('Unknown scheme: '+value)
     temporary = STATE/'.scheme.tmp'
@@ -281,17 +312,20 @@ def set_scheme(value):
     temporary.replace(STATE/'scheme')
 
 def fingerprint(path):
+    """Identidade de wallpaper+esquema: se não mudou, a paleta em cache é reaproveitada."""
     stat = path.stat()
     # The default keeps its old tag, so palettes made before schemes existed stay cached.
     tag = 'neutral-v4' if scheme() == SCHEMES[0] else scheme()+'-v4'
     return hashlib.sha256(f'{path.resolve()}:{stat.st_size}:{stat.st_mtime_ns}:{tag}'.encode()).hexdigest()
 
 def generate(path):
+    """Roda o Matugen na imagem e monta a paleta escura do rice."""
     raw = command(['matugen', 'image', path, '--config', ROOT/'extras/theme/matugen.toml',
                    '--dry-run', '--json', 'hex', '--mode', 'dark',
                    '--type', scheme(), '--source-color-index', '0', '--quiet'])
     data = json.loads(raw)['colors']
     def color(name):
+        """Uma cor do Matugen, já com a saturação limitada."""
         return subdued(data[name]['dark']['color'])
     colors = dict(background=color('background'), foreground=color('on_surface'),
                   accent=color('primary'), muted=color('outline'), red=color('error'),
@@ -312,6 +346,7 @@ def generate(path):
                 created_ns=time.time_ns())
 
 def current_profile():
+    """Perfil atual: minimal ou refined."""
     try:
         profile = (STATE/'profile').read_text().strip()
         return profile if profile in ('minimal', 'refined') else 'minimal'
@@ -319,6 +354,7 @@ def current_profile():
         return 'minimal'
 
 def render(palette):
+    """Escreve o conteúdo de todos os arquivos de tema (Kitty, Waybar, Hyprland, fish, nvim, Noctalia...)."""
     c = palette['colors']
     for value in c.values():
         rgb(value)
@@ -446,12 +482,14 @@ prepend_conds = [
             'colors-wal.vim':wal, 'cliamp.toml':cliamp, 'yazi-theme.toml':yazi, 'palette.json':json.dumps(palette,indent=2)+'\n'}
 
 def link(name, target):
+    """Troca um link simbólico (current/previous) de forma atômica."""
     temporary = STATE/f'.{name}-{time.time_ns()}'
     temporary.symlink_to(target)
     os.replace(temporary, STATE/name)
 
 def prune(keep, limit=20):
     # Generations are cheap to rebuild; keep the newest ones and whatever is in use.
+    """Apaga gerações antigas (mantém as 20 mais novas e as que estão em uso)."""
     keep = {path for path in keep if path} | {(STATE/'previous').resolve()}
     folders = [p for p in STATE.glob('palette-*') if p.is_dir()]
     # Empty folders are failed publishes; they must not take one of the kept places.
@@ -462,6 +500,7 @@ def prune(keep, limit=20):
             shutil.rmtree(path, ignore_errors=True)
 
 def publish(palette):
+    """Cria uma geração nova com os arquivos, valida e aponta "current" para ela."""
     folder = Path(tempfile.mkdtemp(prefix='palette-', dir=STATE))
     for name, content in render(palette).items():
         (folder/name).write_text(content)
@@ -486,6 +525,7 @@ def publish(palette):
     return previous
 
 def reload_components():
+    """Avisa os programas para recarregar as cores (kitty, waybar, Noctalia, hyprland...)."""
     warnings = []
     if (STATE/'lock-enabled').exists():
         import lockscreen
@@ -529,6 +569,7 @@ def reload_components():
     return warnings
 
 def activate(palette, reload=True):
+    """Publica a paleta e recarrega; se a recarga falhar, volta para a geração anterior."""
     previous = publish(palette)
     if reload:
         try:
@@ -542,11 +583,13 @@ def activate(palette, reload=True):
     return []
 
 def save_status(**values):
+    """Grava o status.json (resultado da última mudança)."""
     temporary = STATE/f'.status-{time.time_ns()}'
     temporary.write_text(json.dumps(values, indent=2)+'\n')
     os.replace(temporary, STATE/'status.json')
 
 def regenerate(path=None, force=False, reload=True):
+    """Gera a paleta para o wallpaper (usa o cache se nada mudou, a não ser com force)."""
     path = path or current_wallpaper()
     if path is None:
         raise ValueError('No readable wallpaper was found')
@@ -570,6 +613,7 @@ def regenerate(path=None, force=False, reload=True):
     return palette['generator']
 
 def set_wallpaper(path):
+    """Pede ao Noctalia para mostrar um wallpaper."""
     path = Path(path).expanduser().resolve(strict=True)
     if not path.is_file():
         raise ValueError('Wallpaper is not a file')
@@ -584,6 +628,7 @@ def set_wallpaper(path):
 
 def sync_greeter(force=False):
     # scripts/restore_greeter.sh removes this flag to stop automatic syncing.
+    """Envia wallpaper e cores para a tela de login (se o envio automático estiver ligado)."""
     if not force and not (STATE/'greeter-sync').exists():
         log_action('greeter','SKIP','automatic sync is off')
         return 'disabled'
@@ -601,6 +646,7 @@ def sync_greeter(force=False):
 
 def greeter_status():
     # greeter-sync only acknowledges the request; the staged copy shows what was really sent.
+    """O que foi enviado para a tela de login e se ainda bate com o tema atual."""
     status = {'auto_sync':(STATE/'greeter-sync').exists(),'staged':False,'last_sync_ns':None,
               'image':None,'colors_match':None,'image_match':None}
     staged = GREETER_STAGE/'sync.toml'
@@ -622,6 +668,7 @@ def reveal(path):
     # Builds the new wallpaper in ASCII on screen (gui/reveal) and waits, briefly, until the
     # screen is covered so the swap underneath is unseen. Cosmetic: never fails the change.
     # Touch STATE/reveal-off to disable it.
+    """Animação ASCII ao trocar de wallpaper (só enfeite; nunca impede a troca)."""
     try:
         if (STATE/'reveal-off').exists() or not os.environ.get('WAYLAND_DISPLAY'):
             return
@@ -646,6 +693,7 @@ def reveal(path):
 
 def wallpaper_hook(path=None, wait=True):
     # Waypaper starts its hook before finishing its own config save.
+    """O gancho do Waypaper: aplica o wallpaper, gera a paleta e sincroniza o resto."""
     if wait:
         time.sleep(.3)
     with locked():
@@ -665,8 +713,10 @@ def wallpaper_hook(path=None, wait=True):
 
 def sync_all():
     # One lock for the whole flow; every step below must stay unlocked.
+    """SYNC ALL: wallpaper, paleta, bloqueio e greeter em ordem, sob uma única trava."""
     steps = []
     def step(name, status, detail=''):
+        """Registra o resultado de um passo (e no LOG)."""
         steps.append({'step':name,'status':status,'detail':str(detail)})
         log_action(name,status,detail)
     try:
@@ -698,11 +748,13 @@ def sync_all():
 
 def apply_choice(path):
     # Persist through Waypaper, then execute the very same hook synchronously.
+    """Aplica um wallpaper pelo Waypaper e roda o gancho na hora."""
     command(['waypaper','--wallpaper',path,'--no-post-command'])
     # Waypaper has already exited and saved, so there is nothing to wait for.
     return wallpaper_hook(path, wait=False)
 
 def restore_previous(reload=True):
+    """Volta para a geração de cores anterior."""
     with locked():
         previous = (STATE/'previous').resolve()
         current = (STATE/'current').resolve()
@@ -726,6 +778,7 @@ def restore_previous(reload=True):
         return previous.name
 
 def cached(restore_wallpaper=False):
+    """Republica a paleta atual sem rodar o Matugen (usado no login e na instalação)."""
     with locked():
         # Never execute Matugen during startup.
         try:
@@ -742,6 +795,7 @@ def cached(restore_wallpaper=False):
         return read_palette()['generator']
 
 def main():
+    """Linha de comando: wallpaper | regenerate | cached | restore | show | apply."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('action', choices=['wallpaper','regenerate','cached','restore','show','apply'])
     parser.add_argument('path', nargs='?')
