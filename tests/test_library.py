@@ -1,3 +1,4 @@
+# Testes do library.py: leitura de tags, cache e comparação de faixas online.
 import json
 import os
 import subprocess

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise real session components without logging out or restarting Hyprland."""
+# Teste na sessão real do scripts/session.py e da Waybar (manual).
 import json
 import os
 import signal

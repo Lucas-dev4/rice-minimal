@@ -1,4 +1,5 @@
 """Profile persistence, palette reuse and transactional rollback."""
+# Testes da troca de perfil minimal/refined e do desfazer em caso de erro.
 import sys
 from pathlib import Path
 import tempfile

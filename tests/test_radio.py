@@ -1,3 +1,4 @@
+# Testes do radio.py: estações salvas e gravação segura do radios.toml.
 import io
 import json
 import os

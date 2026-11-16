@@ -1,4 +1,5 @@
 """The installer renders paths, never clobbers user files and is transactional."""
+# Testes do scripts/install.py: plano, caminhos trocados para outro usuário, backup e desfazer.
 import configparser
 import importlib.util
 import os

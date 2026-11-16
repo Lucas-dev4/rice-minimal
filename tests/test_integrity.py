@@ -1,3 +1,4 @@
+# Confere que config/integrity.json está em dia (rode scripts/integrity.py depois de editar).
 import subprocess
 import sys
 import unittest

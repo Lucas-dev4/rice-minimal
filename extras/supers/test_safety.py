@@ -1,3 +1,4 @@
+# Testes da escrita segura do Supers (trava, validação com luac, backup).
 import importlib.machinery
 from pathlib import Path
 import tempfile

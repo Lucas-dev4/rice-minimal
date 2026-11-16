@@ -1,4 +1,5 @@
 """Visual safety, auth preservation, read-only diagnostics and single-session routing."""
+# Testes gerais do projeto (nomes, arquivos esperados, regras que não podem quebrar).
 import json
 from pathlib import Path
 import sys

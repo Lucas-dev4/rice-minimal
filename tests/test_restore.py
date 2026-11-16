@@ -1,4 +1,5 @@
 """restore.py checks first, keeps a restorable rescue and rolls back on failure."""
+# Testes do scripts/restore.py: restauração com resgate e volta automática.
 import importlib.util
 import json
 from pathlib import Path

@@ -1,3 +1,4 @@
+# Testes do lw bt: leitura da saída do bluetoothctl e montagem das linhas da tabela.
 import sys
 import unittest
 from pathlib import Path

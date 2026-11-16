@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Phase 4 live acceptance: profile persistence, wallpaper, UI surfaces and windows."""
+# Teste na sessão real do perfil Refined (manual).
 import json
 import os
 from pathlib import Path

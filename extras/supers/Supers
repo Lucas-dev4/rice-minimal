@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Supers — o editor de atalhos do Hyprland no terminal (comando "supers", Super+Ctrl+Alt+S).
+# Também é a base usada pela tela Shortcuts do LW (extras/shortcuts.py importa este arquivo).
+# Só edita atalhos estáticos; atalhos criados em laços ou com expressões ficam intactos.
 import os
 import re
 import sys
@@ -12,6 +15,7 @@ CONFIG_PATH = os.path.expanduser("~/.config/hypr/config/binds.lua")
 BACKUP_PATH = CONFIG_PATH + ".bak"
 
 def parse_binds(lines):
+    """Lê as linhas hl.bind(...) com Super e separa tecla e ação (respeitando parênteses, chaves e aspas)."""
     binds_info = []
     for i, line in enumerate(lines):
         if line.strip().startswith('hl.bind') and ('mainMod' in line or 'SUPER' in line):
@@ -71,6 +75,7 @@ def parse_binds(lines):
     return binds_info
 
 def format_lua_key(user_input):
+    """O que o usuário digitou ("super+shift+q") → tecla no formato Lua do binds.lua."""
     nk = re.sub(r'^(super|mainmod)\s*\+\s*', '', user_input.strip(), flags=re.IGNORECASE)
     nk = re.sub(r'\bshitf\b', 'SHIFT', nk, flags=re.IGNORECASE)
     nk = re.sub(r'\bshift\b', 'SHIFT', nk, flags=re.IGNORECASE)
@@ -84,6 +89,7 @@ def format_lua_key(user_input):
     return 'mainMod .. ' + lua_string(' + ' + nk)
 
 def main():
+    """Linha de comando: --check só valida; sem argumentos abre o editor em curses."""
     global CONFIG_PATH
     parser = argparse.ArgumentParser(description='Super: edita atalhos Lua estáticos; preserva loops e expressões dinâmicas.')
     parser.add_argument('config', nargs='?', default=CONFIG_PATH)

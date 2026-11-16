@@ -1,4 +1,5 @@
 """Legacy click requests retain workspace identity without injecting Lua."""
+# Testes da tradução de comandos de workspace da Waybar (scripts/waybar_ipc.py).
 from pathlib import Path
 import sys
 import unittest

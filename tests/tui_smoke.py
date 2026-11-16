@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise real curses UIs in a controlling PTY, without applying images."""
+# Teste rápido das TUIs em curses (abrem e fecham sem erro).
 import fcntl
 import json
 import os

@@ -1,3 +1,4 @@
+# Testes do games.py: scanners (Steam, Hydra, ROMs, PS4), merge sem perder dados, sessões, instaladores, IGDB.
 import io
 import json
 import os

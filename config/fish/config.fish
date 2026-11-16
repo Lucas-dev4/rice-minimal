@@ -1,3 +1,5 @@
+# config.fish — Fish do rice. Mantém a configuração do CachyOS e troca só a saudação e o prompt.
+# Instalado em ~/.config/fish/config.fish. As cores vêm de rice_theme_refresh (rice-adaptive.fish).
 source /usr/share/cachyos-fish-config/cachyos-config.fish
 
 # overwrite greeting
@@ -7,8 +9,10 @@ source /usr/share/cachyos-fish-config/cachyos-config.fish
 #end
 
 # Rice minimal: preserve CachyOS setup; replace only greeting and prompt.
+# Sem mensagem de boas-vindas.
 function fish_greeting
 end
+# Prompt: pasta atual na cor do wallpaper, código de erro entre colchetes se o último comando falhou, e " > ".
 function fish_prompt
     set -l last_status $status
     rice_theme_refresh
@@ -22,5 +26,6 @@ function fish_prompt
     printf ' > '
     set_color normal
 end
+# Nada no lado direito.
 function fish_right_prompt
 end

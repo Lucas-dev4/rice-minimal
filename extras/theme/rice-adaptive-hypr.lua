@@ -1,3 +1,5 @@
+-- rice-adaptive-hypr.lua — cores da borda das janelas, vindas da paleta do wallpaper.
+-- Carrega o hyprland.lua gerado pelo theme.py; se ainda não existir, usa cores fixas de reserva.
 -- Generated module contains colors and a 1px border only.
 local path = os.getenv("HOME") .. "/.local/state/rice-minimal/theme/current/hyprland.lua"
 local file = io.open(path, "r")

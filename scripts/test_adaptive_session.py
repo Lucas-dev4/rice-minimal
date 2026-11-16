@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Real-session acceptance tests, restoring the starting wallpaper on completion."""
+# Teste na sessão real: troca de wallpaper/paleta com Waybar e Hyprland rodando (manual).
 import json
 import os
 from pathlib import Path

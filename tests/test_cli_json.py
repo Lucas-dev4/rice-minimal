@@ -1,4 +1,5 @@
 """JSON envelope and launcher behaviour of the GUI command layer."""
+# Testes dos subcomandos "lw ... --json" (o contrato entre a GUI e o Python).
 import json
 import os
 from pathlib import Path

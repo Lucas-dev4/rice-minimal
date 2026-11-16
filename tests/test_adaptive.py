@@ -1,4 +1,5 @@
 """Failure, cache, rollback, file-name safety and contrast tests."""
+# Testes do motor de cores (theme.py): paleta, contraste, gerações, publicação e restauração.
 import importlib.util
 import json
 import os

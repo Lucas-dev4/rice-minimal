@@ -1,4 +1,6 @@
 #!/bin/bash
+# music-check.sh — teste de ponta a ponta da seção MÚSICA: abre o LW contra um cliamp de verdade,
+# num HOME temporário (não mexe no seu cliamp), e confere play, fila, volume e sessão.
 # LW // MUSIC control layer check: drives gui/Music.qml against a real cliamp through
 # the `lw` IPC hooks of gui/shell.qml (LW opened on MÚSICA). Isolated: generated tracks and a temporary
 # HOME, so the real ~/.config/cliamp (history, resume, socket) is never touched.

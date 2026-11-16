@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Real PTY navigation through every control module, without applying/locking."""
+# Teste na sessão real da TUI do lw (manual).
 import sys
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
