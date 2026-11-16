@@ -12,6 +12,7 @@ Column {
     property Item keyTarget: null
     signal edited()
 
+    // Põe o cursor no campo.
     function focusInput() { input.forceActiveFocus(); }
 
     spacing: 4

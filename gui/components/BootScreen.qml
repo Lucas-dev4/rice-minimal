@@ -11,6 +11,7 @@ Rectangle {
     property bool revealed: false
     signal finished()
 
+    // Termina a animação de abertura.
     function finish() {
         if (!visible || leaving.running)
             return;

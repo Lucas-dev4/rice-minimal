@@ -1,3 +1,4 @@
+// Visualizer.qml — o visualizador de áudio (barras/onda), desenhado com os níveis do Spectrum.qml.
 import QtQuick
 import QtQuick.Shapes
 import Quickshell
@@ -30,6 +31,7 @@ Item {
     property var peaks: []
     property double started: Date.now()
 
+    // Avança a animação um quadro (suaviza a subida e a queda das barras).
     function step() {
         const n = count, t = (Date.now() - started) / 1000;
         const next = shown.length === n ? shown.slice() : new Array(n).fill(0);
@@ -196,6 +198,7 @@ Item {
         visible: root.mode === "wave"
         preferredRendererType: Shape.CurveRenderer
         property var points: []
+        // Redesenha a onda.
         function update() {
             const W = width, H = height, n = root.shown.length, t = (Date.now() - root.started) / 1000;
             const steps = Math.max(40, Math.floor(W / 6)), out = [];

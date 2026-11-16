@@ -12,7 +12,9 @@ Rectangle {
     readonly property bool shown: l !== null
     readonly property bool failed: !!(l && l.error)
 
+    // Fecha a tela de lançamento.
     function dismiss() { Games.launching = null; }
+    // Qualquer tecla fecha quando o jogo já abriu ou falhou.
     function handleKey(event) { if (!shown) return false; if (failed || (l && l.detected)) dismiss(); return true; }
 
     visible: opacity > 0

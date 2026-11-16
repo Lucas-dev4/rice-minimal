@@ -1,3 +1,5 @@
+// EqScreen.qml — tela EQ (MÚSICA): equalizador de 10 bandas do cliamp com curva de resposta,
+// presets e transição suave entre eles. Setas escolhem a banda e o ganho.
 import QtQuick
 import Quickshell.Io
 import qs
@@ -37,7 +39,9 @@ Item {
         ["Late Night", [5, 3, 1, 0, -2, -1, 0, 2, 3, 3]], ["Podcast", [-3, -1, 2, 4, 4, 3, 1, -1, -2, -3]],
         ["Small Speakers", [7, 5, 4, 2, 1, 0, -1, 0, 1, 2]]
     ]
+    // True se os ganhos são iguais (arredondados) aos de um preset.
     function same(a, b) { return a.length === b.length && a.every((v, i) => Math.round(v) === b[i]); }
+    // Frequência → rótulo ("1k", "250").
     function label(f) { return f >= 1000 ? f / 1000 + "k" : String(f); }
 
     // cliamp follows unless we are in the middle of a change.
@@ -48,6 +52,7 @@ Item {
 
     // ---- sending ------------------------------------------------------------
     property var dirty: ({})
+    // Muda o ganho de uma banda (envia ao cliamp com um pequeno atraso).
     function setGain(band, value) {
         const v = Math.max(-12, Math.min(12, Math.round(value)));
         if (gains[band] === v) return;
@@ -83,17 +88,20 @@ Item {
         onFinished: root.finishMorph()
     }
     property string morphName: ""
+    // Aplica um preset com animação.
     function apply(values, name) {
         from = gains.slice();
         to = values.slice();
         morphName = name || "";
         morph.restart();
     }
+    // Fim da animação: envia os valores finais.
     function finishMorph() {
         gains = to.slice();
         if (morphName) Music.setPreset(morphName);
         else to.forEach((v, i) => { if (Music.eqBands[i] !== v) Music.setBand(i, v); });
     }
+    // Liga/desliga o equalizador (tudo em 0 dB e volta).
     function bypass() {
         if (bypassed) {
             apply(saved);
@@ -108,6 +116,7 @@ Item {
     onSavedChanged: if (storeLoaded) store.setText(JSON.stringify({ saved: saved }) + "\n")
     property bool storeLoaded: false
 
+    // Teclas da tela.
     function handleKey(event) {
         const t = event.text;
         if (event.key === Qt.Key_Left) { focusBand = Math.max(0, focusBand - 1); return true; }
@@ -197,6 +206,7 @@ Item {
             onGChanged: requestPaint()
             onWidthChanged: requestPaint()
             Connections { target: Theme; function onAccentChanged() { curve.requestPaint(); } }
+            // Ganho da curva numa frequência (soma das bandas).
             function responseDb(f) {
                 const sr = 44100;
                 let total = 0;
@@ -321,6 +331,7 @@ Item {
                     width: 26
                     height: parent.height - 44
                     readonly property real zeroY: height / 2
+                    // dB → posição vertical no gráfico.
                     function yOf(dB) { return (12 - dB) / 24 * height; }
                     Rectangle { anchors.horizontalCenter: parent.horizontalCenter; width: 1; height: parent.height; color: Theme.line2 }
                     Repeater {
@@ -370,6 +381,7 @@ Item {
                         anchors.margins: -6
                         hoverEnabled: true
                         cursorShape: Qt.SizeVerCursor
+                        // Posição vertical → dB (arrastar o controle).
                         function valueAt(y) { return 12 - (y - 6) / track.height * 24; }
                         onPressed: mouse => { root.holding = true; root.focusBand = band.index; root.saved = null; root.setGain(band.index, valueAt(mouse.y)); }
                         onPositionChanged: mouse => { if (pressed) root.setGain(band.index, valueAt(mouse.y)); }

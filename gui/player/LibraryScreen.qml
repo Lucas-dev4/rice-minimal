@@ -1,3 +1,5 @@
+// LibraryScreen.qml — tela BIBLIOTECA (MÚSICA): todas as músicas de ~/Músicas com busca por
+// título, artista, álbum, gênero e letra (dados de extras/library.py scan).
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -24,7 +26,9 @@ Item {
     // Plain text matches anywhere; artista:/álbum:/gênero:/ano:/letra: narrow it to one tag.
     readonly property var fields: ({ "artista": "artist", "artist": "artist", "álbum": "album", "album": "album",
                                      "gênero": "genre", "genero": "genre", "ano": "year", "título": "title", "titulo": "title", "letra": "lyrics" })
+    // Texto em minúsculas e sem acentos (busca).
     function fold(s) { return String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+    // Aplica a busca e monta a lista visível.
     function filter() {
         const words = fold(box.text).split(/\s+/).filter(w => w);
         results.clear();
@@ -44,18 +48,23 @@ Item {
         revision++;
         view.positionViewAtBeginning();
     }
+    // Segundos → "m:ss".
     function clock(seconds) {
         if (!seconds) return "";
         const s = Math.floor(seconds);
         return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
     }
+    // Move a seleção.
     function moveCursor(step) {
         if (!results.count) return;
         cursor = Math.max(0, Math.min(results.count - 1, cursor + step));
         view.positionViewAtIndex(cursor, ListView.Contain);
     }
+    // Toca a música agora.
     function play(t) { if (t) { Music.playPath(t.path); Status.say("[ ▶ ] " + t.title + " — " + t.artist, Theme.ok); } }
+    // Põe a música na fila.
     function enqueue(t) { if (t) { Music.addPath(t.path); Status.say("[ + ] " + t.title + " na fila", Theme.ok); } }
+    // Põe todos os resultados da busca na fila.
     function enqueueAll() {
         const queued = new Set(Music.playlist.map(t => t.path));
         let n = 0;
@@ -67,6 +76,7 @@ Item {
     }
     // Test hook (music IPC `query`): sets the search text.
     function query(text) { box.text = text; }
+    // Teclas da tela (Enter toca, a põe na fila, A todos).
     function handleKey(event) {
         const t = event.text;
         if (event.key === Qt.Key_Slash) { box.focusInput(); return true; }
@@ -78,6 +88,7 @@ Item {
         return false;
     }
 
+    // Relê a biblioteca.
     function scan() {
         if (scanner.running) return;
         loading = true;

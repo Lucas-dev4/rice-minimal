@@ -1,3 +1,4 @@
+// RiceCommand.qml — roda "lw ... --json" e entrega o resultado já decodificado (usado por todas as telas).
 import QtQuick
 import Quickshell.Io
 import qs
@@ -12,6 +13,7 @@ Process {
     property int pending: 0
     property int code: 0
 
+    // Roda o comando lw com esses argumentos.
     function call(args) {
         if (running)
             return;
@@ -20,6 +22,7 @@ Process {
         running = true;
     }
 
+    // Lê uma linha do modo stream (uma resposta por linha).
     function step() {
         if (--pending > 0)
             return;

@@ -1,3 +1,5 @@
+// GreeterScreen.qml — tela Greeter (SISTEMA): compara o que foi enviado à tela de login com o tema atual,
+// envia na hora e liga/desliga o envio automático (lw greeter status|sync|auto).
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -18,14 +20,18 @@ Item {
     readonly property var hints: [["s", "sync"], ["a", "auto"]]
     readonly property bool imageMatch: info.image_match === true
 
+    // Relê o estado do greeter.
     function refresh() { reader.call(["greeter", "status", "--json"]); }
+    // Envia o tema atual para a tela de login.
     function sync() {
         if (syncing) return;
         syncing = true;
         Status.start("syncing greeter");
         syncer.call(["greeter", "sync", "--json"]);
     }
+    // Liga/desliga o envio automático.
     function toggleAuto() { toggler.call(["greeter", "auto", info.auto_sync ? "off" : "on", "--json"]); }
+    // Há quanto tempo ("há 5 min").
     function ago(ns) {
         if (!ns) return "";
         const m = Math.floor((now.getTime() - ns / 1e6) / 60000);
@@ -40,6 +46,7 @@ Item {
             .replace(/%Y/g, Qt.formatDate(d, "yyyy")).replace(/%H/g, Qt.formatTime(d, "hh")).replace(/%M/g, Qt.formatTime(d, "mm"));
     }
 
+    // Teclas da tela (s enviar, a automático).
     function handleKey(event) {
         switch (event.key) {
         case Qt.Key_S: sync(); return true;

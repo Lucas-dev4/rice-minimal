@@ -1,3 +1,5 @@
+// OnlineScreen.qml — tela ONLINE (MÚSICA): busca no YouTube (yt-dlp) e no SoundCloud (cliamp).
+// / busca, Tab troca a fonte, Enter toca agora, a põe como próxima.
 import QtQuick
 import Quickshell.Io
 import qs
@@ -33,7 +35,9 @@ Item {
     property int cursor: 0
     readonly property var selected: results[cursor] || null
 
+    // Ordem das fontes na lista.
     function rank(key) { const i = order.indexOf(key); return i < 0 ? order.length : i; }
+    // Pergunta ao cliamp quais fontes online existem.
     function loadProviders() {
         if (!Music.online) return;
         Music.call("provider.list", {}, result => {
@@ -45,6 +49,7 @@ Item {
             if (!list.some(p => p.key === provider)) provider = list.length ? list[0].key : "";
         });
     }
+    // Faz a busca na fonte escolhida.
     function search() {
         const query = box.text.trim();
         if (!query || !provider) return;
@@ -68,33 +73,40 @@ Item {
             view.positionViewAtBeginning();
         }, 30000);
     }
+    // Passa para a próxima fonte (Tab).
     function cycleProvider() {
         if (providers.length < 2) return;
         const i = providers.findIndex(p => p.key === provider);
         provider = providers[(i + 1) % providers.length].key;
         if (lastQuery) search();
     }
+    // "Artista — Título" de um resultado.
     function label(track) { return [track.artist, track.title].filter(x => x).join(" — ") || track.path; }
+    // Toca um resultado agora.
     function play(track) {
         if (!track) return;
         Music.playTrack(track);
         Status.say("[ ▶ ] " + label(track), Theme.ok);
     }
+    // Põe um resultado como próxima faixa.
     function queueNext(track) {
         if (!track) return;
         Music.queueTrack(track);
         Status.say("[ + ] próxima: " + label(track), Theme.accent);
     }
+    // Segundos → "m:ss".
     function duration(seconds) {
         const s = Math.round(Number(seconds) || 0);
         if (s <= 0) return "—";
         return (s >= 3600 ? Math.floor(s / 3600) + ":" + String(Math.floor(s / 60) % 60).padStart(2, "0") : Math.floor(s / 60)) + ":" + String(s % 60).padStart(2, "0");
     }
+    // Move a seleção.
     function moveCursor(step) {
         if (!results.length) return;
         cursor = Math.max(0, Math.min(results.length - 1, cursor + step));
         view.positionViewAtIndex(cursor, ListView.Contain);
     }
+    // Teclas da tela.
     function handleKey(event) {
         const t = event.text;
         if (event.key === Qt.Key_Slash) { box.focusInput(); return true; }

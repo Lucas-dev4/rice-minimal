@@ -1,3 +1,4 @@
+// ProfilesScreen.qml — tela Profiles (SISTEMA): alterna Minimal/Refined e mostra só o que muda entre eles.
 import QtQuick
 import qs
 import qs.components
@@ -19,6 +20,7 @@ Item {
     readonly property var hints: [["←→", "escolher"], ["⏎", "apply"], ["r", "restore"]]
     readonly property bool busy: changer.running
 
+    // Linha da tabela de diferenças para essa configuração.
     function row(name) { return rows.find(r => r.setting === name) || null; }
     // Workspace slide duration in ms, from the real table ("slide 160 ms" -> 160).
     function slideMs(profile) {
@@ -26,6 +28,7 @@ Item {
         const m = r ? /(\d+)\s*ms/.exec(r[profile]) : null;
         return m ? parseInt(m[1]) : 0;
     }
+    // Resumo em texto do perfil.
     function describe(profile) {
         const ws = row("workspace switch");
         const anim = profile === "minimal" ? "Shell animations off." : "Shell animations on.";
@@ -33,6 +36,7 @@ Item {
         return anim + "\n" + (ws[profile] === "instant" ? "Instant workspace changes." : ws[profile].replace(/^\w/, c => c.toUpperCase()) + " workspace transition.");
     }
 
+    // Aplica o perfil escolhido.
     function apply() {
         const name = names[selected];
         if (busy || name === info.profile)
@@ -40,6 +44,7 @@ Item {
         Status.start("switching to " + name);
         changer.call(["profile", "set", name, "--json"]);
     }
+    // Volta ao perfil anterior.
     function restore() {
         if (busy || !info.previous || info.previous === info.profile)
             return;
@@ -47,6 +52,7 @@ Item {
         changer.call(["profile", "restore", "--json"]);
     }
 
+    // Teclas da tela.
     function handleKey(event) {
         switch (event.key) {
         case Qt.Key_Left: selected = 0; return true;
@@ -58,6 +64,7 @@ Item {
     }
 
     Component.onCompleted: reader.call(["profile", "get", "--json"])
+    // Algo mudou fora: relê o perfil.
     function externalChange() { reader.call(["profile", "get", "--json"]); }
 
     RiceCommand {

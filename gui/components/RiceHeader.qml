@@ -21,6 +21,7 @@ Item {
     readonly property string noise: "!<>-_\\/[]{}=+*^?#░▒"
     property int frame: 14
 
+    // Texto embaralhado da animação de título.
     function scrambled() {
         if (frame >= 14)
             return title;

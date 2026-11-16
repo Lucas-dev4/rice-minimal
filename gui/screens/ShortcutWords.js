@@ -14,14 +14,17 @@ var SYMBOL = {
 var ARROW = { left: "←", l: "←", right: "→", r: "→", up: "↑", u: "↑", down: "↓", d: "↓" };
 var SIDE = { left: "à esquerda", l: "à esquerda", right: "à direita", r: "à direita", up: "acima", u: "acima", down: "abaixo", d: "abaixo" };
 
+// Divide a combinação em partes ("SUPER + Q" → ["SUPER", "Q"]).
 function tokens(key) {
     return key.split("+").map(function (t) { return t.trim(); }).filter(function (t) { return t !== ""; });
 }
 
+// Símbolo curto de uma tecla especial.
 function symbol(token) {
     return SYMBOL[token] || SYMBOL[token.toUpperCase()] || token;
 }
 
+// True se é modificador (Super, Shift, Ctrl, Alt).
 function isMod(token) {
     return MODS.indexOf(token.toUpperCase()) >= 0 || token.toUpperCase() === "CTRL";
 }
@@ -37,16 +40,19 @@ function normal(key) {
     return mods.concat(rest).join("+");
 }
 
+// Lê um campo nomeado da ação Lua.
 function field(action, name) {
     var m = new RegExp(name + "\\s*=\\s*\"([^\"]*)\"").exec(action);
     return m ? m[1] : null;
 }
 
+// O primeiro texto entre aspas da ação.
 function quoted(action) {
     var m = /"([^"]*)"\s*\)?\s*$/.exec(action) || /"([^"]*)"/.exec(action);
     return m ? m[1] : null;
 }
 
+// Nome do programa de um comando.
 function program(command) {
     var words = command.trim().split(/\s+/);
     var e = words.indexOf("-e");
@@ -54,6 +60,7 @@ function program(command) {
     return name.split("/").pop();
 }
 
+// Descrição de uma ação de workspace ("ir para o workspace 3").
 function workspaceText(target, moving) {
     var verb = moving ? "Mover p/ " : "";
     if (target === "m+1" || target === "+1" || target === "e+1") return moving ? "Mover p/ próximo workspace" : "Próximo workspace";
@@ -125,12 +132,14 @@ var ALIAS = (function () {
 // Words that only switch something on or off: "ligar wifi" is the same toggle as "wifi".
 var TOGGLE = ["ligar", "liga", "desligar", "desliga", "ativar", "ativa", "desativar", "desativa", "alternar"];
 
+// Chave de busca de uma frase pronta.
 function phraseKey(text) {
     return String(text).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         .split(/[^a-z0-9\/-]+/).filter(function (w) { return w && STOP.indexOf(w) < 0 && TOGGLE.indexOf(w) < 0; })
         .map(function (w) { return ALIAS[w] || w; }).sort().join(" ");
 }
 
+// Frase pronta para um comando conhecido.
 function findPhrase(text) {
     var key = phraseKey(text);
     if (!key) return null;
@@ -160,6 +169,7 @@ function phraseFor(command) {
     return null;
 }
 
+// Exemplos para a ajuda.
 function phraseExamples() {
     return ["aumentar o som", "diminuir o som", "mutar", "pausar música", "próxima música", "print da tela", "abrir navegador"];
 }
@@ -231,6 +241,7 @@ function keyName(event) {
     return code ? "code:" + code : "";
 }
 
+// Modificadores ativos → nomes.
 function modifierNames(modifiers) {
     var out = [];
     if (modifiers & 0x10000000) out.push("SUPER");     // Qt.MetaModifier
@@ -240,6 +251,7 @@ function modifierNames(modifiers) {
     return out;
 }
 
+// True se a tecla pressionada é só um modificador.
 function isModifierKey(k) {
     // Shift, Control, Meta, Alt, Super_L/R, Hyper
     return [0x01000020, 0x01000021, 0x01000022, 0x01000023, 0x01000053, 0x01000054, 0x01000056, 0x01001103].indexOf(k) >= 0;

@@ -24,6 +24,7 @@ Rectangle {
         for (const c of String(s)) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
         return h;
     }
+    // Iniciais do título para o quadro sem capa.
     function initials(t) {
         return String(t).split(/\s+/).filter(w => /^[A-Za-zÀ-ú0-9]/.test(w)).slice(0, 2).map(w => w[0].toUpperCase()).join("");
     }

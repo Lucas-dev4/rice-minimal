@@ -1,3 +1,4 @@
+// Spectrum.qml — singleton do visualizador de áudio (barras), alimentado pelo cava.
 pragma Singleton
 import QtQuick
 import Quickshell

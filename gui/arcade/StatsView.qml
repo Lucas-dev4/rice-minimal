@@ -12,12 +12,16 @@ Item {
     property Item keyTarget: null
     property string title: ""
     readonly property var hints: [["clique", "abre no IGDB"], ["alt 1-3", "seção"]]
+    // Esta tela não usa teclas próprias.
     function handleKey(event) { return false; }
 
     readonly property var games: Games.games.filter(g => !g.missing)
     readonly property double nowS: Date.now() / 1000
+    // Horas → texto.
     function hours(h) { return h > 0 ? (h < 10 ? h.toFixed(1).replace(/\.0$/, "") : String(Math.round(h))) + " h" : "—"; }
+    // Timestamp → dd/MM/yy.
     function day(stamp) { return stamp ? Qt.formatDate(new Date(stamp * 1000), "dd/MM/yy") : "—"; }
+    // Título normalizado para comparar.
     function norm(t) { return String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 
     readonly property var sessions: games.reduce((all, g) => all.concat((g.sessions || []).filter(s => s.end)), [])

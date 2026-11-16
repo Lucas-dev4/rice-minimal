@@ -1,3 +1,4 @@
+// PlaylistScreen.qml — tela FILA (MÚSICA): a fila do cliamp; reordenar (Shift+setas), remover, abrir arquivos.
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -22,17 +23,20 @@ Item {
     // Durations come from ffprobe, a few at a time.
     onRowsChanged: { for (const t of Music.playlist) Music.requestInfo(t.path); }
 
+    // Segundos → "m:ss".
     function clock(seconds) {
         if (!isFinite(seconds) || seconds <= 0) return "";
         const s = Math.floor(seconds);
         const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
         return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s % 60).padStart(2, "0");
     }
+    // Duração de uma faixa (das tags lidas pelo ffprobe).
     function durationOf(t) {
         if (Music.sourceOf(t.path) !== "local") return "LIVE";
         const i = Music.infos[t.path];
         return i ? clock(i.duration) : "";
     }
+    // Move a seleção.
     function moveCursor(step) {
         const list = rows;
         if (!list.length) return;
@@ -49,6 +53,7 @@ Item {
         Music.moveTrack(cursor, to);
         cursor = to;
     }
+    // Tira a faixa da fila.
     function remove() {
         if (!selected) return;
         const name = selected.title || Music.fileName(selected.path);
@@ -56,11 +61,13 @@ Item {
         Status.say("[ - ] " + name + " saiu da fila (o arquivo continua no disco)", Theme.dim);
         cursor = Math.max(0, Math.min(cursor, Music.playlist.length - 2));
     }
+    // Abre o seletor de arquivos para adicionar.
     function openFiles() {
         if (picker.running) return;
         picker.running = true;
     }
 
+    // Teclas da tela.
     function handleKey(event) {
         const t = event.text;
         const shift = event.modifiers & Qt.ShiftModifier;

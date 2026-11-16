@@ -10,6 +10,7 @@ Rectangle {
     property string placeholder: "search"
     signal accepted()
 
+    // Põe o cursor na busca.
     function focusInput() { input.forceActiveFocus(); }
 
     implicitWidth: 230

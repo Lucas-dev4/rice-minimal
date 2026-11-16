@@ -8,6 +8,11 @@ import qs.components
 import qs.player
 import qs.arcade
 
+// shell.qml — a janela principal do LW (Quickshell). Barra lateral com as três seções
+// (SISTEMA, MÚSICA, JOGOS), a área da tela escolhida, o rodapé de status e o painel LOG.
+// Cada tela fica num arquivo: screens/ (SISTEMA), player/ (MÚSICA) e arcade/ (JOGOS).
+// Os atalhos do Hyprland chegam aqui pelo IPC "lw" (bloco IpcHandler abaixo).
+//
 // LW — one window for the whole system: SISTEMA (wallpapers, shortcuts, profiles…),
 // MÚSICA (cliamp) and JOGOS (library, backlog, play sessions). Opened by `lw gui`,
 // `lw music` and `lw games` (Super+BackSpace / Super+M / Super+G) on that section.
@@ -67,8 +72,11 @@ FloatingWindow {
     // Ctrl+J hides the window without closing it (music keeps playing, a game session keeps
     // counting); the same Super shortcut brings it back (`lw` asks `hidden` first).
     property bool parked: false
+    // Ctrl+J: esconde a janela sem parar nada (música e jogo continuam).
     function park() { parked = true; visible = false; }
+    // Mostra de novo a janela escondida.
     function unpark() { visible = true; parked = false; keys.forceActiveFocus(); }
+    // True se a tecla é Ctrl+J.
     function isPark(event) { return event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier); }
 
     // Closing on MÚSICA stops cliamp (its session is saved: it comes back paused there);
@@ -78,11 +86,13 @@ FloatingWindow {
         Qt.quit();
     }
 
+    // Abre a tela de número index dentro da seção atual.
     function select(index) {
         const next = lastScreen.slice();
         next[group] = Math.max(0, Math.min(screens.length - 1, index));
         lastScreen = next;
     }
+    // Troca de seção: 0 SISTEMA, 1 MÚSICA, 2 JOGOS (Alt+1/2/3).
     function selectGroup(index) {
         if (index < 0 || index >= groups.length || index === group) return;
         sheet.close();
@@ -92,23 +102,32 @@ FloatingWindow {
     }
     // MÚSICA starts cliamp when it is off; JOGOS scans the libraries once per window.
     property bool scanned: false
+    // Ao entrar numa seção: MÚSICA liga o cliamp, JOGOS faz o scan de jogos.
     function enterGroup() {
         if (inMusic) Music.wanted = true;
         if (inGames && !scanned) { scanned = true; Games.scan(true); }
     }
+    // Fecha a ficha e inicia o jogo.
     function launchGame(id) { sheet.close(); Games.launch(id); }
 
     IpcHandler {
         target: "lw"
         function close(): void { window.quit(); }
+        // IPC: "yes" se a janela está escondida (Ctrl+J).
         function hidden(): string { return window.parked ? "yes" : "no"; }
+        // IPC: mostra a janela escondida.
         function reveal(): void { window.unpark(); }
         // The section shown now: system, music or games.
         function section(): string { return window.groupKey; }
+        // IPC: vai para uma seção pelo nome (usado pelos atalhos Super+BackSpace/M/G).
         function go(name: string): void { window.selectGroup(window.groups.findIndex(g => g.key === name)); }
+        // IPC: abre uma tela da seção atual.
         function open(index: int): void { window.select(index); }
+        // IPC: mostra/esconde o painel LOG.
         function toggleLog(): void { log.visible = !log.visible; }
+        // IPC: salva um print da janela (testes).
         function shot(path: string): void { content.grabToImage(result => result.saveToFile(path)); }
+        // IPC: simula uma tecla (testes automáticos).
         function key(name: string): void {
             const named = { Return: Qt.Key_Return, Escape: Qt.Key_Escape, Left: Qt.Key_Left, Right: Qt.Key_Right, Up: Qt.Key_Up, Down: Qt.Key_Down,
                             Tab: Qt.Key_Tab, Slash: Qt.Key_Slash, Space: Qt.Key_Space, Plus: Qt.Key_Plus, Minus: Qt.Key_Minus, Equal: Qt.Key_Equal };
@@ -122,12 +141,15 @@ FloatingWindow {
             const code = named[last] || last.toUpperCase().charCodeAt(0);
             window.handle({ key: code, text: named[last] ? (texts[last] || "") : last, modifiers: modifiers, accepted: false });
         }
+        // IPC: digita uma busca na tela atual (testes).
         function query(text: string): string {
             if (!screen.item || !screen.item.query) return "this view has no search";
             screen.item.query(text);
             return "ok";
         }
+        // IPC: abre a ficha de um jogo (vazio fecha).
         function openSheet(id: string): string { if (id) sheet.openGame(id); else sheet.close(); return "ok"; }
+        // IPC: abre a tela INSTALAR de JOGOS.
         function installer(): void { window.selectGroup(2); installSheet.openSheet(); }
         // Scriptable state and actions (scripts/music-check.sh, tests).
         function state(): string {
@@ -142,6 +164,7 @@ FloatingWindow {
                 games: Games.games.length, scanning: Games.scanning, session: Games.session, message: Status.message
             });
         }
+        // IPC: executa uma ação de música pelo nome (testes).
         function act(op: string, arg: string): string {
             const n = parseFloat(arg);
             switch (op) {
@@ -308,6 +331,7 @@ FloatingWindow {
     }
 
     readonly property string wallpaper: status.wallpaper ? (status.wallpaper.effective || "") : ""
+    // Segundos → "m:ss" ou "h:mm:ss".
     function elapsed(t) {
         return (t >= 3600 ? Math.floor(t / 3600) + ":" + String(Math.floor(t % 3600 / 60)).padStart(2, "0") : Math.floor(t / 60)) + ":" + String(t % 60).padStart(2, "0");
     }

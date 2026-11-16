@@ -1,3 +1,5 @@
+// GameSheet.qml — a ficha do jogo (abre por cima da lista): status, progresso, horas, notas,
+// e como o jogo roda (proton-ge, gamescope/fsr, mangohud, gamemode). Cada mudança vira Games.set().
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -18,16 +20,23 @@ Item {
     property int bottomInset: 0          // the status bar stays visible below the sheet
     signal launch(string id)
 
+    // Abre a ficha desse jogo.
     function openGame(id) { gameId = id; }
+    // Fecha a ficha e devolve o foco à lista.
     function close() { gameId = ""; if (keyTarget) keyTarget.forceActiveFocus(); }
+    // Horas → texto ("3.5 h").
     function hours(h) { return h ? (h < 10 ? h.toFixed(1).replace(/\.0$/, "") : Math.round(h)) + " h" : "0 h"; }
+    // Muda o status do jogo.
     function setStatus(status) {
         const pairs = ["status=" + status];
         if (status === "done") pairs.push("progress=100");
         Games.set(gameId, pairs, game.title + " → " + Games.statusLabel[status]);
     }
+    // Ajusta o progresso em passos (0–100%).
     function nudgeProgress(step) { Games.set(gameId, ["progress=" + Math.max(0, Math.min(100, (game.progress || 0) + step))]); }
+    // Passa para o próximo status.
     function cycleStatus() { setStatus(Games.statuses[(Games.statuses.indexOf(game.status) + 1) % Games.statuses.length]); }
+    // Teclas da ficha (Enter joga, s status, setas progresso, Esc fecha).
     function handleKey(event) {
         if (!shown) return false;
         if (notes.activeFocus || est.inputFocus) return false;
@@ -193,6 +202,7 @@ Item {
                                 anchors.fill: parent
                                 anchors.margins: -4
                                 cursorShape: Qt.PointingHandCursor
+                                // Clique/arraste no controle → valor.
                                 function pick(x) { slider.live = Math.round(Math.max(0, Math.min(1, x / slider.width)) * 20) * 5; }
                                 onPressed: mouse => pick(mouse.x)
                                 onPositionChanged: mouse => { if (pressed) pick(mouse.x); }

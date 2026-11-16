@@ -1,3 +1,4 @@
+// RiceText.qml — texto com a fonte e a cor padrão do LW.
 import QtQuick
 import qs
 

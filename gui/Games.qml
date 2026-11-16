@@ -1,3 +1,6 @@
+// Games.qml — singleton com a biblioteca de jogos para todas as telas de JOGOS.
+// Lê ~/.local/share/lw/games.json e chama extras/games.py para qualquer mudança (nunca escreve o JSON direto).
+// As telas usam: games (lista), column(status), launch(id), set(id, ...), scan(), meta()...
 pragma Singleton
 import QtQuick
 import Quickshell
@@ -30,9 +33,11 @@ Singleton {
     signal failed(string message)
     signal changed(string message)
 
+    // Cor de cada status: quero jogar (azul), jogando (destaque), zerado (verde), largado (apagado).
     function statusColor(status) {
         return status === "want" ? Theme.blue : status === "playing" ? Theme.accent : status === "done" ? Theme.ok : Theme.faint;
     }
+    // O jogo com esse id, ou null.
     function byId(id) { return games.find(g => g.id === id) || null; }
 
     // ---- numbers --------------------------------------------------------------
@@ -76,6 +81,7 @@ Singleton {
     }
     // IGDB: cover and est_hours where empty, plus genres, times and similar games.
     property bool fetchingMeta: false
+    // Busca capa/gêneros/duração no IGDB (para todos sem dados ou só para os ids dados).
     function meta(quiet, ids) {
         if (fetchingMeta) return;
         fetchingMeta = true;
@@ -86,15 +92,18 @@ Singleton {
             changed("IGDB: " + data.matched.length + " jogo(s) com dados" + (data.missed.length ? " · sem par: " + data.missed.join(", ") : ""));
         });
     }
+    // Muda campos de um jogo (ex.: ["status=done"]) e mostra a mensagem se der certo.
     function set(id, pairs, message) {
         run(["set", id].concat(pairs), (ok, data) => ok ? (message ? changed(message) : null) : failed(data.error));
     }
+    // Adiciona um jogo à mão (executável, prefixo do Wine, nome).
     function add(exe, prefix, title) {
         const args = ["add", "--exe", exe];
         if (prefix) args.push("--prefix", prefix);
         if (title) args.push("--title", title);
         run(args, (ok, data) => ok ? changed("[ + ] " + data.added.title + " na biblioteca") : failed(data.error));
     }
+    // Inicia o jogo (games.py launch) e abre a tela de lançamento.
     function launch(id) {
         const g = byId(id);
         if (!g) return;
@@ -109,6 +118,7 @@ Singleton {
             if (!ok) failed(data.error || "falha ao lançar");
         });
     }
+    // Pede para o jogo fechar.
     function stop(id) { run(["stop", id], (ok, data) => ok ? changed("■ parando " + ((byId(id) || {}).title || id)) : failed(data.error)); }
     // A session left open (LW closed, reboot): resumed if the game runs, closed otherwise.
     function recover() {
@@ -116,6 +126,7 @@ Singleton {
             if (ok && data.session === "running") changed("● sessão retomada: " + ((byId(data.id) || {}).title || data.id));
         });
     }
+    // Duração curta para mensagens: "+25 min" ou "+1.5 h".
     function hoursText(h) { return h < 0.1 ? "+" + Math.max(1, Math.round(h * 60)) + " min" : "+" + h.toFixed(1).replace(/\.0$/, "") + " h"; }
 
     // One backlog column in a single write: status and order 1..n for these ids.
@@ -134,6 +145,7 @@ Singleton {
     property var readyGames: []              // Hydra downloads not in the library yet
     property bool findingInstallers: false
     readonly property var installs: doc.installs || ({})
+    // Procura instaladores e jogos prontos nas pastas de download.
     function findInstallers() {
         if (findingInstallers) return;
         findingInstallers = true;
@@ -143,6 +155,7 @@ Singleton {
             else failed(data.error || "busca de instaladores falhou");
         });
     }
+    // Começa a instalar um setup.exe num prefixo novo.
     function install(setup, name) {
         const args = ["install", setup];
         if (name) args.push("--name", name);
@@ -151,6 +164,7 @@ Singleton {
             changed("[ .. ] instalando " + data.install.name + ": siga a janela do instalador");
         });
     }
+    // Põe na biblioteca o .exe escolhido de uma instalação concluída.
     function installAdd(setup, exe) {
         run(["install-add", setup, exe], (ok, data) => ok ? changed("[ + ] " + data.added.title + " na biblioteca") : failed(data.error));
     }
@@ -162,10 +176,12 @@ Singleton {
             findInstallers();
         });
     }
+    // Apaga o registro de uma instalação (o prefixo fica no disco).
     function installForget(setup) {
         run(["install-forget", setup], (ok, data) => ok ? changed("[ - ] registro da instalação apagado (o prefixo continua)") : failed(data.error));
     }
 
+    // Tira um jogo da biblioteca.
     function remove(id) {
         const g = byId(id);
         run(["remove", id], (ok, data) => ok ? changed("[ - ] " + (g ? g.title : id) + " removido") : failed(data.error));

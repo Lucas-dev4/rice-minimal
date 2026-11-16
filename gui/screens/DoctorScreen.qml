@@ -1,3 +1,5 @@
+// DoctorScreen.qml — tela Doctor (SISTEMA): roda "lw doctor --stream" e mostra cada checagem
+// chegando ao vivo, agrupada (sessão, programas, tema...), com contagem de OK/WARN/FAIL.
 import QtQuick
 import Quickshell.Io
 import qs
@@ -18,6 +20,7 @@ Item {
     readonly property var groupOrder: ["SESSION", "SERVICES", "BINARIES", "CONFIG"]
     readonly property var hints: [["↑↓", "move"], ["←→", "grupos"], ["r", "run"]]
 
+    // Em qual grupo cada checagem aparece.
     function groupOf(name) {
         if (["Hyprland version", "Hyprland Lua errors", "Lua appearance include", "UWSM graphical session",
              "Wayland portals", "Persistent appearance profile"].indexOf(name) >= 0) return "SESSION";
@@ -42,6 +45,7 @@ Item {
         return text;
     }
 
+    // Quantas checagens têm esse status.
     function count(status) { return results.filter(r => r.status === status).length; }
     readonly property var issues: results.filter(r => r.status === "WARN" || r.status === "FAIL")
     readonly property var entries: {
@@ -64,6 +68,7 @@ Item {
     }
     readonly property var visibleNames: entries.filter(e => e.item).map(e => e.item.name)
 
+    // Roda o doctor de novo.
     function run() {
         if (running)
             return;
@@ -75,6 +80,7 @@ Item {
         doctor.seen = [];
         doctor.running = true;
     }
+    // Move a seleção.
     function move(step) {
         const names = visibleNames;
         if (!names.length) return;
@@ -82,6 +88,7 @@ Item {
         currentName = names[Math.max(0, Math.min(names.length - 1, at < 0 ? 0 : at + step))];
     }
 
+    // Teclas da tela (setas, r rodar de novo).
     function handleKey(event) {
         switch (event.key) {
         case Qt.Key_Up: move(-1); return true;

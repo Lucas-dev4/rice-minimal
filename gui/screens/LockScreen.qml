@@ -1,3 +1,5 @@
+// LockScreen.qml — tela Lock (SISTEMA): prévia da tela de bloqueio, escurecimento (55–85%),
+// teste real de bloqueio e ativação. Só visual: senha e PAM nunca mudam.
 import QtQuick
 import Quickshell
 import qs
@@ -20,7 +22,9 @@ Item {
     readonly property var presets: [["LIGHT", 55], ["BALANCED", 60], ["DARK", 75]]
     readonly property var hints: [["←→", "dim"], ["t", "trial"]]
 
+    // Relê o estado do bloqueio.
     function refresh() { reader.call(["lock", "status", "--json"]); }
+    // Roda um comando "lw lock ..." mostrando o rótulo enquanto trabalha.
     function run(args, label) {
         if (worker.running) return;
         Status.start(label);
@@ -37,12 +41,15 @@ Item {
         Status.say("[ .. ] trial lock — desbloqueie com sua senha normal", Theme.accent);
         Quickshell.execDetached(Theme.rice.concat(["lock", "trial", "--confirm"]));
     }
+    // Ações perigosas pedem um segundo clique.
     function confirm(flag, action) {
         if (root[flag]) { root[flag] = false; action(); }
         else { root[flag] = true; disarm.restart(); }
     }
+    // Algo mudou fora da tela: relê daqui a pouco.
     function externalChange() { settle.restart(); }
 
+    // Teclas da tela.
     function handleKey(event) {
         switch (event.key) {
         case Qt.Key_Left: setDim(dim - 5); return true;
@@ -205,6 +212,7 @@ Item {
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
+                    // Clique/arraste na barra → escurecimento correspondente.
                     function pick(x) { root.setDim(55 + Math.max(0, Math.min(1, x / width)) * 30); }
                     onPressed: mouse => pick(mouse.x)
                     onPositionChanged: mouse => { if (pressed) pick(mouse.x); }

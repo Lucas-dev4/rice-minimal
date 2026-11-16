@@ -1,3 +1,4 @@
+// LibraryView.qml — tela BIBLIOTECA (JOGOS): grade de capas com filtro por status e busca.
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -24,11 +25,13 @@ Item {
         .filter(g => !needle || (g.title + " " + g.source).toLowerCase().includes(needle))
         .sort((a, b) => (a.missing - b.missing) || (b.last_played || 0) - (a.last_played || 0) || a.title.localeCompare(b.title, "pt"))
 
+    // Horas → texto ("—" sem dados).
     function hours(h) { return h ? (h < 10 ? h.toFixed(1).replace(/\.0$/, "") : Math.round(h)) + " h" : "—"; }
 
     // ---- adding a game: the .exe, its Wine prefix, its name --------------------------
     property string pickedExe: ""
     property string pickedPrefix: ""
+    // Abre o seletor de arquivo para adicionar um jogo à mão.
     function addGame() { if (!pickExe.running) pickExe.running = true; }
     Process {
         id: pickExe
@@ -64,10 +67,12 @@ Item {
         }
     }
 
+    // Move a seleção na grade.
     function moveCursor(step) {
         if (!shown.length) return;
         grid.currentIndex = Math.max(0, Math.min(shown.length - 1, grid.currentIndex + step));
     }
+    // Teclas da tela.
     function handleKey(event) {
         const t = event.text;
         if (event.key === Qt.Key_Slash) { search.focusInput(); return true; }

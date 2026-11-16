@@ -1,3 +1,4 @@
+// LogPanel.qml — o painel LOG: mostra ao vivo o actions.jsonl (cada passo de wallpaper, paleta, sync...).
 import QtQuick
 import Quickshell.Io
 import qs
@@ -12,6 +13,7 @@ Rectangle {
     readonly property string lastLine: last ? format(last) : ""
     readonly property string lastStatus: last ? last.status : ""
 
+    // Uma entrada do log → linha de texto.
     function format(entry) {
         const time = new Date(entry.time_ns / 1e6).toLocaleTimeString(Qt.locale(), "HH:mm:ss");
         return time + "  [ " + entry.status + " ] " + entry.action + (entry.detail ? " — " + entry.detail : "");

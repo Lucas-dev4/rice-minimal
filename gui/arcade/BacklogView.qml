@@ -1,3 +1,5 @@
+// BacklogView.qml — tela BACKLOG (JOGOS): quadro com as colunas quero jogar / jogando / zerado / largado.
+// Arraste (ou Shift+setas) para mudar o status e a ordem; a ordem é gravada por Games.arrange().
 import QtQuick
 import qs
 import qs.components
@@ -23,7 +25,9 @@ Item {
     readonly property int cardHeight: 70
     readonly property real colWidth: (width - 3 * 14) / 4
 
+    // Lista de jogos → lista de ids.
     function ids(list) { return list.map(g => g.id); }
+    // Mantém a seleção dentro da coluna.
     function clampRow() { row = Math.max(0, Math.min(Math.max(0, lists[col].length - 1), row)); }
     // Moves `id` to column `to` at position `at` (and renumbers that column).
     function place(id, to, at) {
@@ -36,6 +40,7 @@ Item {
         col = to;
         row = at;
     }
+    // Teclas: setas navegam, Shift+setas movem o jogo, Enter abre a ficha.
     function handleKey(event) {
         const t = event.text;
         // Shift+arrows carry the selected game; plain arrows move the cursor.
@@ -59,6 +64,7 @@ Item {
     property string dragId: ""
     property point dragAt: Qt.point(0, 0)
     readonly property int dropCol: Math.max(0, Math.min(3, Math.floor(dragAt.x / (colWidth + 14))))
+    // Linha onde o cartão arrastado vai cair.
     function dropRow() {
         const list = lists[dropCol];
         const view = columnViews.itemAt(dropCol);

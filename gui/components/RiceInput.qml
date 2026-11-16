@@ -1,3 +1,4 @@
+// RiceInput.qml — campo de texto no estilo do LW.
 import QtQuick
 import qs
 
@@ -9,6 +10,7 @@ Rectangle {
     property bool editable: true
     signal finished()
 
+    // Põe o cursor no campo.
     function focusInput() {
         input.forceActiveFocus();
     }

@@ -1,3 +1,4 @@
+// TrackCover.qml — capa da faixa (ou um quadro com as iniciais quando não há capa).
 import QtQuick
 import qs
 import qs.components

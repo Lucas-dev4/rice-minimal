@@ -1,3 +1,4 @@
+// NowScreen.qml — tela TOCANDO (MÚSICA): capa, faixa, barra de progresso, visualizador e controles.
 import QtQuick
 import Quickshell.Io
 import qs
@@ -18,10 +19,12 @@ Item {
     property string levelSource: "idle"
     readonly property var hints: [["v", "visual"], ["m", "mute"], ["s", "shuf"], ["r", "rep"]]
 
+    // Troca o estilo do visualizador.
     function setMode(next) {
         mode = next;
         prefs.setText(JSON.stringify({ visualizer: next }) + "\n");
     }
+    // Teclas: espaço play/pause, setas avançam/volume, v visualizador.
     function handleKey(event) {
         if (event.text === "v") { setMode(modes[(modes.indexOf(mode) + 1) % modes.length]); return true; }
         return false;
@@ -57,6 +60,7 @@ Item {
 
     readonly property var info: Music.track ? Music.infos[Music.track.path] || null : null
     readonly property string kind: Music.track ? Music.sourceOf(Music.track.path) : "local"
+    // Linha com formato do arquivo (codec, kbps, kHz).
     function formatLine() {
         if (Music.live) return "stream ao vivo" + (Music.track ? " · " + String(Music.track.path).replace(/^https?:\/\//, "").split("/")[0] : "");
         if (!info) return "";
@@ -64,6 +68,7 @@ Item {
                 info.bitrate ? Math.round(info.bitrate / 1000) + " kbps" : "", info.channels === 1 ? "mono" : info.channels === 2 ? "stereo" : ""]
             .filter(x => x).join(" · ");
     }
+    // Segundos → "m:ss".
     function clock(seconds) {
         if (!isFinite(seconds) || seconds < 0) return "LIVE";
         const s = Math.floor(seconds);

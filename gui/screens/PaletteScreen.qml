@@ -1,3 +1,5 @@
+// PaletteScreen.qml — tela Palette (SISTEMA): cores atuais e anteriores com prévias de Kitty/Waybar,
+// escolha do esquema do Matugen (neutral, tonal-spot, vibrant, expressive) e restaurar a paleta anterior.
 import QtQuick
 import Quickshell
 import qs
@@ -24,21 +26,26 @@ Item {
     readonly property var before: current.previous ? current.previous.colors || ({}) : ({})
     readonly property int changed: Object.keys(colors).filter(k => before[k] && before[k].toLowerCase() !== colors[k].toLowerCase()).length
 
+    // Nome do arquivo sem pasta e extensão.
     function stem(path) { return String(path || "").split("/").pop().replace(/\.[^.]+$/, ""); }
+    // True se essa cor mudou em relação à paleta anterior.
     function differs(key) { return !!before[key] && before[key].toLowerCase() !== String(colors[key]).toLowerCase(); }
 
+    // Roda um comando "lw palette ...".
     function run(args, label) {
         if (busy)
             return;
         Status.start(label);
         regenerate.call(args);
     }
+    // Volta para a paleta anterior.
     function doRestore() {
         if (busy || current.can_restore !== true)
             return;
         Status.start("restoring palette");
         restore.call(["palette", "restore", "--json"]);
     }
+    // Mostra o resultado (e avisos) de uma ação.
     function finished(data, warnings) {
         Status.stop();
         if (warnings.length > 0)
@@ -47,11 +54,13 @@ Item {
             Status.say("[ OK ] palette " + data.result);
         show.call(["palette", "show", "--json"]);
     }
+    // Copia o código hex de uma cor.
     function copy(key) {
         Quickshell.execDetached(["wl-copy", "--", colors[key]]);
         Status.say("[ OK ] " + key + " " + colors[key] + " copiado");
     }
 
+    // Teclas da tela.
     function handleKey(event) {
         switch (event.key) {
         case Qt.Key_C: compare = !compare; return true;
@@ -267,10 +276,12 @@ Item {
 
         readonly property var bar: root.current.waybar || ({})
         readonly property var kitty: root.current.kitty || ({})
+        // Cor de um item da prévia (com reserva).
         function tint(map, key, fallback) {
             const value = map[key];
             return value && value !== "transparent" ? value : fallback;
         }
+        // Texto colorido em HTML (para a prévia do terminal).
         function span(color, text) { return "<font color='" + color + "'>" + text + "</font>"; }
 
         Column {
@@ -339,6 +350,7 @@ Item {
                     font.pixelSize: 11
                     lineHeight: 1.3
                     readonly property var k: preview.kitty
+                    // Atalho: texto com a cor ANSI n da prévia.
                     function c(n, text) { return preview.span(preview.tint(k, "color" + n, Theme.fg), text); }
                     color: preview.tint(k, "foreground", Theme.fg)
                     text: c(4, "~/rice") + " " + c(8, "&gt;") + " git status<br>"

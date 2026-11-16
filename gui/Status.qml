@@ -1,3 +1,4 @@
+// Status.qml — singleton da barra de status do rodapé: mensagem e "ocupado".
 pragma Singleton
 import QtQuick
 import Quickshell
@@ -15,11 +16,14 @@ Singleton {
     // The applied wallpaper, for previews (set by the shell from `rice status`).
     property string wallpaper: ""
 
+    // Mostra uma mensagem no rodapé (cor opcional).
     function say(text, tint) {
         message = text;
         color = tint || Theme.ok;
         stamp++;
     }
+    // Marca que uma ação está em andamento (mostra o rótulo).
     function start(label) { busy = label; }
+    // Termina o estado de ocupado.
     function stop() { busy = ""; }
 }

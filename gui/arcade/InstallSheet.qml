@@ -1,3 +1,5 @@
+// InstallSheet.qml — tela INSTALAR (JOGOS, tecla i): jogos prontos do Hydra e instaladores de Windows.
+// Enter adiciona/instala; depois de instalar, escolhe qual .exe é o jogo.
 import QtQuick
 import Quickshell.Io
 import qs
@@ -27,9 +29,12 @@ Item {
     readonly property var record: recordOf(selected)
     readonly property var choices: isReady ? selected.candidates || [] : record && record.state === "done" ? record.candidates || [] : []
 
+    // Abre a tela e procura instaladores.
     function openSheet() { shown = true; picking = false; cursor = 0; Games.findInstallers(); }
+    // Fecha a tela.
     function close() { shown = false; picking = false; if (keyTarget) keyTarget.forceActiveFocus(); }
 
+    // Texto do estado (instalando, concluída, falhou...).
     function stateText(r, item) {
         if (item && item.kind === "ready") return "pronto para jogar";
         if (!r) return "novo";
@@ -38,10 +43,12 @@ Item {
         if (r.state === "failed") return "falhou";
         return "na biblioteca";
     }
+    // Cor do estado.
     function stateColor(r, item) {
         if (item && item.kind === "ready") return Theme.ok;
         return !r ? Theme.faint : r.state === "running" ? Theme.accent : r.state === "done" ? Theme.ok : r.state === "failed" ? Theme.red : Theme.dim;
     }
+    // Segundos → "m:ss".
     function clock(t) { return Math.floor(t / 60) + ":" + String(t % 60).padStart(2, "0"); }
     // C:/… inside a prefix; a ready game's path starts at its folder.
     function inside(exe) {
@@ -49,8 +56,10 @@ Item {
         const i = exe.indexOf("/drive_c/");
         return i >= 0 ? "C:/" + exe.slice(i + 9) : exe;
     }
+    // Bytes → "12.3 MB".
     function mb(bytes) { return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(bytes / 1024)) + " KB"; }
 
+    // Enter: adiciona o pronto, começa a instalação ou escolhe o .exe.
     function act() {
         if (!selected) return;
         const r = record;
@@ -65,6 +74,7 @@ Item {
         if (!r || r.state === "failed") Games.install(selected.setup, selected.name);
         else if (r.state === "done" && choices.length) { picking = true; pick = 0; }
     }
+    // Teclas da tela.
     function handleKey(event) {
         if (!shown) return false;
         const t = event.text;

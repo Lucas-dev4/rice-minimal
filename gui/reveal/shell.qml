@@ -1,3 +1,5 @@
+// reveal/shell.qml — a animação ASCII que "revela" o wallpaper novo ao trocar (chamada pelo theme.py).
+// Só enfeite: se falhar, a troca de wallpaper acontece igual.
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -82,6 +84,7 @@ ShellRoot {
                     fragmentShader: Qt.resolvedUrl("reveal.frag.qsb")
                 }
 
+                // Tenta montar a arte ASCII da imagem nova.
                 function tryBuild() {
                     if (!covered || photo.status !== Image.Ready || build.running || art.visible || photo.visible) return;
                     // Without a GPU the shader draws nothing: show the picture plainly instead.

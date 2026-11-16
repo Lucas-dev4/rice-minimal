@@ -1,3 +1,6 @@
+// Theme.qml — singleton com TODAS as cores, fontes, tamanhos e tempos de animação do LW.
+// As cores vêm da paleta do wallpaper (arquivo gerado pelo extras/theme/theme.py) e mudam ao vivo.
+// Para mudar o visual do app inteiro, mexa aqui.
 pragma Singleton
 import QtQuick
 import Quickshell
@@ -42,6 +45,7 @@ Singleton {
     property var terminal: ({})
     readonly property var term: dark.terminal ? dark.terminal.normal : ({})
 
+    // Mistura duas cores (t = 0 só a primeira, 1 só a segunda).
     function mix(a, b, t) {
         return Qt.rgba(a.r + (b.r - a.r) * t, a.g + (b.g - a.g) * t, a.b + (b.b - a.b) * t, 1);
     }
@@ -89,6 +93,7 @@ Singleton {
     readonly property color warn: yel
     readonly property color fail: red
 
+    // Cor de um status do doctor/log: OK verde, WARN amarelo, FAIL vermelho.
     function statusColor(status) {
         return status === "OK" ? ok : status === "WARN" ? yel : status === "FAIL" ? red : dim;
     }

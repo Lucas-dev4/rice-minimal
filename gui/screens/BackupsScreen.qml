@@ -1,3 +1,5 @@
+// BackupsScreen.qml — tela Backups (SISTEMA): lista os backups agrupados por dia, com tipo,
+// tamanho e o comando certo para restaurar (dados de "lw backups list"). Restaura perfil/paleta ali mesmo.
 import QtQuick
 import Quickshell
 import qs
@@ -33,14 +35,18 @@ Item {
     readonly property var selected: shown.find(b => b.name === currentName) || shown[0] || null
     readonly property real maxSize: Math.max(1, ...backups.map(b => b.size))
 
+    // Nanossegundos → data.
     function day(ns) { return new Date(ns / 1e6); }
+    // Data curta (dd/MM) para agrupar.
     function dayKey(ns) { return Qt.formatDate(day(ns), "dd/MM"); }
+    // Rótulo do dia: hoje, ontem ou a data.
     function dayLabel(ns) {
         const key = dayKey(ns);
         const today = Qt.formatDate(new Date(), "dd/MM");
         const yesterday = Qt.formatDate(new Date(Date.now() - 864e5), "dd/MM");
         return key === today ? "HOJE · " + key : key === yesterday ? "ONTEM · " + key : key;
     }
+    // Bytes → "512K" ou "3.4M".
     function size(bytes) { return bytes < 1048576 ? Math.max(1, Math.ceil(bytes / 1024)) + "K" : (bytes / 1048576).toFixed(1) + "M"; }
 
     readonly property var entries: {
@@ -57,16 +63,19 @@ Item {
         return out;
     }
 
+    // Relê a lista de backups.
     function refresh() {
         reader.call(["backups", "list", "--json"]);
         palette.call(["palette", "show", "--json"]);
         profiles.call(["profile", "get", "--json"]);
     }
+    // Copia um comando para a área de transferência.
     function copy(text, label) {
         // wl-copy outlives this window; the clipboard would otherwise die with it.
         Quickshell.execDetached(["wl-copy", "--", text]);
         Status.say("[ OK ] " + label + " copiado — cole num terminal em ~/Projetos/rice-minimal");
     }
+    // Move a seleção para cima/baixo.
     function move(step) {
         if (!shown.length) return;
         // By name: each read of a var property may hand back a copy of the list.
@@ -74,6 +83,7 @@ Item {
         currentName = shown[Math.max(0, Math.min(shown.length - 1, at + step))].name;
     }
 
+    // Teclas da tela (setas, Enter, c copiar, r recarregar).
     function handleKey(event) {
         switch (event.key) {
         case Qt.Key_Up: move(-1); return true;

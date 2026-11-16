@@ -1,3 +1,5 @@
+// WallpaperScreen.qml — tela Wallpapers (SISTEMA): grade de miniaturas, busca, favoritos e aplicar
+// (lw wallpaper apply → gera a paleta nova). As miniaturas são criadas em segundo plano.
 import QtQuick
 import Quickshell.Io
 import qs
@@ -29,10 +31,14 @@ Item {
     }
     readonly property var selected: shown[grid.currentIndex] || null
 
+    // Nome sem extensão.
     function stem(name) { return name.replace(/\.[^.]+$/, ""); }
+    // Bytes → "2.4M".
     function megabytes(bytes) { return bytes ? (bytes / 1048576).toFixed(1) + "M" : "?"; }
+    // "1920x1080" ou "?".
     function resolution(image) { return image && image.size ? image.size[0] + "x" + image.size[1] : "?"; }
 
+    // Aplica o wallpaper selecionado.
     function apply() {
         if (!selected || applier.running)
             return;
@@ -40,6 +46,7 @@ Item {
         applier.call(["wallpaper", "apply", selected.path, "--json"]);
     }
 
+    // Marca/desmarca como favorito.
     function toggleFavorite() {
         if (!selected)
             return;
@@ -52,6 +59,7 @@ Item {
         Status.say(at >= 0 ? "[ - ] " + name + " unfavorited" : "[ ★ ] " + name + " favorited", Theme.accent);
     }
 
+    // Teclas da tela.
     function handleKey(event) {
         if (event.text === "F") { favOnly = !favOnly; grid.currentIndex = 0; return true; }
         if (event.text === "f") { toggleFavorite(); return true; }

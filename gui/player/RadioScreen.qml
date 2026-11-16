@@ -1,3 +1,5 @@
+// RadioScreen.qml — tela RÁDIO (MÚSICA): busca estações no radio-browser.info e as salvas do cliamp
+// (extras/radio.py).
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -24,12 +26,14 @@ Item {
     readonly property var selected: results[cursor] || null
     readonly property var helper: ["/usr/bin/python3", Quickshell.shellDir + "/../extras/radio.py"]
 
+    // Roda radio.py com esses argumentos.
     function run(args, done) {
         const proc = runner.createObject(root, { args: args, done: done });
         proc.running = true;
         return proc;
     }
     property var searching: null
+    // Busca estações por nome ou gênero.
     function search() {
         error = "";
         if (searching) searching.signal(15);
@@ -45,12 +49,15 @@ Item {
             view.positionViewAtBeginning();
         });
     }
+    // Lê as estações salvas.
     function loadSaved() { run(["saved"], (ok, data) => { if (ok) saved = data.stations; }); }
+    // Toca uma estação.
     function play(station) {
         if (!station) return;
         Music.playUrl(station.url);
         Status.say("[ ▶ ] " + station.name + " (rádio)", Theme.ok);
     }
+    // Salva uma estação no radios.toml.
     function save(station) {
         if (!station) return;
         run(["add", "--name", station.name, "--url", station.url], (ok, data) => {
@@ -58,11 +65,13 @@ Item {
             if (ok) loadSaved();
         });
     }
+    // Move a seleção.
     function moveCursor(step) {
         if (!results.length) return;
         cursor = Math.max(0, Math.min(results.length - 1, cursor + step));
         view.positionViewAtIndex(cursor, ListView.Contain);
     }
+    // Teclas da tela.
     function handleKey(event) {
         const t = event.text;
         if (event.key === Qt.Key_Slash) { box.focusInput(); return true; }

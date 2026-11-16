@@ -1,3 +1,4 @@
+// PlaceholderScreen.qml — tela vazia usada enquanto uma tela ainda não existe.
 import QtQuick
 import qs
 import qs.components

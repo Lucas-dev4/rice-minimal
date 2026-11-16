@@ -1,3 +1,6 @@
+// Music.qml — singleton que conversa com o cliamp (o player de música de verdade).
+// Todas as telas de MÚSICA usam só este arquivo: estado (faixa, posição, volume, fila) chega pelo stream de eventos
+// do cliamp, e cada ação é um comando IPC (cliamp remote). Também guarda/retoma a sessão ao fechar e abrir o LW.
 pragma Singleton
 import QtQuick
 import Quickshell
@@ -62,12 +65,14 @@ Singleton {
     // At most 4 ffprobe at a time; the rest wait in line.
     property var infoQueue: []
     property int infoRunning: 0
+    // Pede as informações (tags/duração) de um arquivo local; entra na fila do ffprobe.
     function requestInfo(path) {
         if (!path || sourceOf(path) !== "local" || infos[path] || probing[path]) return;
         probing[path] = true;
         infoQueue.push(path);
         pumpInfo();
     }
+    // Inicia os próximos ffprobe da fila (no máximo 4 ao mesmo tempo).
     function pumpInfo() {
         while (infoRunning < 4 && infoQueue.length) {
             infoRunning++;
@@ -92,6 +97,7 @@ Singleton {
         if (/^https?:/i.test(p)) return /youtube\.|youtu\.be|soundcloud\.|bandcamp\.|mixcloud\.|spotify\.|tidal\.|qobuz\./i.test(p) ? "stream" : "radio";
         return "stream";
     }
+    // Nome do arquivo sem pasta e sem extensão.
     function fileName(path) { return String(path || "").split("/").pop().replace(/\.[^.]+$/, ""); }
 
     // ---- commands -----------------------------------------------------------
@@ -101,16 +107,22 @@ Singleton {
         const proc = caller.createObject(root, { op: op, params: params || {}, done: done || null, limit: limit || 4000 });
         proc.start();
     }
+    // Play/pause.
     function toggle() { call("toggle"); }
+    // Próxima faixa.
     function next() { call("next"); }
     // Like most players: back to the start when past 3 s, otherwise the previous track.
     function previous() { position > 3 && seekable ? seekTo(0) : call("prev"); }
+    // Para a reprodução.
     function stop() { call("stop"); }
+    // Pula para um segundo da faixa.
     function seekTo(seconds) {
         position = Math.max(0, Math.min(duration || seconds, seconds));
         call("seek.absolute", { value: position });
     }
+    // Avança/volta alguns segundos.
     function seekBy(seconds) { if (seekable) seekTo(position + seconds); }
+    // Volume em porcentagem (convertido para dB do cliamp).
     function setVolumePercent(percent) {
         const p = Math.max(0, Math.min(100, percent));
         if (systemVolume) {
@@ -132,10 +144,15 @@ Singleton {
         if (muted) { const back = mutedFrom; mutedFrom = NaN; call("volume", { value: back }); }
         else { mutedFrom = volumeDb; call("volume", { value: volumeMin }); }
     }
+    // Liga/desliga o aleatório.
     function setShuffle(on) { call("shuffle", { name: on ? "on" : "off" }); }
+    // Repetir: desligado → tudo → uma.
     function cycleRepeat() { call("repeat", { name: repeat === "off" ? "all" : repeat === "all" ? "one" : "off" }); }
+    // Toca a faixa dessa posição da fila.
     function playIndex(index) { call("queue.play", { index: index }); }
+    // Move uma faixa na fila.
     function moveTrack(index, to) { call("queue.move", { index: index, to: to }, () => refreshPlaylist()); }
+    // Tira uma faixa da fila.
     function removeTrack(index) { call("queue.remove", { index: index }, () => refreshPlaylist()); }
     // Plays a file: from the queue when it is there, otherwise appended and played.
     function playPath(path) {
@@ -144,12 +161,17 @@ Singleton {
         const end = playlist.length;
         call("queue", { path: path }, () => { call("queue.play", { index: end }); refreshPlaylist(); });
     }
+    // Põe um arquivo/pasta no fim da fila.
     function addPath(path) { call("queue", { path: path }, () => refreshPlaylist()); }
+    // Toca uma URL (rádio).
     function playUrl(url) { call("url.load", { path: url, play: true }); }
     // A track from provider.search (YouTube, SoundCloud…): play now or play next.
     function playTrack(track) { call("track.play", { track: track }, () => refreshPlaylist(), 30000); }
+    // Põe uma faixa online como próxima.
     function queueTrack(track) { call("track.queue", { track: track }, () => refreshPlaylist(), 30000); }
+    // Ajusta uma banda do equalizador (-12 a +12 dB).
     function setBand(band, dB) { call("eq", { band: band, value: Math.max(-12, Math.min(12, Math.round(dB))) }); }
+    // Escolhe um preset do equalizador.
     function setPreset(name) { call("eq", { name: name }); }
 
     // Starts cliamp headless. With a saved session (see session()) it gets the same queue
@@ -157,6 +179,7 @@ Singleton {
     // of `initial_directory` in its config (~/Músicas), without playing. cliamp's own
     // resume.json is not used by its daemon, hence our session.
     property var pendingResume: null
+    // Liga o cliamp sem janela (daemon), com a sessão salva ou abrindo ~/Músicas.
     function start(saved) {
         if (online) return;
         const paths = saved && saved.paths ? saved.paths : [];
@@ -186,10 +209,13 @@ Singleton {
         atomicWrites: true
         printErrors: false
     }
+    // Sessão salva (fila, faixa, segundo, volume), ou null.
     function savedSession() {
         try { const s = JSON.parse(sessionFile.text()); return s.paths && s.paths.length ? s : null; } catch (error) { return null; }
     }
+    // Liga o cliamp com a sessão salva.
     function startCliamp() { start(savedSession()); }
+    // Ao fechar o LW em MÚSICA: salva a sessão e desliga o cliamp.
     function closeSession() {
         if (online && playlist.length) {
             saveSession();
@@ -206,6 +232,7 @@ Singleton {
     // (the separate player sets it at once), so opening LW for a wallpaper starts nothing.
     property bool wanted: false
     property bool autoStarted: false
+    // Liga o cliamp sozinho quando a seção MÚSICA abre (se RICE_MUSIC_AUTOSTART não for 0).
     function autoStart() {
         if (wanted && !connecting && !online && !autoStarted && Quickshell.env("RICE_MUSIC_AUTOSTART") !== "0") {
             autoStarted = true;
@@ -233,6 +260,7 @@ Singleton {
         if (!online) return;
         Quickshell.execDetached(["sh", "-c", 'kill -TERM "$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cliamp/cliamp.sock.pid")"']);
     }
+    // Relê a fila inteira do cliamp, 200 faixas por pedido.
     function refreshPlaylist() {
         const pages = [];
         const page = offset => call("queue.list", { offset: offset, limit: 200 }, r => {
@@ -277,6 +305,7 @@ Singleton {
 
     // ---- state stream -------------------------------------------------------
     property int playlistRevision: -1
+    // Recebe um novo estado do cliamp e atualiza todas as propriedades.
     function accept(snap) {
         const wasOnline = online;
         const before = track ? track.path : "";

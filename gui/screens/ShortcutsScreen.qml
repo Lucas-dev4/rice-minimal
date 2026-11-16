@@ -1,3 +1,6 @@
+// ShortcutsScreen.qml — tela Shortcuts (SISTEMA): lista, busca e edita os atalhos do Hyprland.
+// Edita pelo "lw shortcuts set/delete" (com backup e checagem de conflito). "r" grava uma combinação nova:
+// o Hyprland entra no submap vazio lw-record para as teclas com Super chegarem aqui.
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -27,7 +30,9 @@ Item {
     readonly property var hints: recording ? [["esc", "cancelar"]] : [["↑↓", "move"], ["←→", "grupo"], ["r", "gravar"], ["⏎", "editar"], ["del", "apagar"], ["/", "search"]]
     readonly property bool busy: saver.running || restorer.running || deleter.running
 
+    // Id estável de um atalho (b = editável, x = fixo do projeto).
     function idOf(b) { return (b.editable ? "b" : "x") + b.line; }
+    // Texto legível do atalho (ShortcutWords.js).
     function info(b) {
         const auto = Words.describe(b);
         const note = notes[b.action] || {};
@@ -43,9 +48,11 @@ Item {
         }
         return map;
     }
+    // Outros atalhos com a mesma combinação.
     function conflictsOf(b, key) {
         return (usage[Words.normal(key || b.key)] || []).filter(id => id !== idOf(b));
     }
+    // O atalho com esse id.
     function byId(id) { return binds.find(b => idOf(b) === id) || null; }
 
     readonly property var entries: {
@@ -78,8 +85,10 @@ Item {
     readonly property var phrase: !!selected && ((commandEditable && draft.command !== selected.command) || replacing)
         ? Words.translate(draft.command, noctPrefix && !replacing) : null
 
+    // Relê os atalhos do arquivo.
     function reload() { reader.call(["shortcuts", "list", "--json"]); }
 
+    // Monta a lista visível (busca + grupos abertos).
     function fill() {
         if (!selected) {
             draft = { key: "", command: "", desc: "", group: "" };
@@ -95,6 +104,7 @@ Item {
         commandField.text = draft.command;
     }
 
+    // Move a seleção.
     function move(step) {
         const ids = visibleIds;
         if (ids.length === 0)
@@ -103,6 +113,7 @@ Item {
         currentId = ids[Math.max(0, Math.min(ids.length - 1, at < 0 ? 0 : at + step))];
     }
 
+    // Abre/fecha um grupo de atalhos.
     function toggleGroup(g, shut) {
         const next = closed.filter(x => x !== g);
         if (shut)
@@ -112,12 +123,14 @@ Item {
             Qt.callLater(() => { if (visibleIds.indexOf(currentId) < 0 && visibleIds.length) currentId = visibleIds[0]; });
     }
 
+    // Muda um campo do rascunho de edição.
     function setDraft(field, value) {
         const next = Object.assign({}, draft);
         next[field] = value;
         draft = next;
     }
 
+    // Grava as descrições pessoais dos atalhos.
     function writeNotes(next) {
         notes = next;
         notesFile.setText(JSON.stringify(next, null, 2) + "\n");
@@ -148,6 +161,7 @@ Item {
     }
     property string afterDelete: ""
 
+    // Grava a edição (tecla e/ou comando).
     function save() {
         const b = selected;
         if (!b || busy)
@@ -200,6 +214,7 @@ Item {
         submap.exec(["hyprctl", "dispatch", 'hl.dsp.submap("lw-record")']);
         Status.say("[ .. ] gravando — pressione o atalho (Esc cancela)", Theme.accent);
     }
+    // Para de gravar e volta ao submap normal.
     function stopRecording(message, tint) {
         if (!recording)
             return;
@@ -209,6 +224,7 @@ Item {
         if (message)
             Status.say(message, tint);
     }
+    // Recebe a tecla pressionada durante a gravação.
     function record(event) {
         const mods = Words.modifierNames(event.modifiers);
         if (Words.isModifierKey(event.key)) {
@@ -236,6 +252,7 @@ Item {
             stopRecording("[ OK ] atalho gravado: " + key + " — SAVE grava no arquivo", Theme.ok);
     }
 
+    // Teclas da tela.
     function handleKey(event) {
         if (recording) {
             record(event);
