@@ -6,6 +6,9 @@ import qs.components
 // played, finished and 100% games, and recommendations: from my own backlog (the genres I
 // play most, shortest first) and from outside (IGDB's similar games to the ones I play,
 // that I do not have). Nothing invented: no data shows "—".
+// Os jogos que já joguei fora da biblioteca (doc.played, da lista em compat-data.json)
+// também contam para o gosto e nunca são recomendados. Quem pode não rodar no meu PC
+// (Games.warnOf) ganha um aviso [WARN]/[FAIL]; não sai da lista.
 Item {
     id: root
 
@@ -21,6 +24,10 @@ Item {
     function hours(h) { return h > 0 ? (h < 10 ? h.toFixed(1).replace(/\.0$/, "") : String(Math.round(h))) + " h" : "—"; }
     // Timestamp → dd/MM/yy.
     function day(stamp) { return stamp ? Qt.formatDate(new Date(stamp * 1000), "dd/MM/yy") : "—"; }
+    // Cor do aviso: não roda (vermelho), no limite (amarelo), fora do PC (apagado).
+    function warnColor(w) { return w.k === "no" ? Theme.fail : w.k === "lim" ? Theme.warn : Theme.dim; }
+    // Etiqueta do aviso depois do nome ("" se roda bem ou não há requisito conhecido).
+    function tag(w) { return w ? " <font color='" + warnColor(w) + "'>" + (w.k === "no" ? "[FAIL]" : w.k === "lim" ? "[WARN]" : "[ -- ]") + "</font>" : ""; }
     // Título normalizado para comparar.
     function norm(t) { return String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
 
@@ -51,9 +58,13 @@ Item {
     // ---- recommendations --------------------------------------------------------------
     // How much each game says about my taste: hours, finished, 100%, favourite.
     function weight(g) { return Games.hoursOf(g) + (g.status === "done" ? 10 : 0) + (g.complete ? 10 : 0) + (g.fav ? 5 : 0) + (g.status === "dropped" ? -5 : 0); }
+    // Já jogados fora da biblioteca: todos zerados; horas e platina pesam como na biblioteca.
+    readonly property var played: Object.values(Games.doc.played || {})
+    function playedWeight(p) { return (p.hrs || 0) + 10 + (p.plat ? 10 : 0); }
     readonly property var genreWeight: {
         const w = {};
         for (const g of games) if (g.igdb && g.igdb.genres) for (const name of g.igdb.genres) w[name] = (w[name] || 0) + weight(g);
+        for (const p of played) if (p.igdb) for (const name of p.igdb.genres) w[name] = (w[name] || 0) + playedWeight(p);
         return w;
     }
     // From the backlog: "quero jogar" games in the genres I play most; shorter first.
@@ -68,23 +79,27 @@ Item {
     // From outside: IGDB's similar games of what I play, not in my library.
     readonly property var fromOutside: {
         const similar = Games.doc.igdb_similar || {};
-        const mine = new Set(games.map(g => norm(g.title)).concat(games.filter(g => g.igdb && g.igdb.name).map(g => norm(g.igdb.name))));
-        const ownIds = new Set(games.filter(g => g.igdb && g.igdb.id).map(g => String(g.igdb.id)));
-        const score = {}, because = {};
-        for (const g of games) {
-            const w = weight(g) + 1;
-            if (w <= 0 || !g.igdb || !g.igdb.similar) continue;
-            for (const id of g.igdb.similar) {
+        const mine = new Set(games.map(g => norm(g.title)).concat(games.filter(g => g.igdb && g.igdb.name).map(g => norm(g.igdb.name)))
+                             .concat(played.map(p => norm(p.n))).concat(played.filter(p => p.igdb).map(p => norm(p.igdb.name))));
+        const ownIds = new Set(games.filter(g => g.igdb && g.igdb.id).map(g => String(g.igdb.id))
+                               .concat(played.filter(p => p.igdb).map(p => String(p.igdb.id))));
+        const score = {}, because = {}, best = {};
+        // Fontes do gosto: a biblioteca e os já jogados, cada uma com seu peso.
+        const sources = games.filter(g => g.igdb && g.igdb.similar).map(g => ({ title: g.title, w: weight(g) + 1, similar: g.igdb.similar }))
+            .concat(played.filter(p => p.igdb).map(p => ({ title: p.n, w: playedWeight(p), similar: p.igdb.similar })));
+        for (const src of sources) {
+            if (src.w <= 0) continue;
+            for (const id of src.similar) {
                 const key = String(id), s = similar[key];
                 if (!s || ownIds.has(key) || mine.has(norm(s.name))) continue;
-                score[key] = (score[key] || 0) + w;
-                if (!because[key] || weight(because[key]) < w) because[key] = g;
+                score[key] = (score[key] || 0) + src.w;
+                if (!best[key] || best[key] < src.w) { best[key] = src.w; because[key] = src.title; }
             }
         }
         return Object.keys(score)
             .sort((a, b) => (score[b] - score[a]) || ((similar[b].rating || 0) - (similar[a].rating || 0)))
             .slice(0, 5)
-            .map(k => Object.assign({ because: because[k].title }, similar[k]));
+            .map(k => Object.assign({ because: because[k], warn: Games.warnOf(similar[k].name) }, similar[k]));
     }
 
     // ================= HEADER =================
@@ -260,7 +275,13 @@ Item {
                     required property var modelData
                     width: parent.width
                     height: 36
-                    RiceText { width: parent.width - 70; elide: Text.ElideRight; text: modelData.g.title }
+                    RiceText {
+                        readonly property var warn: Games.warnOf(modelData.g.title)
+                        width: parent.width - 70
+                        elide: Text.ElideRight
+                        textFormat: Text.StyledText
+                        text: modelData.g.title + root.tag(warn)
+                    }
                     RiceText {
                         y: 17
                         width: parent.width - 70
@@ -316,14 +337,16 @@ Item {
                             width: parent.width
                             elide: Text.ElideRight
                             textFormat: Text.StyledText
-                            text: rec.modelData.name + (rec.modelData.year ? " <font color='" + Theme.faint + "'>(" + rec.modelData.year + ")</font>" : "")
+                            text: rec.modelData.name + (rec.modelData.year ? " <font color='" + Theme.faint + "'>(" + rec.modelData.year + ")</font>" : "") + root.tag(rec.modelData.warn)
                             color: recMouse.containsMouse ? Theme.accent : Theme.fg
                         }
                         RiceText {
                             width: parent.width
                             elide: Text.ElideRight
-                            text: [(rec.modelData.genres || []).slice(0, 2).join(", "), rec.modelData.rating ? "nota " + rec.modelData.rating : ""].filter(x => x).join(" · ") || "—"
-                            color: Theme.dim
+                            // Com aviso, o motivo (ex.: "GPU no limite (39 vs 42)") no lugar dos gêneros.
+                            text: rec.modelData.warn ? rec.modelData.warn.w
+                                : [(rec.modelData.genres || []).slice(0, 2).join(", "), rec.modelData.rating ? "nota " + rec.modelData.rating : ""].filter(x => x).join(" · ") || "—"
+                            color: rec.modelData.warn ? root.warnColor(rec.modelData.warn) : Theme.dim
                             font.pixelSize: Theme.small
                         }
                         RiceText { width: parent.width; elide: Text.ElideRight; text: "porque você jogou " + rec.modelData.because; color: Theme.faint; font.pixelSize: Theme.small }

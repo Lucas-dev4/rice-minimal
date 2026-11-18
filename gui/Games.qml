@@ -13,6 +13,7 @@ Singleton {
 
     readonly property string dataPath: (Quickshell.env("XDG_DATA_HOME") || Quickshell.env("HOME") + "/.local/share") + "/lw/games.json"
     readonly property var helper: ["/usr/bin/python3", Quickshell.shellDir + "/../extras/games.py"]
+    readonly property var lw: ["/usr/bin/python3", Quickshell.shellDir + "/../extras/rice.py"]
     readonly property var statuses: ["want", "playing", "done", "dropped"]
     readonly property var statusLabel: ({ want: "quero jogar", playing: "jogando", done: "zerado", dropped: "largado" })
 
@@ -28,7 +29,10 @@ Singleton {
     property var launching: null
     signal sessionEnded(string title, real hours)
     property bool scanning: false
-    property var lastScan: null              // {total, new, missing, errors}
+    property var lastScan: null              // {total, new, missing, errors, played_pending}
+    // Desempenho no meu PC (lw compat check): título normalizado → {k: ok|lim|no|na, w: motivo}.
+    // Só um aviso nas recomendações; jogo sem requisito conhecido não aparece aqui.
+    property var compat: ({})
 
     signal failed(string message)
     signal changed(string message)
@@ -58,10 +62,28 @@ Singleton {
     readonly property var continueGame: games.filter(g => g.status === "playing" && !g.missing)
                                              .sort((a, b) => (b.last_played || 0) - (a.last_played || 0))[0] || null
 
+    // Título normalizado para comparar nomes (minúsculas, só letras e números).
+    function norm(t) { return String(t || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
+    // Aviso de desempenho de um jogo pelo título: {k, w} se não roda bem, senão null.
+    function warnOf(title) {
+        const c = compat[norm(title)];
+        return c && c.k !== "ok" ? c : null;
+    }
+
     // ---- commands ------------------------------------------------------------------
-    function run(args, done) {
-        const proc = runner.createObject(root, { args: args, done: done || null });
+    // base: o comando (games.py por padrão; lw para o compat).
+    function run(args, done, base) {
+        const proc = runner.createObject(root, { args: args, done: done || null, base: base || helper });
         proc.running = true;
+    }
+    // Lê o hardware e avalia os jogos com requisito conhecido (uma vez por abertura de JOGOS).
+    function loadCompat() {
+        run(["compat", "check", "--json"], (ok, data) => {
+            if (!ok) return;
+            const map = {};
+            for (const g of data.data.games) map[norm(g.n)] = { k: g.k, w: g.w };
+            compat = map;
+        }, lw);
     }
     // quiet: the automatic scan on opening only speaks when something changed.
     function scan(quiet) {
@@ -72,7 +94,8 @@ Singleton {
             if (!ok) { failed(data.error || "scan falhou"); return; }
             lastScan = data;
             // Then IGDB data for games never looked up (silent without a key).
-            if (games.some(g => !g.igdb)) meta(true);
+            if (games.some(g => !g.igdb) || data.played_pending) meta(true);
+            loadCompat();
             const broken = Object.keys(data.errors || {});
             if (quiet && !data.new && !broken.length) return;
             changed("scan: " + data.total + " jogos · " + data.new + " novos" + (data.missing ? " · " + data.missing + " sumiram" : "")
@@ -88,8 +111,10 @@ Singleton {
         run(["meta"].concat(ids || []), (ok, data) => {
             fetchingMeta = false;
             if (!ok) { if (!quiet) failed(data.error || "IGDB falhou"); return; }
-            if (quiet && !data.matched.length) return;
-            changed("IGDB: " + data.matched.length + " jogo(s) com dados" + (data.missed.length ? " · sem par: " + data.missed.join(", ") : ""));
+            const played = data.played || { matched: 0, missed: [] };
+            if (quiet && !data.matched.length && !played.matched) return;
+            changed("IGDB: " + data.matched.length + " jogo(s) com dados" + (data.missed.length ? " · sem par: " + data.missed.join(", ") : "")
+                    + (played.matched ? " · " + played.matched + " já jogados" : "") + (played.missed.length ? " · sem par: " + played.missed.join(", ") : ""));
         });
     }
     // Muda campos de um jogo (ex.: ["status=done"]) e mostra a mensagem se der certo.
@@ -222,7 +247,8 @@ Singleton {
             id: proc
             property var args: []
             property var done: null
-            command: root.helper.concat(args)
+            property var base: root.helper
+            command: base.concat(args)
             stdout: StdioCollector { id: out }
             onExited: code => {
                 let data = {};

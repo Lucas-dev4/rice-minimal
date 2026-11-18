@@ -451,7 +451,8 @@ def scan():
         data['scanned_at'] = int(time.time())
         save(data)
     return {'total': len(data['games']), 'new': new,
-            'missing': sum(1 for g in data['games'] if g.get('missing')), 'errors': errors}
+            'missing': sum(1 for g in data['games'] if g.get('missing')), 'errors': errors,
+            'played_pending': sum(1 for p in played_titles() if p['n'] not in data.get('played', {}))}
 
 
 def add(exe, prefix=None, title=None, args=''):
@@ -1162,11 +1163,25 @@ def fetch_cover(image_id, gid):
     return str(path)
 
 
+def played_titles():
+    """Jogos que já joguei (a lista de compat-data.json): nome, horas e platina."""
+    try:
+        items = json.loads((Path(__file__).resolve().parent/'compat-data.json').read_text())['list']
+    except (OSError, ValueError, KeyError):
+        return []
+    return [{'n': g['n'], 'hrs': g.get('hrs'), 'plat': bool(g.get('plat'))} for g in items]
+
+
 def meta(ids=None, everything=False):
-    """Busca metadados no IGDB e preenche só os campos vazios (capa, gêneros, duração estimada...)."""
-    games_now = load()['games']
+    """Busca metadados no IGDB e preenche só os campos vazios (capa, gêneros, duração estimada...).
+    Também consulta, uma vez, os jogos que já joguei e estão fora da biblioteca: gêneros e
+    parecidos deles entram nas recomendações (campo "played" do games.json)."""
+    doc = load()
+    games_now = doc['games']
     todo = [g for g in games_now if (ids and g['id'] in ids) or (not ids and (everything or 'igdb' not in g))]
-    if not todo:
+    known = doc.get('played', {})
+    played_todo = [] if ids else [p for p in played_titles() if everything or p['n'] not in known]
+    if not todo and not played_todo:
         return {'matched': [], 'missed': []}
     api = Igdb()
     found = {}
@@ -1196,8 +1211,17 @@ def meta(ids=None, everything=False):
             except OSError:
                 pass
         found[game['id']] = info
+    # Played before, outside the library: only what the recommendations use.
+    played = {}
+    fields = 'id,name,genres.name,similar_games,parent_game,version_parent,total_rating_count'
+    for p in played_todo:
+        hit = best_match(p['n'], api.query('games', f'search "{p["n"].replace(chr(34), " ")}"; fields {fields}; limit 15;'))
+        played[p['n']] = dict(p, checked=int(time.time()), **({'igdb': {
+            'id': hit['id'], 'name': hit.get('name'), 'genres': [x['name'] for x in hit.get('genres', [])],
+            'similar': hit.get('similar_games', [])[:10]}} if hit else {}))
     # Similar games: one query for all, names and covers for the recommendations.
-    similar_ids = sorted({i for v in found.values() if v['match'] for i in v['match']['similar']})
+    similar_ids = sorted({i for v in found.values() if v['match'] for i in v['match']['similar']}
+                         | {i for v in played.values() if 'igdb' in v for i in v['igdb']['similar']})
     similar = {}
     for start in range(0, len(similar_ids), 100):
         chunk = similar_ids[start:start + 100]
@@ -1224,7 +1248,10 @@ def meta(ids=None, everything=False):
             else:
                 missed.append(g['title'])
         d.setdefault('igdb_similar', {}).update(similar)
-        return {'matched': matched, 'missed': missed}
+        d.setdefault('played', {}).update(played)
+        return {'matched': matched, 'missed': missed,
+                'played': {'matched': sum(1 for v in played.values() if 'igdb' in v),
+                           'missed': [k for k, v in played.items() if 'igdb' not in v]}}
     return update(write)
 
 

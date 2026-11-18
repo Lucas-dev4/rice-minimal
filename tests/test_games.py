@@ -287,6 +287,9 @@ class Games(unittest.TestCase):
         self.assertIsNone(games.best_match('Jogo Inventado', results))
 
     def test_meta_fills_only_empty_fields(self):
+        played = patch.object(games, 'played_titles', return_value=[])
+        played.start()
+        self.addCleanup(played.stop)
         mine = self.home/'mine.jpg'
         mine.write_bytes(b'x')
         for title, cover in (('Hollow Knight', None), ('Celeste', str(mine)), ('Nada Disso', None)):
@@ -320,6 +323,29 @@ class Games(unittest.TestCase):
         # Already looked up: a second run does not even ask Twitch for a token.
         with patch.object(games, 'Igdb', side_effect=AssertionError('queried again')):
             self.assertEqual(self.cli('meta')[1], {'ok': True, 'matched': [], 'missed': []})
+
+    def test_played_games_are_looked_up_once_for_the_recommendations(self):
+        mine = [{'n': 'Dark Souls', 'hrs': 50, 'plat': True}, {'n': 'Jogo Sem Par', 'hrs': None, 'plat': False}]
+        class Fake:
+            def query(self, endpoint, body):
+                if 'Dark Souls' in body:
+                    return [{'id': 5, 'name': 'Dark Souls', 'genres': [{'name': 'Role-playing (RPG)'}], 'similar_games': [77]}]
+                if body.startswith('search'):
+                    return []
+                return [{'id': 77, 'name': 'Lies of P', 'genres': [], 'total_rating': 84.4}]
+        with patch.object(games, 'played_titles', return_value=mine):
+            self.assertEqual(self.cli('scan')[1]['played_pending'], 2)
+            with patch.object(games, 'Igdb', Fake):
+                result = self.cli('meta')[1]
+            self.assertEqual(result['played'], {'matched': 1, 'missed': ['Jogo Sem Par']})
+            doc = games.load()
+            self.assertEqual(doc['played']['Dark Souls']['igdb'], {'id': 5, 'name': 'Dark Souls', 'genres': ['Role-playing (RPG)'], 'similar': [77]})
+            self.assertEqual((doc['played']['Dark Souls']['hrs'], doc['played']['Dark Souls']['plat']), (50, True))
+            self.assertNotIn('igdb', doc['played']['Jogo Sem Par'])
+            self.assertEqual(doc['igdb_similar']['77']['name'], 'Lies of P')
+            self.assertEqual(self.cli('scan')[1]['played_pending'], 0)
+            with patch.object(games, 'Igdb', side_effect=AssertionError('queried again')):
+                self.assertEqual(self.cli('meta')[1], {'ok': True, 'matched': [], 'missed': []})
 
     def test_done_and_complete_get_their_dates_once(self):
         exe = self.home/'j.exe'
