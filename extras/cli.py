@@ -17,7 +17,7 @@ import backups
 import lockscreen
 import shortcuts
 
-COMMANDS = {'status','gui','music','games','wallpaper','palette','profile','greeter','sync','shortcuts','lock','backups','bt'}
+COMMANDS = {'status','gui','music','games','wallpaper','palette','profile','greeter','sync','shortcuts','lock','compat','backups','bt'}
 THUMBS = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'rice-minimal/thumbs'
 THUMB_SIZE = 400
 
@@ -489,6 +489,10 @@ def main(argv):
     lock.add_parser('dim',parents=[common]).add_argument('level',type=int,choices=[35,*range(55,90,5)])
     for operation in ('trial','activate'):
         lock.add_parser(operation,parents=[common]).add_argument('--confirm',action='store_true')
+    # Jogos x hardware desta máquina (extras/compat.py).
+    compat_cmd=actions.add_parser('compat').add_subparsers(dest='operation',required=True)
+    for operation in ('scan','check'):
+        compat_cmd.add_parser(operation,parents=[common])
     args=parser.parse_args(argv)
     if args.action == 'gui':
         return gui()
@@ -532,6 +536,12 @@ def main(argv):
             theme.log_action('lock','OK',f'background dim {args.level}%')
         elif name == 'lock trial': data=lock_trial(args.confirm)
         elif name == 'lock activate': data=lock_activate(args.confirm)
+        elif name == 'compat scan':
+            import compat
+            data=compat.scan()
+        elif name == 'compat check':
+            import compat
+            data=compat.check()
         elif name == 'lock restore':
             data={'rescue':lockscreen.restore()}
             theme.log_action('lock','OK','previous visuals restored')

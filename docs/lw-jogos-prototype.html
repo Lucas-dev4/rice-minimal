@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lucas · Perfil de Jogador & Roleta de Desafios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#12100e; --panel:#171513; --raise:#1d1a17; --line:#2a2622; --line-2:#3a342e;
+  --fg:#c9c1b6; --dim:#6f675e; --faint:#4a443e;
+  --accent:#e8a46b; --accent-a:rgba(232,164,107,.09); --glow:rgba(232,164,107,.25);
+  --ok:#b5d97a; --warn:#e86b6b; --yel:#e8c86b; --mag:#b8a6e8;
+  --font:"JetBrains Mono","Iosevka","Fira Code",monospace;
+  --t-fast:140ms; --t-med:240ms; --ease:cubic-bezier(.2,.7,.2,1);
+}
+@media (prefers-reduced-motion: reduce){ :root{ --t-fast:0ms; --t-med:0ms; } }
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#0a0908;font:12.5px/1.55 var(--font);color:var(--fg);display:grid;place-items:center;-webkit-font-smoothing:antialiased;transition:background .6s}
+::selection{background:var(--accent);color:var(--bg)}
+button{background:none;border:0;font:inherit;color:inherit;cursor:pointer}
+
+.win{width:min(1220px,calc(100vw - 24px));height:min(780px,calc(100vh - 24px));background:var(--bg);border:1px solid var(--line);
+  display:grid;grid-template-columns:232px 1fr;grid-template-rows:1fr 34px;position:relative;overflow:hidden;
+  box-shadow:0 40px 90px -20px rgba(0,0,0,.55),0 0 0 1px rgba(0,0,0,.4);transition:background .6s}
+.win::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:20;background:repeating-linear-gradient(transparent 0 2px,rgba(0,0,0,.08) 2px 3px);mix-blend-mode:multiply}
+.corner{position:absolute;color:var(--faint);font-size:11px;line-height:1;z-index:5;pointer-events:none}
+.corner.tl{top:6px;left:8px}.corner.tr{top:6px;right:8px}
+
+/* sidebar */
+.side{background:var(--panel);border-right:1px solid var(--line);padding:30px 0 18px;display:flex;flex-direction:column;transition:background .6s}
+.brand{padding:0 22px}
+.logo{color:var(--accent);font-size:9.5px;line-height:1.05;white-space:pre;text-shadow:0 0 18px var(--glow);cursor:pointer}
+.logo.glitch{animation:glitch 180ms steps(2) 1}
+@keyframes glitch{0%{transform:translate(2px,0);text-shadow:-2px 0 #6bc4e8,2px 0 #e86b8a}50%{transform:translate(-2px,1px);clip-path:inset(30% 0 40% 0)}100%{transform:none;clip-path:none}}
+.sub{color:var(--dim);margin-top:10px;display:flex;justify-content:space-between}
+.sub .ver{color:var(--faint)}
+.label{color:var(--faint);font-size:10.5px;letter-spacing:1.5px;padding:0 22px;margin:28px 0 8px}
+.nav{list-style:none;position:relative}
+.nav li{position:relative;padding:5px 22px;cursor:pointer;color:var(--dim);display:flex;justify-content:space-between;transition:color var(--t-fast) var(--ease);z-index:1}
+.nav li .k{color:var(--faint);transition:color var(--t-fast)}
+.nav li .t{transition:transform var(--t-fast) var(--ease);display:inline-block}
+.nav li:hover{color:var(--fg)}.nav li:hover .t{transform:translateX(4px)}
+.nav li.on{color:var(--accent);font-weight:600}.nav li.on .k{color:var(--accent)}
+.nav .band{position:absolute;left:0;right:0;height:29px;background:var(--accent-a);border-left:2px solid var(--accent);transition:top var(--t-med) var(--ease);pointer-events:none}
+.side-foot{margin-top:auto;padding:0 22px}
+.pl{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.pl button{height:22px;border:1px solid var(--line-2);position:relative;transition:transform var(--t-fast) var(--ease)}
+.pl button:hover{transform:translateY(-2px)}
+.pl button.on{outline:1px solid var(--accent);outline-offset:2px}
+.prof{margin-top:10px;color:var(--dim);display:flex;justify-content:space-between}
+.prof b{color:var(--fg);font-weight:400}
+.mini-stat{margin-top:6px;color:var(--dim);display:flex;justify-content:space-between}
+.mini-stat b{color:var(--accent);font-weight:400}
+
+/* main */
+.main{display:flex;flex-direction:column;padding:22px 26px 14px;min-height:0;min-width:0}
+.head{display:flex;align-items:center;gap:10px;color:var(--dim)}
+.head .title{color:var(--accent);font-weight:800;letter-spacing:.6px;white-space:nowrap}
+.head .count{color:var(--dim);border:1px solid var(--line);padding:0 6px;font-size:11px;white-space:nowrap}
+.head .rule{flex:1;height:1px;background:repeating-linear-gradient(90deg,var(--line) 0 4px,transparent 4px 8px)}
+.view{display:none;flex:1;min-height:0;flex-direction:column}
+.view.on{display:flex;animation:in var(--t-med) var(--ease)}
+@keyframes in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.scroll{flex:1;overflow-y:auto;min-height:0;padding:14px 10px;margin:0 -10px;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent;
+  mask-image:linear-gradient(transparent 0,#000 14px,#000 calc(100% - 14px),transparent 100%)}
+.sec{color:var(--faint);font-size:10.5px;letter-spacing:1.5px;margin-bottom:10px}
+.panel{border:1px solid var(--line);background:var(--panel);padding:16px;transition:background .6s,border-color .6s}
+.chip{padding:1px 9px;border:1px solid var(--line);color:var(--dim);transition:all var(--t-fast) var(--ease)}
+.chip:hover{color:var(--fg);border-color:var(--line-2)}
+.chip.on{color:var(--bg);background:var(--accent);border-color:var(--accent)}
+.bar2{display:flex;gap:6px;margin:14px 0 6px;align-items:center;flex-wrap:wrap}
+.bar2 .hint{margin-left:auto;color:var(--faint);font-size:11px}
+.kc{min-width:22px;height:20px;padding:0 6px;display:inline-grid;place-items:center;border:1px solid var(--line-2);border-bottom-width:2px;background:var(--raise);color:var(--fg);font-size:11px}
+.kc.mod{color:var(--accent)}
+
+/* perfil */
+.hero{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:end;margin-bottom:18px}
+.hero .cls{color:var(--faint);font-size:10.5px;letter-spacing:1.5px}
+.hero h2{font-size:22px;font-weight:800;color:var(--accent);letter-spacing:.8px;margin:4px 0 8px;text-shadow:0 0 22px var(--glow)}
+.hero p{color:var(--dim);max-width:640px}
+.hero p b{color:var(--fg);font-weight:400}
+.lvl{border:1px solid var(--line-2);padding:10px 14px;text-align:right;background:var(--raise)}
+.lvl .n{font-size:26px;font-weight:800;color:var(--fg)}
+.lvl .l{color:var(--faint);font-size:10.5px;letter-spacing:1.5px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.stat{border:1px solid var(--line);background:var(--panel);padding:12px 14px;transition:border-color var(--t-fast),transform var(--t-fast) var(--ease)}
+.stat:hover{border-color:var(--line-2);transform:translateY(-2px)}
+.stat .big{font-size:24px;font-weight:800;line-height:1.2}
+.stat .lb{color:var(--dim)}
+.stat .ft{color:var(--faint);font-size:10.5px;margin-top:2px}
+.cols{display:grid;grid-template-columns:1.25fr 1fr;gap:18px;margin-bottom:18px}
+.rk{display:grid;grid-template-columns:22px 1fr 56px;gap:10px;align-items:center;padding:5px 0}
+.rk .i{color:var(--faint)}
+.rk .nm{color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rk .nm .pt{color:var(--accent);margin-left:6px;font-size:10.5px}
+.rk .h{text-align:right;color:var(--dim)}
+.rk .bar{grid-column:2/4;height:3px;background:var(--line);margin-top:-2px;overflow:hidden}
+.rk .bar i{display:block;height:100%;background:var(--accent);width:0;transition:width .7s var(--ease)}
+.tbl{display:grid;grid-template-columns:1fr auto auto;border:1px solid var(--line)}
+.tbl div{padding:5px 12px;border-bottom:1px solid var(--line);color:var(--dim)}
+.tbl div:nth-last-child(-n+3){border-bottom:0}
+.tbl .h{color:var(--faint);font-size:10.5px;letter-spacing:1.5px}
+.tbl .f{color:var(--fg)}
+.tbl .a{color:var(--accent);text-align:right}
+.traits{display:grid;grid-template-columns:1fr 1fr;gap:6px 22px}
+.trait{display:flex;gap:10px;color:var(--fg)}
+.trait .st{color:var(--ok);flex:none}
+.trait span:last-child{color:var(--dim)}
+.trait span:last-child b{color:var(--fg);font-weight:400}
+.note2{color:var(--faint);font-size:11px;margin-top:14px}
+
+/* roleta / mistério */
+.stage{flex:1;min-height:0;display:grid;grid-template-columns:1fr 300px;gap:20px;margin-top:10px}
+.machine{border:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;justify-content:center;align-items:center;padding:24px;position:relative;min-height:0;transition:background .6s}
+.machine .tagl{position:absolute;top:10px;left:12px;color:var(--faint);font-size:10.5px;letter-spacing:1.5px}
+.machine .tagr{position:absolute;top:10px;right:12px;color:var(--faint);font-size:10.5px}
+.reel{width:100%;max-width:560px;border:1px solid var(--line-2);background:var(--bg);padding:16px 18px;position:relative;transition:background .6s}
+.reel::before,.reel::after{content:'';position:absolute;left:0;right:0;height:1px;background:repeating-linear-gradient(90deg,var(--line-2) 0 4px,transparent 4px 8px)}
+.reel::before{top:-6px}.reel::after{bottom:-6px}
+.reel .row{color:var(--faint);text-align:center;height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11.5px}
+.reel .main-row{color:var(--fg);font-size:17px;font-weight:800;letter-spacing:.6px;text-align:center;height:34px;line-height:34px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.reel .main-row.hit{color:var(--accent);text-shadow:0 0 24px var(--glow);animation:pop var(--t-med) var(--ease)}
+@keyframes pop{from{transform:scale(.92);opacity:.4}}
+.reel .ptr{position:absolute;top:50%;transform:translateY(-50%);color:var(--accent)}
+.reel .ptr.l{left:8px}.reel .ptr.r{right:8px}
+.gmeta{margin-top:16px;color:var(--dim);min-height:20px;text-align:center}
+.gmeta b{color:var(--fg);font-weight:400}
+.acts{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap;justify-content:center}
+.apply{padding:4px 16px;border:1px solid var(--accent);color:var(--accent);font-weight:600;position:relative;overflow:hidden;z-index:0;transition:color var(--t-fast)}
+.apply::before{content:'';position:absolute;inset:0;background:var(--accent);transform:scaleX(0);transform-origin:left;transition:transform var(--t-med) var(--ease);z-index:-1}
+.apply:hover:not(:disabled){color:var(--bg)}.apply:hover:not(:disabled)::before{transform:scaleX(1)}
+.ghost{padding:4px 12px;border:1px solid var(--line-2);color:var(--dim);transition:all var(--t-fast)}
+.ghost:hover:not(:disabled){color:var(--fg);border-color:var(--fg)}
+.ghost.on{color:var(--accent);border-color:var(--accent)}
+button:disabled{opacity:.35;cursor:not-allowed}
+.det{border:1px solid var(--line);background:var(--panel);padding:18px;display:flex;flex-direction:column;gap:14px;min-height:0;overflow:auto;transition:background .6s}
+.det label{color:var(--faint);font-size:10.5px;letter-spacing:1.5px}
+.det .ctext{color:var(--fg);font-size:14px;font-weight:600;margin-top:6px;min-height:44px}
+.det .empty{color:var(--faint)}
+.pips{display:flex;gap:4px;margin-top:8px}
+.pips i{width:22px;height:8px;background:var(--line);transition:background var(--t-med)}
+.pips i.on{background:var(--warn)}
+.pips + .lv{color:var(--dim);margin-top:4px;font-size:11px}
+.chaosbox{border:1px dashed var(--line-2);padding:10px;color:var(--dim);display:none}
+.chaosbox.on{display:block;border-color:var(--mag);color:var(--fg);animation:in var(--t-med) var(--ease)}
+.chaosbox b{color:var(--mag);font-weight:600}
+.tog{display:flex;align-items:center;gap:8px;color:var(--dim);cursor:pointer;user-select:none}
+.tog .bx{color:var(--faint);white-space:pre;flex:none}
+.tog.on{color:var(--fg)}.tog.on .bx{color:var(--accent)}
+.why{color:var(--dim)}
+
+/* card misterioso */
+.card{width:230px;height:300px;perspective:900px;cursor:pointer}
+.card .in{position:relative;width:100%;height:100%;transition:transform 700ms var(--ease);transform-style:preserve-3d}
+.card.flip .in{transform:rotateY(180deg)}
+.card .fc{position:absolute;inset:0;backface-visibility:hidden;border:1px solid var(--line-2);background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;text-align:center}
+.card .front{background:
+  repeating-linear-gradient(45deg,transparent 0 9px,var(--accent-a) 9px 10px),var(--bg)}
+.card .front .q{font-size:64px;font-weight:800;color:var(--accent);text-shadow:0 0 30px var(--glow);animation:flick 3s steps(1) infinite}
+@keyframes flick{0%,92%,100%{opacity:1}93%{opacity:.3}95%{opacity:1}96%{opacity:.5}}
+.card .front .s{color:var(--faint);font-size:10.5px;letter-spacing:1.5px;margin-top:8px}
+.card .back{transform:rotateY(180deg);border-color:var(--accent)}
+.card .back .gn{font-size:15px;font-weight:800;color:var(--accent);letter-spacing:.5px}
+.card .back .gg{color:var(--faint);font-size:10.5px;letter-spacing:1.5px;margin-top:10px}
+.card::after{content:'';position:absolute}
+.cw{position:relative}
+.cw::after{content:'';position:absolute;inset:-8px;pointer-events:none;--c:var(--accent);--l:14px;--w:2px;
+  background:linear-gradient(var(--c),var(--c)) top left/var(--l) var(--w),linear-gradient(var(--c),var(--c)) top left/var(--w) var(--l),
+  linear-gradient(var(--c),var(--c)) top right/var(--l) var(--w),linear-gradient(var(--c),var(--c)) top right/var(--w) var(--l),
+  linear-gradient(var(--c),var(--c)) bottom left/var(--l) var(--w),linear-gradient(var(--c),var(--c)) bottom left/var(--w) var(--l),
+  linear-gradient(var(--c),var(--c)) bottom right/var(--l) var(--w),linear-gradient(var(--c),var(--c)) bottom right/var(--w) var(--l);
+  background-repeat:no-repeat;opacity:.8}
+
+/* desafios */
+.hrow{display:grid;grid-template-columns:62px 1fr auto;gap:12px;align-items:center;padding:7px 10px;border-left:2px solid transparent;transition:background var(--t-fast)}
+.hrow:hover{background:rgba(255,255,255,.025);border-left-color:var(--line-2)}
+.hrow .st{font-size:11.5px}
+.hrow .st.run{color:var(--accent)}.hrow .st.ok{color:var(--ok)}
+.hrow .g{color:var(--fg)}
+.hrow .c{color:var(--dim);font-size:11.5px}
+.hrow .src{color:var(--mag);font-size:10.5px;margin-left:6px}
+.hrow .x{display:flex;gap:6px}
+.hrow .x button{padding:0 8px;border:1px solid var(--line);color:var(--dim)}
+.hrow .x button:hover{color:var(--fg);border-color:var(--line-2)}
+.emptyh{color:var(--faint);text-align:center;padding:60px 0;white-space:pre}
+.dsum{display:flex;gap:28px;align-items:baseline;margin:14px 0 4px}
+.dsum .big{font-size:24px;font-weight:800}
+.dsum .lb{color:var(--dim);margin-left:6px}
+.hbar{display:flex;height:4px;margin:8px 0 12px;background:var(--line);overflow:hidden}
+.hbar span{transition:width .3s var(--ease)}
+
+/* hardware */
+.hw{display:grid;grid-template-columns:330px 1fr;gap:20px;flex:1;min-height:0;margin-top:10px}
+.spec{display:grid;grid-template-columns:52px 1fr;gap:3px 10px}
+.spec span{color:var(--faint)}
+.spec b{color:var(--fg);font-weight:400;overflow-wrap:anywhere}
+.spec b.unk{color:var(--dim)}
+.slog{font-size:11px;color:var(--dim);white-space:pre-wrap;min-height:16px}
+.slog .ok{color:var(--ok)}.slog .wr{color:var(--yel)}
+.cmd{margin-top:6px;background:var(--bg);border:1px solid var(--line);padding:8px;font-size:10.5px;color:var(--dim);white-space:pre-wrap;word-break:break-all;max-height:78px;overflow:auto}
+.paste{width:100%;margin-top:6px;background:var(--bg);border:1px solid var(--line);color:var(--fg);font:inherit;font-size:11px;padding:6px 8px;height:44px;resize:none;outline:0;transition:border-color var(--t-fast)}
+.paste:focus{border-color:var(--accent)}
+.hwr{display:flex;flex-direction:column;min-height:0;padding:0}
+.hwr .dsum{padding:14px 16px 0;margin:0}
+.hwr .hbar{margin:10px 16px 4px}
+.hwr .scroll{margin:0;padding:6px 6px 14px}
+.vr{display:grid;grid-template-columns:62px 1fr auto;gap:12px;align-items:center;padding:5px 10px;border-left:2px solid transparent;transition:background var(--t-fast)}
+.vr:hover{background:rgba(255,255,255,.025);border-left-color:var(--line-2)}
+.vr .g{color:var(--fg)}
+.vr .w{color:var(--dim);font-size:11px}
+.vr .sr{color:var(--faint);font-size:10.5px}
+.vr .k.ok{color:var(--ok)}.vr .k.lim{color:var(--yel)}.vr .k.no{color:var(--warn)}.vr .k.na{color:var(--dim)}
+.vr .src{color:var(--mag);font-size:10.5px;margin-left:6px}
+.grp2{color:var(--faint);font-size:10.5px;letter-spacing:1.5px;padding:12px 10px 4px}
+@media (max-width:900px){.hw{grid-template-columns:1fr}}
+
+/* status */
+.status{grid-column:1/-1;border-top:1px solid var(--line);background:var(--panel);display:flex;align-items:stretch;color:var(--dim);font-size:11.5px;transition:background .6s}
+.status>*{display:flex;align-items:center;padding:0 14px;border-right:1px solid var(--line)}
+.status .clock{color:var(--ok)}
+.status .clock i{font-style:normal;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.status .msg{color:var(--ok);white-space:pre;flex:1;border-right:0;overflow:hidden}
+.status .keys{border-left:1px solid var(--line);color:var(--faint);gap:12px;white-space:nowrap}
+.status .keys kbd{font:inherit;color:var(--dim)}
+
+/* boot */
+.boot{position:absolute;inset:0;z-index:10;background:var(--bg);display:flex;flex-direction:column;justify-content:center;align-items:center;transition:opacity 380ms var(--ease),transform 380ms var(--ease)}
+.boot.out{opacity:0;transform:scale(1.03);pointer-events:none}
+.boot .blogo{color:var(--accent);white-space:pre;font-size:15px;line-height:1.05;text-shadow:0 0 30px var(--glow);clip-path:inset(0 100% 0 0);transition:clip-path 520ms steps(18)}
+.boot .blogo.show{clip-path:inset(0 0 0 0)}
+.boot .log{width:min(520px,90%);height:170px;margin-top:30px;font-size:12px;color:var(--dim);white-space:pre;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end}
+.boot .log .ok{color:var(--ok)}
+.boot .prog{width:min(520px,90%);margin-top:10px;color:var(--accent);font-size:12px;white-space:pre;overflow:hidden}
+.boot .skip{position:absolute;bottom:16px;color:var(--faint);font-size:11px}
+
+@media (max-width:900px){
+  body{place-items:start}
+  .win{width:100vw;height:auto;min-height:100vh;grid-template-columns:1fr;grid-template-rows:auto 1fr auto;border:0}
+  .side{padding:18px 0 10px;border-right:0;border-bottom:1px solid var(--line)}
+  .logo{font-size:7px}.side-foot{display:none}.label{margin-top:14px}
+  .nav{display:flex;flex-wrap:wrap}.nav li{padding:5px 14px;gap:8px}.nav .band{display:none}
+  .nav li.on{background:var(--accent-a)}
+  .stats{grid-template-columns:1fr 1fr}.cols,.stage,.traits{grid-template-columns:1fr}
+  .hero{grid-template-columns:1fr}.status .keys{display:none}
+  .main{padding:16px}.scroll{overflow:visible}
+}
+</style>
+</head>
+<body>
+<div class="win">
+  <span class="corner tl">┌</span><span class="corner tr">┐</span>
+
+  <div class="boot" id="boot">
+    <div class="blogo" id="blogo">██╗     ██╗    ██╗
+██║     ██║    ██║
+██║     ██║ █╗ ██║
+██║     ██║███╗██║
+███████╗╚███╔███╔╝
+╚══════╝ ╚══╝╚══╝ </div>
+    <div class="log" id="blog"></div>
+    <div class="prog" id="bprog"></div>
+    <div class="skip">qualquer tecla pula</div>
+  </div>
+
+  <aside class="side">
+    <div class="brand">
+      <div class="logo" id="logo">██╗     ██╗    ██╗
+██║     ██║    ██║
+██║     ██║ █╗ ██║
+██║     ██║███╗██║
+███████╗╚███╔███╔╝
+╚══════╝ ╚══╝╚══╝ </div>
+      <div class="sub"><span>// jogos</span><span class="ver">lucas</span></div>
+    </div>
+    <div class="label">MENU</div>
+    <ul class="nav" id="nav">
+      <div class="band" id="band"></div>
+      <li data-v="perfil"><span class="t">PERFIL</span><span class="k">1</span></li>
+      <li data-v="roleta"><span class="t">ROLETA</span><span class="k">2</span></li>
+      <li data-v="misterio"><span class="t">MISTÉRIO</span><span class="k">3</span></li>
+      <li data-v="desafios"><span class="t">DESAFIOS</span><span class="k">4</span></li>
+      <li data-v="hardware"><span class="t">HARDWARE</span><span class="k">5</span></li>
+    </ul>
+    <div class="side-foot">
+      <div class="label" style="padding:0;margin:0 0 8px">PALETTE</div>
+      <div class="pl" id="pl"></div>
+      <div class="prof"><span>scheme</span><b id="pname">ember</b></div>
+      <div class="mini-stat"><span>desafios</span><b id="sideCount">0 / 0</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="head">
+      <span class="title" id="title">LW // PERFIL</span>
+      <span class="count" id="count">35 zerados</span>
+      <span class="rule"></span>
+    </div>
+
+    <!-- PERFIL -->
+    <section class="view" id="v-perfil">
+      <div class="scroll">
+        <div class="hero">
+          <div>
+            <div class="cls">CLASSE</div>
+            <h2 id="arch">O COMPLETIONISTA MASOQUISTA</h2>
+            <p>Vive de jogo difícil e preciso: <b>soulslike</b>, <b>ação 2D</b> e <b>metroidvania</b>. Não basta zerar, tem que platinar, principalmente na FromSoftware, onde fez 100% de tudo que jogou. Nas horas vagas caça monstro gigante e, por algum motivo, passou 100h fugindo da polícia no NFS Heat.</p>
+          </div>
+          <div class="lvl"><div class="l">TEMPO TOTAL</div><div class="n">~1.136h</div><div class="l">1.070 REG + ~66 EST</div></div>
+        </div>
+        <div class="stats">
+          <div class="stat"><div class="big" style="color:var(--fg)">35</div><div class="lb">jogos zerados</div><div class="ft">sem contar os portáteis</div></div>
+          <div class="stat"><div class="big" style="color:var(--accent)">16</div><div class="lb">platinas</div><div class="ft">≈46% do que zerou</div></div>
+          <div class="stat"><div class="big" style="color:var(--ok)">6/6</div><div class="lb">From platinados</div><div class="ft">610h na FromSoftware</div></div>
+          <div class="stat"><div class="big" style="color:var(--warn)">47%</div><div class="lb">Elden Ring + Iceborne</div><div class="ft">500h em dois jogos</div></div>
+        </div>
+        <div class="cols">
+          <div class="panel">
+            <div class="sec">TOP HORAS</div>
+            <div id="rank"></div>
+          </div>
+          <div class="panel">
+            <div class="sec">FRANQUIAS</div>
+            <div class="tbl">
+              <div class="h">NOME</div><div class="h">HORAS</div><div class="h" style="text-align:right">🏆</div>
+              <div class="f">FromSoftware</div><div>610h</div><div class="a">6</div>
+              <div class="f">Monster Hunter</div><div>330h</div><div class="a">0</div>
+              <div class="f">Need for Speed</div><div>100h</div><div class="a">0</div>
+              <div class="f">Castlevania DS</div><div>~36h*</div><div class="a">3</div>
+              <div class="f">Mega Man Zero/ZX</div><div>~30h*</div><div class="a">6</div>
+              <div class="f">Hollow Knight</div><div>30h</div><div class="a">1</div>
+            </div>
+            <div class="sec" style="margin-top:18px">GÊNEROS</div>
+            <div class="tbl">
+              <div class="h">GÊNERO</div><div class="h">JOGOS</div><div class="h" style="text-align:right">%</div>
+              <div class="f">Ação 2D / Plataforma</div><div>10</div><div class="a">29%</div>
+              <div class="f">Metroidvania</div><div>8</div><div class="a">23%</div>
+              <div class="f">Soulslike / Ação 3D</div><div>7</div><div class="a">20%</div>
+              <div class="f">Estratégia / Puzzle</div><div>4</div><div class="a">11%</div>
+              <div class="f">Monster Hunter</div><div>3</div><div class="a">9%</div>
+              <div class="f">RPG · Sim · Corrida</div><div>3</div><div class="a">9%</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="sec">TRAÇOS</div>
+          <div class="traits">
+            <div class="trait"><span class="st">[ OK ]</span><span><b>platinador:</b> 640h das 1.070h em jogos com platina</span></div>
+            <div class="trait"><span class="st">[ OK ]</span><span><b>fiel ao 2D:</b> 18 dos 35 são ação 2D ou metroidvania</span></div>
+            <div class="trait"><span class="st">[ OK ]</span><span><b>rápido:</b> Sekiro e Dark Souls II platinados em ~30h</span></div>
+            <div class="trait"><span class="st">[ OK ]</span><span><b>caçador:</b> 330h de Monster Hunter, 2ª maior franquia</span></div>
+            <div class="trait"><span class="st" style="color:var(--yel)">[WARN]</span><span><b>fora da curva:</b> 100h de NFS Heat</span></div>
+            <div class="trait"><span class="st" style="color:var(--yel)">[WARN]</span><span><b>esfriou:</b> 200h no Iceborne, só 30h no Wilds</span></div>
+            <div class="trait"><span class="st">[ OK ]</span><span><b>retro:</b> GBA/NDS/PSP: luta de nicho, Pokémon, Zelda, Castlevania</span></div>
+          </div>
+        </div>
+        <div class="note2">* horas estimadas, não registradas.</div>
+      </div>
+    </section>
+
+    <!-- ROLETA -->
+    <section class="view" id="v-roleta">
+      <div class="bar2" id="filters"></div>
+      <div class="stage">
+        <div class="machine">
+          <span class="tagl">REEL // SUA LISTA</span><span class="tagr" id="poolN"></span>
+          <div class="reel">
+            <span class="ptr l">▶</span><span class="ptr r">◀</span>
+            <div class="row" id="r0">·</div>
+            <div class="main-row" id="r1">[ ESPAÇO PRA SORTEAR ]</div>
+            <div class="row" id="r2">·</div>
+          </div>
+          <div class="gmeta" id="gmeta"></div>
+          <div class="acts">
+            <button class="apply" id="spin">SORTEAR</button>
+            <button class="ghost" id="reroll" disabled>OUTRO DESAFIO</button>
+            <button class="ghost" id="accept" disabled>ACEITAR</button>
+          </div>
+        </div>
+        <div class="det" id="detR"></div>
+      </div>
+    </section>
+
+    <!-- MISTÉRIO -->
+    <section class="view" id="v-misterio">
+      <div class="bar2"><span style="color:var(--dim)">um jogo <b style="color:var(--fg);font-weight:400">fora da sua lista</b>, escolhido pelo seu perfil, mais um desafio. clique na carta.</span><span class="hint">já jogou? sorteia outra</span></div>
+      <div class="stage">
+        <div class="machine">
+          <span class="tagl">??? // DESCONHECIDO</span><span class="tagr" id="mN"></span>
+          <div class="cw"><div class="card" id="card"><div class="in">
+            <div class="fc front"><div class="q">?</div><div class="s">CLIQUE PRA REVELAR</div></div>
+            <div class="fc back"><div class="gn" id="mName"></div><div class="gg" id="mGenre"></div></div>
+          </div></div></div>
+          <div class="acts">
+            <button class="apply" id="mReveal">REVELAR</button>
+            <button class="ghost" id="mNext">NOVA CARTA</button>
+            <button class="ghost" id="mAccept" disabled>ACEITAR</button>
+          </div>
+        </div>
+        <div class="det" id="detM"></div>
+      </div>
+    </section>
+
+    <!-- DESAFIOS -->
+    <section class="view" id="v-desafios">
+      <div class="dsum" id="dsum"></div>
+      <div class="hbar" id="hbar"></div>
+      <div class="scroll" id="hist" style="padding-top:4px"></div>
+      <div class="note2">fica salvo só neste navegador.</div>
+    </section>
+
+    <!-- HARDWARE -->
+    <section class="view" id="v-hardware">
+      <div class="bar2" id="hwf"></div>
+      <div class="hw">
+        <div class="det" style="gap:12px">
+          <div><label>MÁQUINA</label><div class="ctext" id="hwName" style="min-height:0"></div></div>
+          <div class="spec" id="hwSpec"></div>
+          <div class="acts" style="margin-top:0;justify-content:flex-start"><button class="apply" id="hwScan">VARREDURA</button><button class="ghost" data-p="desktop">DESKTOP</button><button class="ghost" data-p="note">NOTEBOOK</button></div>
+          <div class="slog" id="hwLog"></div>
+          <div><label>PRECISÃO TOTAL // TERMINAL</label><div class="cmd" id="hwCmd"></div>
+            <div class="acts" style="justify-content:flex-start;margin-top:8px"><button class="ghost" id="hwCopy">COPIAR COMANDO</button></div></div>
+          <div><label>COLE A SAÍDA AQUI</label><textarea class="paste" id="hwPaste" placeholder="LW:cpu=...;thr=...;ram=...;gpu=..."></textarea></div>
+          <div class="tog" id="hwApply"><span class="bx">[ ]</span>roleta e mistério só com o que roda</div>
+        </div>
+        <div class="panel hwr">
+          <div class="dsum" id="hwSum"></div>
+          <div class="hbar" id="hwBar"></div>
+          <div class="scroll" id="hwList"></div>
+        </div>
+      </div>
+      <div class="note2">✓ = requisito mínimo oficial (Windows) · ~ = estimativa. No Linux os jogos rodam via Proton, então conte com alguma perda de desempenho.</div>
+    </section>
+  </main>
+
+  <div class="status">
+    <span class="clock" id="clock">--<i>:</i>--</span>
+    <span class="msg" id="msg"></span>
+    <span class="keys" id="keys"></span>
+  </div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const rnd=(a,b)=>Math.floor(Math.random()*(b-a))+a, pick=a=>a[rnd(0,a.length)];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+
+/* ---------- dados: sua lista ---------- */
+// c: a2d metro souls mh estr rpg sim corr | plat | hrs (suas) | base (h da campanha; null = sem desafio de tempo)
+const G=[
+ {n:"Ninja Gaiden: Ragebound",c:"a2d",base:7,ch:[["Zerar sem morrer em nenhum chefe",4],["Zerar numa única sessão, sem fechar o jogo",3]]},
+ {n:"Katana Zero",c:"a2d",base:5,ch:[["Zerar no Hard Mode",4],["Zerar sem usar a câmera lenta (Chronos) onde não for obrigatório",5]]},
+ {n:"Dead Cells",c:"a2d",base:null,ch:[["Vencer uma run com 5 Boss Cells",5],["Vencer uma run sem trocar a arma principal",3]]},
+ {n:"Cinderia",c:"a2d",base:null,ch:[["Vencer uma run sem se curar",4],["Vencer 3 runs seguidas",4]]},
+ {n:"Mega Man Zero",c:"a2d",plat:1,base:3,ch:[["Rank S em todas as missões",5],["Zerar sem usar Cyber-elves",3],["Zerar sem Sub Tanks",3]]},
+ {n:"Mega Man Zero 2",c:"a2d",plat:1,base:3,ch:[["Rank S em todas as missões",5],["Zerar sem usar Cyber-elves",3],["Zerar sem Sub Tanks",3]]},
+ {n:"Mega Man Zero 3",c:"a2d",plat:1,base:3.5,ch:[["Rank S em todas as missões",5],["Zerar sem usar Cyber-elves",3],["Zerar sem Sub Tanks",3]]},
+ {n:"Mega Man Zero 4",c:"a2d",plat:1,base:3.5,ch:[["Rank S em todas as missões",5],["Zerar sem usar Cyber-elves",3],["Zerar sem Sub Tanks",3]]},
+ {n:"Mega Man ZX",c:"a2d",plat:1,base:6,ch:[["Zerar sem Sub Tanks",3],["Usar só o Model inicial, trocando apenas onde for obrigatório",4]]},
+ {n:"Mega Man ZX Advent",c:"a2d",plat:1,base:7,ch:[["Zerar sem Sub Tanks",3],["Não usar transformações A-Trans fora das obrigatórias",4]]},
+ {n:"Hollow Knight: Silksong",c:"metro",plat:1,hrs:30,base:30,ch:[["Zerar no Steel Soul (morreu, acabou)",5],["Zerar sem morrer em nenhum chefe",4]]},
+ {n:"Castlevania: Belmont's Curse",c:"metro",base:null,ch:[["Zerar sem morrer em nenhum chefe",4],["100% do mapa sem abrir guia",3]]},
+ {n:"Momodora: Moonlit Farewell",c:"metro",base:6,ch:[["Zerar na dificuldade mais alta disponível",4],["Zerar sem morrer em nenhum chefe",4]]},
+ {n:"Rusted Moss",c:"metro",base:8,ch:[["Zerar na dificuldade mais alta disponível",4],["100% do mapa sem abrir guia",3]]},
+ {n:"Blasphemous",c:"metro",base:13,ch:[["NG+ com uma Penitência ativa",4],["Zerar sem morrer em nenhum chefe",4]]},
+ {n:"Castlevania: Dawn of Sorrow",c:"metro",plat:1,base:8,ch:[["Zerar o Julius Mode",3],["Zerar sem usar poções nem itens de cura",4]]},
+ {n:"Castlevania: Portrait of Ruin",c:"metro",plat:1,base:10,ch:[["Zerar o Richter Mode",3],["Zerar o Sisters Mode",3],["Zerar sem itens de cura",4]]},
+ {n:"Castlevania: Order of Ecclesia",c:"metro",plat:1,base:12,ch:[["Hard Mode com nível travado em 1",5],["Zerar sem itens de cura",4]]},
+ {n:"Dark Souls",c:"souls",plat:1,hrs:50,base:40,ch:[["Zerar em SL1",5],["Zerar sem escudo",3],["Zerar sem invocações",2]]},
+ {n:"Dark Souls II",c:"souls",plat:1,hrs:30,base:30,ch:[["Zerar no covenant Company of Champions",4],["Zerar em SL1",5],["Zerar sem invocações e sem Bonfire Ascetic",2]]},
+ {n:"Dark Souls III",c:"souls",plat:1,hrs:100,base:35,ch:[["Zerar em SL1",5],["Só a arma inicial da classe (upgrade liberado)",3],["Zerar sem invocações",2]]},
+ {n:"Bloodborne",c:"souls",plat:1,hrs:100,base:35,ch:[["Zerar em BL4",5],["Zerar sem armas de fogo (sem parry)",4],["Zerar sem invocações",2]]},
+ {n:"Sekiro: Shadows Die Twice",c:"souls",plat:1,hrs:30,base:30,ch:[["Zerar Charmless + Demon Bell",5],["Zerar sem Ferramentas Prostéticas",3]]},
+ {n:"Elden Ring",c:"souls",plat:1,hrs:300,base:60,ch:[["Zerar em RL1",5],["Arma +0 o jogo todo",4],["Sem Spirit Ashes e sem invocações",3]]},
+ {n:"Doom",c:"souls",base:11,ch:[["Zerar no Ultra-Nightmare (permadeath)",5],["Zerar no Nightmare",3]]},
+ {n:"Monster Hunter Generations Ultimate",c:"mh",hrs:100,base:null,ch:[["Caçar um Deviant solo",5],["Missão G Rank solo com uma arma que você nunca usou",3]]},
+ {n:"Monster Hunter World: Iceborne",c:"mh",hrs:200,base:null,ch:[["Caçar o Fatalis solo",5],["Caçar o Alatreon solo",5],["Master Rank inteiro com uma arma que você nunca usou",4]]},
+ {n:"Monster Hunter Wilds",c:"mh",hrs:30,base:20,ch:[["Caçar um Arch-Tempered solo",4],["High Rank inteiro solo com uma arma que você nunca usou",3]]},
+ {n:"Into the Breach",c:"estr",base:null,ch:[["Vencer no Hard com Squad aleatório",4],["Vencer no Unfair",5]]},
+ {n:"Wartales",c:"estr",base:50,ch:[["Campanha sem nunca passar de 4 membros",4],["Campanha sem recrutar prisioneiros",3]]},
+ {n:"Dobbel Dungeon",c:"estr",base:null,ch:[["Vencer na dificuldade mais alta disponível",4],["Vencer 3 runs seguidas",4]]},
+ {n:"Treasure 'n Trio",c:"estr",base:12,ch:[["Zerar sem usar desfazer (undo)",4],["Nenhuma fase reiniciada mais de 3 vezes",3]]},
+ {n:"Alabaster Dawn",c:"rpg",base:null,ch:[["Zerar na dificuldade mais alta disponível",4],["Zerar sem morrer em nenhum chefe",4]]},
+ {n:"Fields of Mistria",c:"sim",base:null,ch:[["Casar até o fim do Ano 1",3],["Ano 1 inteiro sem comprar sementes",3]]},
+ {n:"Need for Speed Heat",c:"corr",hrs:100,base:15,ch:[["Chegar ao Rep 50 só com o carro inicial",5],["Heat 5 e voltar pra garagem sem ser pego, 5 noites seguidas",4]]},
+];
+
+/* ---------- dados: mistério (fora da lista) ---------- */
+const M=[
+ {n:"Lies of P",g:"SOULSLIKE",w:"o soulslike mais próximo de Bloodborne fora da From",ch:[["Zerar sem invocar o Specter",3],["Zerar sem trocar a arma inicial",4]]},
+ {n:"Nioh 2",g:"SOULSLIKE / AÇÃO",w:"combate profundo, loot e chefes no nível Sekiro",ch:[["Zerar sem usar Yokai Shift",4],["Zerar o Dream of the Strong (NG+)",4]]},
+ {n:"Hollow Knight",g:"METROIDVANIA",w:"você platinou o Silksong; falta o original",ch:[["Zerar no Steel Soul",5],["Completar o Pantheon of Hallownest",5]]},
+ {n:"Nine Sols",g:"METROIDVANIA / AÇÃO",w:"parry estilo Sekiro num metroidvania 2D",ch:[["Ver o final verdadeiro",4],["Zerar sem morrer em nenhum chefe",5]]},
+ {n:"Prince of Persia: The Lost Crown",g:"METROIDVANIA",w:"metroidvania moderno com combate rápido",ch:[["Zerar no Immortal",5],["Zerar sem usar o modo guiado de mapa",3]]},
+ {n:"Ender Lilies",g:"METROIDVANIA",w:"clima Blasphemous com combate de invocações",ch:[["Zerar sem morrer em nenhum chefe",4],["Todos os finais",3]]},
+ {n:"Ender Magnolia",g:"METROIDVANIA",w:"sequência do Ender Lilies",ch:[["Zerar sem morrer em nenhum chefe",4],["100% do mapa sem guia",3]]},
+ {n:"Blasphemous 2",g:"METROIDVANIA",w:"você zerou o primeiro",ch:[["Zerar sem morrer em nenhum chefe",4],["Zerar usando só uma das três armas",4]]},
+ {n:"Celeste",g:"PLATAFORMA 2D",w:"precisão pura, igual Katana Zero e Mega Man Zero",ch:[["Completar todos os B-Sides",4],["Completar o Capítulo 9 (Farewell)",5]]},
+ {n:"Cuphead",g:"AÇÃO 2D / CHEFES",w:"run-and-gun de chefe atrás de chefe",ch:[["Zerar no Expert",5],["Zerar sem usar a Super",4]]},
+ {n:"Shovel Knight: Treasure Trove",g:"PLATAFORMA 2D",w:"plataforma clássica no espírito NES",ch:[["Zerar quebrando todos os checkpoints",4],["Zerar todas as campanhas",3]]},
+ {n:"Momodora: Reverie Under the Moonlight",g:"METROIDVANIA",w:"o Momodora anterior ao que você zerou",ch:[["Zerar no Insane",5],["Zerar sem morrer em nenhum chefe",4]]},
+ {n:"Axiom Verge",g:"METROIDVANIA",w:"metroidvania retrô estilo Metroid",ch:[["Zerar no Hard",3],["100% dos itens sem guia",3]]},
+ {n:"Hades",g:"ROGUELIKE DE AÇÃO",w:"o roguelike que tirou o Dead Cells do trono",ch:[["Vencer com Heat 20",4],["Vencer com Heat 32",5]]},
+ {n:"Hades II",g:"ROGUELIKE DE AÇÃO",w:"sequência do Hades",ch:[["Vencer pelas duas rotas",3],["Vencer com Fear 16",4]]},
+ {n:"Slay the Spire",g:"ROGUELIKE / CARTAS",w:"tática por turno com cara de Into the Breach",ch:[["Matar o Corrupt Heart",4],["Vencer no Ascension 20",5]]},
+ {n:"Balatro",g:"ROGUELIKE / CARTAS",w:"estratégia viciante em run curta",ch:[["Vencer no Gold Stake",5],["Vencer com todos os baralhos",4]]},
+ {n:"XCOM 2",g:"TÁTICA POR TURNOS",w:"Wartales com alienígena e perda permanente",ch:[["Zerar no Legend + Ironman",5],["Zerar no Commander + Ironman",4]]},
+ {n:"Darkest Dungeon",g:"RPG TÁTICO",w:"gestão de grupo cruel, igual Wartales",ch:[["Zerar no Stygian",5],["Zerar no Darkest",4]]},
+ {n:"Monster Hunter Rise: Sunbreak",g:"MONSTER HUNTER",w:"o MH que falta entre o World e o Wilds",ch:[["Caçar o Primordial Malzeno solo",4],["Master Rank inteiro com uma arma que você nunca usou",4]]},
+ {n:"Armored Core VI",g:"AÇÃO / MECHA",w:"FromSoftware que você ainda não platinou",ch:[["Rank S em todas as missões",5],["Ver os três finais",3]]},
+];
+
+const CHAOS=["Sem guia, wiki ou vídeo. Travou, se vira.","Proibido pausar durante chefes.","Cada morte no chefe final = voltar pro último save manual.","Só pode equipar o primeiro item que achar de cada tipo.","Controle no layout padrão, nada de remapear.","Jogar sem HUD onde o jogo permitir.","Sem upgrades opcionais de vida.","No máximo 3h por dia."];
+const CATS=[["all","todos"],["plat","platinados"],["noplat","não platinados"],["a2d","ação 2d"],["metro","metroidvania"],["souls","soulslike"],["mh","monster hunter"],["estr","estratégia"],["outros","outros"]];
+const PAL={
+ ember:{bg:"#12100e",panel:"#171513",raise:"#1d1a17",line:"#2a2622",line2:"#3a342e",fg:"#c9c1b6",dim:"#6f675e",faint:"#4a443e",accent:"#e8a46b"},
+ nord:{bg:"#1f232b",panel:"#242933",raise:"#2b303b",line:"#323846",line2:"#3f4657",fg:"#d8dee9",dim:"#7b8394",faint:"#525a6b",accent:"#88c0d0"},
+ umbreon:{bg:"#0d0e11",panel:"#121317",raise:"#17181d",line:"#22242b",line2:"#30333c",fg:"#cfd2da",dim:"#6a6e7a",faint:"#454852",accent:"#f2c94c"},
+ moss:{bg:"#0f120f",panel:"#141814",raise:"#1a1f1a",line:"#252b24",line2:"#343c33",fg:"#c3cbbd",dim:"#69735f",faint:"#454d3f",accent:"#a3c97a"},
+};
+
+/* ---------- utilidades visuais ---------- */
+const CH='!<>-_\\/[]{}=+*^?#░▒';
+function decode(el,text,total=14){
+  let f=0;clearInterval(el._t);
+  el._t=setInterval(()=>{el.textContent=[...text].map((c,i)=>c===' '?' ':(i<f/total*text.length?c:CH[rnd(0,CH.length)])).join('');
+    if(++f>total){clearInterval(el._t);el.textContent=text;}},28);
+}
+function say(text,color='var(--ok)'){
+  const m=$('#msg');m.style.color=color;clearInterval(m._t);let i=0;
+  m._t=setInterval(()=>{m.textContent=text.slice(0,++i);if(i>=text.length)clearInterval(m._t);},12);
+}
+function glitch(){const l=$('#logo');l.classList.remove('glitch');void l.offsetWidth;l.classList.add('glitch');}
+const fmtH=h=>(Number.isInteger(h)?h:h.toFixed(1).replace('.',','))+'h';
+const LV=['','tranquilo','ok','sério','pesado','insano'];
+function pips(d){return `<div class="pips">${[1,2,3,4,5].map(i=>`<i class="${i<=d?'on':''}"></i>`).join('')}</div><div class="lv">nível ${d}/5 · ${LV[d]}</div>`;}
+function setPal(k){
+  const p=PAL[k],r=document.documentElement.style;
+  r.setProperty('--bg',p.bg);r.setProperty('--panel',p.panel);r.setProperty('--raise',p.raise);r.setProperty('--line',p.line);r.setProperty('--line-2',p.line2);
+  r.setProperty('--fg',p.fg);r.setProperty('--dim',p.dim);r.setProperty('--faint',p.faint);r.setProperty('--accent',p.accent);
+  const a=p.accent.match(/\w\w/g).map(x=>parseInt(x,16)).join(',');
+  r.setProperty('--accent-a',`rgba(${a},.09)`);r.setProperty('--glow',`rgba(${a},.25)`);
+  $$('#pl button').forEach(b=>b.classList.toggle('on',b.dataset.k===k));$('#pname').textContent=k;store.set('lw-pal',k);
+}
+$('#pl').innerHTML=Object.entries(PAL).map(([k,p])=>`<button data-k="${k}" title="${k}" style="background:linear-gradient(90deg,${p.bg} 50%,${p.accent} 50%)"></button>`).join('');
+$('#pl').onclick=e=>{const k=e.target.dataset.k;if(k){setPal(k);glitch();say(`[ OK ] palette: ${k}`);}};
+
+/* ---------- navegação ---------- */
+const VIEWS=['perfil','roleta','misterio','desafios','hardware'];
+const TITLES={perfil:'PERFIL',roleta:'ROLETA',misterio:'MISTÉRIO',desafios:'DESAFIOS',hardware:'HARDWARE'};
+const KEYS={perfil:'<kbd>1-5</kbd> telas',roleta:'<kbd>espaço</kbd> sortear <kbd>r</kbd> desafio <kbd>enter</kbd> aceitar',misterio:'<kbd>espaço</kbd> revelar <kbd>n</kbd> nova <kbd>enter</kbd> aceitar',desafios:'<kbd>1-5</kbd> telas',hardware:'<kbd>s</kbd> varredura <kbd>1-5</kbd> telas'};
+let cur='perfil';
+function setView(v){
+  cur=v;const items=$$('#nav li');const i=VIEWS.indexOf(v);
+  items.forEach((li,j)=>li.classList.toggle('on',j===i));
+  $('#band').style.top=items[i].offsetTop+'px';
+  $$('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
+  decode($('#title'),'LW // '+TITLES[v]);
+  $('#keys').innerHTML=KEYS[v];
+  if(v==='perfil')$$('.rk .bar i').forEach(b=>{b.style.width='0';requestAnimationFrame(()=>requestAnimationFrame(()=>b.style.width=b.dataset.w));});
+  if(v==='desafios')renderHist();
+  updCount();
+}
+$$('#nav li').forEach(li=>li.onclick=()=>setView(li.dataset.v));
+$('#logo').onclick=glitch;
+
+/* ---------- perfil ---------- */
+const rk=G.filter(g=>g.hrs).sort((a,b)=>b.hrs-a.hrs);
+$('#rank').innerHTML=rk.map((g,i)=>`<div class="rk"><span class="i">${String(i+1).padStart(2,'0')}</span><span class="nm">${g.n}${g.plat?'<span class="pt">[PLAT]</span>':''}</span><span class="h">${g.hrs}h</span><div class="bar"><i data-w="${g.hrs/3}%"></i></div></div>`).join('');
+
+/* ---------- histórico ---------- */
+let H=store.get('lw-desafios',[]);
+function saveH(){store.set('lw-desafios',H);updCount();}
+function updCount(){
+  const d=H.filter(h=>h.done).length;$('#sideCount').textContent=`${d} / ${H.length}`;
+  const c={perfil:'35 zerados',roleta:`${pool().length} no filtro`,misterio:`${mPool().length} cartas`,desafios:`${H.length} aceitos`,hardware:MAC.name.split(' //')[0].toLowerCase()};$('#count').textContent=c[cur];
+}
+function addH(g,c,d,x,src){H.unshift({g,c,d,x,src,done:false,t:Date.now()});saveH();say(`[ OK ] desafio aceito: ${g}`);}
+function renderHist(){
+  const done=H.filter(h=>h.done).length,run=H.length-done;
+  $('#dsum').innerHTML=`<div><span class="big" style="color:var(--accent)">${run}</span><span class="lb">em andamento</span></div><div><span class="big" style="color:var(--ok)">${done}</span><span class="lb">cumpridos</span></div><div><span class="big" style="color:var(--fg)">${H.reduce((s,h)=>s+(h.done?h.d:0),0)}</span><span class="lb">pontos (soma das dificuldades)</span></div>`;
+  $('#hbar').innerHTML=H.length?`<span style="width:${done/H.length*100}%;background:var(--ok)"></span><span style="width:${run/H.length*100}%;background:var(--accent)"></span>`:'';
+  $('#hist').innerHTML=H.length?H.map((h,i)=>`<div class="hrow"><span class="st ${h.done?'ok':'run'}">${h.done?'[ OK ]':'[ .. ]'}</span><div><div class="g">${h.g}${h.src==='m'?'<span class="src">??? mistério</span>':''}</div><div class="c">${h.c} · nível ${h.d}${h.x?' · caos: '+h.x:''}</div></div><div class="x"><button data-a="done" data-i="${i}">${h.done?'desfazer':'cumpri'}</button><button data-a="del" data-i="${i}">✕</button></div></div>`).join('')
+    :'<div class="emptyh">nenhum desafio aceito.\n\nvai na ROLETA [2] ou no MISTÉRIO [3].</div>';
+}
+$('#hist').onclick=e=>{const a=e.target.dataset.a,i=+e.target.dataset.i;if(!a)return;
+  if(a==='done'){H[i].done=!H[i].done;say(H[i].done?`[ OK ] cumprido: ${H[i].g}`:`[ .. ] reaberto: ${H[i].g}`);}else{say(`[ OK ] removido: ${H[i].g}`,'var(--dim)');H.splice(i,1);}
+  saveH();renderHist();};
+
+/* ---------- roleta ---------- */
+let filter='all',opts={chaos:false,time:true};
+$('#filters').innerHTML=CATS.map(([k,l])=>`<button class="chip${k==='all'?' on':''}" data-k="${k}">${l}</button>`).join('')+'<span class="hint">só a sua lista</span>';
+$('#filters').onclick=e=>{const k=e.target.dataset.k;if(!k)return;filter=k;$$('#filters .chip').forEach(c=>c.classList.toggle('on',c.dataset.k===k));$('#poolN').textContent=pool().length+' jogos';updCount();};
+function pool(){return G.filter(g=>(!runOnly||runs(g))).filter(g=>filter==='all'||(filter==='plat'&&g.plat)||(filter==='noplat'&&!g.plat)||(filter==='outros'&&['rpg','sim','corr'].includes(g.c))||g.c===filter);}
+
+let rg=null,rc=null,rx=null,rLast=-1;
+function chList(g){const l=g.ch.map(([t,d])=>({t,d}));
+  if(opts.time&&g.base){const f=pick([.85,.75,.65]);const lim=Math.max(.5,Math.round(g.base*f*2)/2);l.push({t:`Zerar em menos de ${fmtH(lim)} de jogo`,d:f===.85?3:f===.75?4:5});}
+  return l;}
+function detR(){
+  const tg=(id,on,txt)=>`<div class="tog ${on?'on':''}" data-o="${id}"><span class="bx">${on?'[x]':'[ ]'}</span>${txt}</div>`;
+  const d=rc?Math.min(5,rc.d+(rx?1:0)):0;
+  $('#detR').innerHTML=`<div><label>JOGO</label><div class="ctext" style="min-height:0">${rg?rg.n:'<span class="empty">—</span>'}</div></div>
+   <div><label>DESAFIO</label><div class="ctext">${rc?rc.t:'<span class="empty">sorteie um jogo primeiro</span>'}</div>${rc?pips(d):''}</div>
+   <div class="chaosbox ${rx?'on':''}">${rx?`<b>MODO CAOS //</b> ${rx}`:''}</div>
+   <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px"><label>OPÇÕES</label>${tg('chaos',opts.chaos,'modo caos (+1 nível)')}${tg('time',opts.time,'desafios de tempo')}</div>`;
+}
+$('#detR').onclick=e=>{const t=e.target.closest('.tog');if(!t)return;opts[t.dataset.o]=!opts[t.dataset.o];detR();say(`[ OK ] ${t.dataset.o==='chaos'?'modo caos':'desafios de tempo'}: ${opts[t.dataset.o]?'on':'off'}`);};
+function newCh(){const l=chList(rg);let i;do{i=rnd(0,l.length)}while(l.length>1&&i===rLast);rLast=i;rc=l[i];rx=opts.chaos?pick(CHAOS):null;detR();}
+let spinning=false;
+async function spin(){
+  if(spinning)return;const p=pool();if(!p.length){say('[FAIL] nada nesse filtro','var(--warn)');return;}
+  spinning=true;['#spin','#reroll','#accept'].forEach(s=>$(s).disabled=true);
+  rc=null;rx=null;detR();$('#gmeta').textContent='';$('#r1').classList.remove('hit');say('[ .. ] girando...','var(--accent)');
+  const fin=pick(p);let delay=35,t=0;
+  while(t<1800){$('#r0').textContent=pick(p).n;$('#r1').textContent=pick(p).n.toUpperCase();$('#r2').textContent=pick(p).n;await sleep(delay);t+=delay;delay*=1.1;}
+  const idx=p.indexOf(fin);$('#r0').textContent=p[(idx-1+p.length)%p.length].n;$('#r2').textContent=p[(idx+1)%p.length].n;
+  $('#r1').classList.add('hit');decode($('#r1'),fin.n.toUpperCase(),10);
+  rg=fin;rLast=-1;newCh();
+  const b=[];if(fin.plat)b.push('<b>[PLAT]</b> já platinado');if(fin.hrs)b.push(`<b>${fin.hrs}h</b> registradas`);$('#gmeta').innerHTML=b.join(' · ')||'zerado';
+  ['#spin','#reroll','#accept'].forEach(s=>$(s).disabled=false);spinning=false;glitch();say(`[ OK ] ${fin.n}`);
+}
+$('#spin').onclick=spin;
+$('#reroll').onclick=()=>{if(rg){newCh();say('[ OK ] novo desafio');}};
+$('#accept').onclick=()=>{if(!rg||$('#accept').disabled)return;addH(rg.n,rc.t,Math.min(5,rc.d+(rx?1:0)),rx,'r');$('#accept').disabled=true;};
+
+/* ---------- mistério ---------- */
+let mq=[],mg=null,mc=null,mx=null,revealed=false;
+function nextCard(){
+  mq=mq.filter(g=>mPool().includes(g));
+  if(!mq.length)mq=[...mPool()].sort(()=>Math.random()-.5);
+  mg=mq.pop();const c=pick(mg.ch);mc={t:c[0],d:c[1]};mx=opts.chaos?pick(CHAOS):null;revealed=false;
+  $('#card').classList.remove('flip');$('#mAccept').disabled=true;$('#mReveal').disabled=false;
+  $('#mN').textContent=`${mPool().length-mq.length}/${mPool().length}`;detM();
+}
+function detM(){
+  const d=Math.min(5,mc.d+(mx?1:0));
+  $('#detM').innerHTML=revealed?`<div><label>JOGO</label><div class="ctext" style="min-height:0">${mg.n}</div></div>
+   <div><label>POR QUE ESSE</label><div class="why" style="margin-top:6px">${mg.w}</div></div>
+   <div><label>DESAFIO</label><div class="ctext">${mc.t}</div>${pips(d)}</div>
+   <div class="chaosbox ${mx?'on':''}">${mx?`<b>MODO CAOS //</b> ${mx}`:''}</div>
+   <div class="note2" style="margin-top:auto">fora da sua lista. se já jogou, NOVA CARTA [n].</div>`
+   :`<div><label>JOGO</label><div class="ctext" style="min-height:0">${'?'.repeat(rnd(8,16))}</div></div>
+   <div><label>DESAFIO</label><div class="ctext"><span class="empty">████████ ██████ ███ ██████</span></div>${pips(0)}</div>
+   <div class="note2" style="margin-top:auto">o modo caos da ROLETA também vale aqui.</div>`;
+}
+async function reveal(){
+  if(revealed)return;revealed=true;$('#mReveal').disabled=true;say('[ .. ] decifrando...','var(--mag)');
+  $('#mName').textContent='';$('#mGenre').textContent=mg.g;$('#card').classList.add('flip');
+  await sleep(380);decode($('#mName'),mg.n.toUpperCase(),18);await sleep(520);
+  detM();$('#mAccept').disabled=false;glitch();say(`[ OK ] ${mg.n}`);
+}
+$('#card').onclick=reveal;$('#mReveal').onclick=reveal;
+$('#mNext').onclick=()=>{nextCard();say('[ OK ] nova carta','var(--dim)');};
+$('#mAccept').onclick=()=>{if(!revealed||$('#mAccept').disabled)return;addH(mg.n,mc.t,Math.min(5,mc.d+(mx?1:0)),mx,'m');$('#mAccept').disabled=true;};
+
+/* ---------- hardware ---------- */
+// req: g = índice de GPU mínimo (GTX 1650 = 39), v = VRAM GB, r = RAM GB, c = índice de CPU (i5-10400 = 100), d = disco GB
+// s:1 = mínimo oficial verificado; s:0 = estimativa. ps4 = sem versão PC; emu = via emulador
+const L2={g:8,v:0,r:4,c:20,d:5,s:0};
+const REQ={
+ "Ninja Gaiden: Ragebound":{g:15,r:8,c:35,d:10},"Katana Zero":{g:6,r:2,c:15,d:1},"Dead Cells":{g:8,r:2,d:1},"Cinderia":{g:10,r:4,d:4},
+ "Mega Man Zero":{g:6,r:4,d:5},"Mega Man Zero 2":{g:6,r:4,d:5},"Mega Man Zero 3":{g:6,r:4,d:5},"Mega Man Zero 4":{g:6,r:4,d:5},"Mega Man ZX":{g:6,r:4,d:5},"Mega Man ZX Advent":{g:6,r:4,d:5},
+ "Hollow Knight: Silksong":{g:13,v:1,r:4,c:35,d:8,s:1},"Castlevania: Belmont's Curse":{g:39,v:4,r:16,c:85,d:10,s:1},
+ "Momodora: Moonlit Farewell":{g:8,r:4,d:2},"Rusted Moss":{g:8,r:4,d:1},"Blasphemous":{g:10,r:4,d:10},
+ "Castlevania: Dawn of Sorrow":{g:6,r:4,d:4},"Castlevania: Portrait of Ruin":{g:6,r:4,d:4},"Castlevania: Order of Ecclesia":{g:6,r:4,d:4},
+ "Dark Souls":{g:10,v:1,r:6,c:40,d:8},"Dark Souls II":{g:11,v:1,r:4,c:40,d:23},"Dark Souls III":{g:19,v:2,r:4,c:45,d:25},
+ "Bloodborne":{ps4:1},"Sekiro: Shadows Die Twice":{g:21,v:2,r:4,c:50,d:25},"Elden Ring":{g:42,v:3,r:12,c:85,d:60,s:1},"Doom":{g:20,v:2,r:8,c:55,d:55},
+ "Monster Hunter Generations Ultimate":{g:20,r:8,c:55,d:16,emu:1},"Monster Hunter World: Iceborne":{g:21,v:2,r:8,c:55,d:52},"Monster Hunter Wilds":{g:55,v:6,r:16,c:100,d:75,s:1},
+ "Into the Breach":{g:6,r:1,d:1},"Wartales":{g:25,v:2,r:8,c:40,d:30,s:1},"Dobbel Dungeon":{g:6,r:4,d:2},"Treasure 'n Trio":{g:6,r:4,d:2},
+ "Alabaster Dawn":{g:8,r:2,d:2,s:1},"Fields of Mistria":{g:8,r:4,d:2},"Need for Speed Heat":{g:21,v:2,r:8,c:55,d:50,s:1},
+ "Lies of P":{g:27,v:4,r:8,c:50,d:50,s:1},"Nioh 2":{g:46,v:6,r:6,c:55,d:85},"Hollow Knight":{g:8,r:4,d:9},"Nine Sols":{g:25,v:2,r:8,c:40,d:20},
+ "Prince of Persia: The Lost Crown":{g:24,v:2,r:8,c:55,d:30,s:1},"Ender Lilies":{g:10,r:4,d:6},"Ender Magnolia":{g:15,r:8,d:10},"Blasphemous 2":{g:15,r:8,d:15},
+ "Celeste":{g:6,r:2,d:2},"Cuphead":{g:8,r:3,d:20},"Shovel Knight: Treasure Trove":{g:5,r:2,d:1},"Momodora: Reverie Under the Moonlight":{g:5,r:2,d:1},"Axiom Verge":{g:5,r:2,d:1},
+ "Hades":{g:8,r:4,d:15},"Hades II":{g:20,v:2,r:8,c:40,d:10},"Slay the Spire":{g:6,r:2,d:1},"Balatro":{g:5,r:1,d:1},"XCOM 2":{g:12,v:1,r:4,c:40,d:45},
+ "Darkest Dungeon":{g:6,r:4,d:3},"Monster Hunter Rise: Sunbreak":{g:16,v:2,r:8,c:40,d:36,s:1},"Armored Core VI":{g:39,v:4,r:12,c:85,d:65,s:1},
+};
+const GPUT=[["rtx 4090",300,24],["rtx 4080",250,16],["rtx 4070",170,12],["rtx 4060",115,8],["rtx 3090",210,24],["rtx 3080",190,10],["rtx 3070",150,8],["rtx 3060 ti",125,8],["rtx 3060",100,12],["rtx 3050",70,8],
+ ["rtx 2080",130,8],["rtx 2070",110,8],["rtx 2060",80,6],["gtx 1660 ti",68,6],["gtx 1660 super",66,6],["gtx 1660",60,6],["gtx 1650 super",52,4],["gtx 1650",39,4],
+ ["gtx 1080 ti",110,11],["gtx 1080",90,8],["gtx 1070",75,8],["gtx 1060",46,6],["gtx 1050 ti",30,4],["gtx 1050",25,2],["gtx 980",55,4],["gtx 970",45,4],["gtx 960",27,2],["gtx 950",24,2],
+ ["gtx 760",21,2],["gtx 750 ti",19,2],["gt 1030",16,2],["rx 7600",120,8],["rx 6700",140,10],["rx 6600",95,8],["rx 5700",90,8],["rx 5600",75,6],["rx 5500",45,4],["rx 590",50,8],["rx 580",47,8],
+ ["rx 570",42,4],["rx 480",45,8],["rx 560",24,4],["rx 550",14,2],["780m",60,4],["680m",45,4],["vega 10",16,2],["vega 8",14,2],["vega 3",11,2],["picasso",12,2],["raven",12,2],["vega",12,2],
+ ["arc a7",110,16],["arc a3",40,6],["iris xe",18,2],["uhd",6,1],["hd graphics",5,1]];
+const CPUT=[["i9-",140],["i7-1",130],["i5-14",125],["i5-13",120],["i5-12",115],["i3-12100",100],["i5-10600",105],["i5-10400",100],["i5-9400",88],["i5-8400",85],["i7-4790",70],["i5-7500",65],
+ ["i5-4460",55],["i5-3570",55],["i3-6300",50],["i3-4130",40],["ryzen 9",150],["ryzen 7 5",135],["ryzen 5 7",140],["ryzen 5 5",125],["ryzen 5 3600",100],["ryzen 3 3300x",95],["ryzen 3 3200u",30],["ryzen 3 1200",50]];
+const PRESETS={
+ desktop:{name:'DESKTOP // i5-10400F + GTX 1650',cpu:'Intel Core i5-10400F',thr:12,ram:24,gpu:'GeForce GTX 1650',vram:4,disk:null,src:'preset'},
+ note:{name:'NOTEBOOK // A315-42',cpu:'AMD Ryzen 3 3200U',thr:4,ram:5.7,gpu:'Radeon Vega 3 (integrada)',vram:2,disk:null,src:'preset'},
+};
+const SCAN_CMD=`bash -c 'g=$(lspci 2>/dev/null | grep -iE "vga|3d" | sed "s/.*: //" | paste -sd "|"); v=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1); echo "LW:cpu=$(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | sed "s/^ //");thr=$(nproc);ram=$(awk "/MemTotal/{printf \\"%.1f\\", \\$2/1048576}" /proc/meminfo);gpu=$g;vram=$v;disk=$(df -BG --output=avail "$HOME" | tail -1 | tr -dc 0-9)"'`;
+let MAC=store.get('lw-mac',null)||PRESETS.desktop, runOnly=store.get('lw-runonly',false), hwFilter='all';
+function gpuInfo(name){let best=null;String(name||'').toLowerCase().split('|').forEach(n=>{for(const [k,s,v] of GPUT){if(n.includes(k)){if(!best||s>best.s)best={s,v};break;}}});return best;}
+function cpuInfo(name,thr){const n=String(name||'').toLowerCase();for(const [k,s] of CPUT)if(n.includes(k))return s;return thr?Math.min(110,thr*8):null;}
+function evalG(name){
+  const q=REQ[name];if(!q)return{k:'na',w:'sem dados'};
+  if(q.ps4)return{k:'na',w:'sem versão PC (PS4/PS5); no PC só por emulação, e pesada',s:0};
+  const r={...L2,...q},iss=[],gi=gpuInfo(MAC.gpu),cs=cpuInfo(MAC.cpu,MAC.thr);let lv=0;
+  const vram=MAC.vram||gi?.v||0;
+  if(gi){const x=gi.s/r.g;if(x<.8){lv=2;iss.push(`GPU fraca (${gi.s} vs ${r.g} mín)`);}else if(x<1.2){lv=Math.max(lv,1);iss.push(`GPU no limite (${gi.s} vs ${r.g})`);}}else iss.push('GPU desconhecida');
+  if(MAC.ram!=null){if(MAC.ram<r.r-1){lv=2;iss.push(`RAM ${MAC.ram}/${r.r} GB`);}else if(MAC.ram<r.r*.97){lv=Math.max(lv,1);iss.push(`RAM ${MAC.ram}/${r.r} GB`);}}
+  if(r.v&&vram){if(vram<r.v-1){lv=2;iss.push(`VRAM ${vram}/${r.v} GB`);}else if(vram<r.v){lv=Math.max(lv,1);iss.push(`VRAM ${vram}/${r.v} GB`);}}
+  if(cs!=null){const x=cs/r.c;if(x<.7){lv=2;iss.push('CPU fraca');}else if(x<1){lv=Math.max(lv,1);iss.push('CPU no limite');}}
+  if(MAC.disk!=null&&MAC.disk<r.d){lv=2;iss.push(`falta disco (${MAC.disk}/${r.d} GB)`);}
+  if(q.emu)iss.push('via emulador (Switch)');
+  const w=iss.length?iss.join(' · '):(gi?`folga: GPU ×${(gi.s/r.g).toFixed(1).replace('.',',')}`:'ok');
+  return{k:['ok','lim','no'][lv],w,s:r.s,d:r.d};
+}
+const runs=g=>{const e=evalG(g.n);return e.k==='ok'||e.k==='lim';};
+const mPool=()=>{const p=runOnly?M.filter(runs):M;return p.length?p:M;};
+function renderHW(){
+  $('#hwName').textContent=MAC.name;
+  const row=(l,v,u='')=>`<span>${l}</span><b class="${v==null||v===''?'unk':''}">${v==null||v===''?'— (cole o comando)':v+u}</b>`;
+  const gi=gpuInfo(MAC.gpu);
+  $('#hwSpec').innerHTML=row('cpu',MAC.cpu)+row('thr',MAC.thr)+row('ram',MAC.ram,' GB')+row('gpu',MAC.gpu)+row('vram',MAC.vram||gi?.v,' GB')+row('disco',MAC.disk,' GB livres');
+  const all=[...G.map(g=>({n:g.n,m:0})),...M.map(g=>({n:g.n,m:1}))].filter(x=>hwFilter==='all'||(hwFilter==='list'&&!x.m)||(hwFilter==='myst'&&x.m));
+  const ev=all.map(x=>({...x,...evalG(x.n)})),cnt={ok:0,lim:0,no:0,na:0};ev.forEach(e=>cnt[e.k]++);
+  $('#hwSum').innerHTML=`<div><span class="big" style="color:var(--ok)">${cnt.ok}</span><span class="lb">roda bem</span></div><div><span class="big" style="color:var(--yel)">${cnt.lim}</span><span class="lb">no limite</span></div><div><span class="big" style="color:var(--warn)">${cnt.no}</span><span class="lb">não roda</span></div>`;
+  const T=ev.length||1;$('#hwBar').innerHTML=`<span style="width:${cnt.ok/T*100}%;background:var(--ok)"></span><span style="width:${cnt.lim/T*100}%;background:var(--yel)"></span><span style="width:${cnt.no/T*100}%;background:var(--warn)"></span>`;
+  const lab={ok:'[ OK ]',lim:'[WARN]',no:'[FAIL]',na:'[ -- ]'},grp={ok:'RODA BEM',lim:'NO LIMITE · configurações baixas',no:'NÃO RODA',na:'FORA DO PC'};
+  $('#hwList').innerHTML=['no','lim','ok','na'].filter(k=>cnt[k]).map(k=>`<div class="grp2">${grp[k]} · ${cnt[k]}</div>`+ev.filter(e=>e.k===k).map(e=>`<div class="vr"><span class="k ${k}">${lab[k]}</span><div><div class="g">${e.n}${e.m?'<span class="src">??? mistério</span>':''}</div><div class="w">${e.w}</div></div><span class="sr">${e.s?'✓':'~'}${e.d?' '+e.d+'GB':''}</span></div>`).join('')).join('');
+  const t=$('#hwApply');t.classList.toggle('on',runOnly);t.querySelector('.bx').textContent=runOnly?'[x]':'[ ]';
+  $$('.acts [data-p]').forEach(b=>b.classList.toggle('on',MAC.src==='preset'&&PRESETS[b.dataset.p].name===MAC.name));
+  $('#poolN').textContent=pool().length+' jogos';updCount();
+}
+function setMac(m,msg){MAC=m;store.set('lw-mac',m);renderHW();if(msg)say(msg);}
+function hlog(lines){$('#hwLog').innerHTML=lines.map(([c,t])=>`<span class="${c}">${c==='ok'?'[ OK ]':'[WARN]'}</span> ${t}`).join('\n');}
+async function quickScan(){
+  const L=[],m={...MAC,name:'NAVEGADOR // detecção parcial',src:'browser'};$('#hwLog').textContent='[ .. ] varrendo...';say('[ .. ] varrendo hardware...','var(--accent)');await sleep(250);
+  if(navigator.hardwareConcurrency){m.thr=navigator.hardwareConcurrency;L.push(['ok',`threads: ${m.thr}`]);}
+  let r='';try{const gl=document.createElement('canvas').getContext('webgl');const x=gl.getExtension('WEBGL_debug_renderer_info');r=x?gl.getParameter(x.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER);}catch(e){}
+  if(r){m.gpu=r;m.vram=null;const masked=/or similar|generic|swiftshader|llvmpipe/i.test(r);L.push([masked?'wr':'ok',`gpu: ${r}${masked?' (mascarada pelo navegador, pode estar errada)':''}`]);}
+  else L.push(['wr','gpu: o navegador não informou']);
+  if(navigator.deviceMemory){m.ram=navigator.deviceMemory;L.push(['wr',`ram: ${m.ram} GB (o navegador arredonda e limita a 8)`]);}
+  else L.push(['wr',`ram: o navegador não informa; mantive ${MAC.ram??'—'} GB`]);
+  L.push(['wr','disco: o navegador não informa']);m.cpu=MAC.cpu;
+  hlog(L);setMac(m,'[ OK ] varredura parcial. pra medir certo, use o comando');
+}
+function parseScan(t){
+  const s=t.match(/LW:([^\n]*)/);if(!s)return false;const o={};s[1].split(';').forEach(p=>{const i=p.indexOf('=');if(i>0)o[p.slice(0,i).trim()]=p.slice(i+1).trim();});
+  const num=x=>x===''||x==null||isNaN(+x)?null:+x;
+  const m={cpu:o.cpu||null,thr:num(o.thr),ram:num(o.ram),gpu:o.gpu||null,vram:num(o.vram)!=null?Math.round(num(o.vram)/102.4)/10:null,disk:num(o.disk),src:'terminal'};
+  m.name='TERMINAL // '+(m.cpu||'?').replace(/\(R\)|\(TM\)|CPU|Processor|@.*$|with .*$/gi,'').replace(/\s+/g,' ').trim();
+  hlog([['ok','lido do terminal'],...(gpuInfo(m.gpu)?[]:[['wr','GPU fora da tabela: '+(m.gpu||'nenhuma')]])]);
+  setMac(m,'[ OK ] specs do terminal aplicadas');return true;
+}
+$('#hwCmd').textContent=SCAN_CMD;
+$('#hwf').innerHTML=[['all','tudo'],['list','sua lista'],['myst','mistério']].map(([k,l])=>`<button class="chip${k==='all'?' on':''}" data-k="${k}">${l}</button>`).join('')+'<span class="hint">comparado com o requisito mínimo</span>';
+$('#hwf').onclick=e=>{const k=e.target.dataset.k;if(!k)return;hwFilter=k;$$('#hwf .chip').forEach(c=>c.classList.toggle('on',c.dataset.k===k));renderHW();};
+$('#hwScan').onclick=quickScan;
+$$('.acts [data-p]').forEach(b=>b.onclick=()=>{hlog([]);setMac({...PRESETS[b.dataset.p]},`[ OK ] ${PRESETS[b.dataset.p].name}`);});
+$('#hwCopy').onclick=async()=>{try{await navigator.clipboard.writeText(SCAN_CMD);say('[ OK ] comando copiado. cole no terminal');}catch(e){say('[FAIL] não deu pra copiar; selecione o texto','var(--warn)');}};
+$('#hwPaste').oninput=e=>{if(!parseScan(e.target.value)&&e.target.value.trim())say('[ .. ] esperando uma linha começando com LW:','var(--dim)');};
+$('#hwApply').onclick=()=>{runOnly=!runOnly;store.set('lw-runonly',runOnly);renderHW();say(`[ OK ] só o que roda: ${runOnly?'on':'off'}`);};
+
+/* ---------- teclado ---------- */
+addEventListener('keydown',e=>{
+  if(document.body.classList.contains('booting'))return;
+  if(e.target.tagName==='TEXTAREA')return;
+  if(e.key>='1'&&e.key<='5'){setView(VIEWS[+e.key-1]);return;}
+  if(cur==='hardware'&&e.key==='s'){quickScan();return;}
+  if(cur==='roleta'){if(e.key===' '){e.preventDefault();spin();}else if(e.key==='r')$('#reroll').click();else if(e.key==='Enter')$('#accept').click();}
+  if(cur==='misterio'){if(e.key===' '){e.preventDefault();reveal();}else if(e.key==='n')$('#mNext').click();else if(e.key==='Enter')$('#mAccept').click();}
+});
+
+/* ---------- relógio ---------- */
+function tick(){const d=new Date();$('#clock').innerHTML=`${String(d.getHours()).padStart(2,'0')}<i>:</i>${String(d.getMinutes()).padStart(2,'0')}`;}
+tick();setInterval(tick,10000);
+
+/* ---------- boot ---------- */
+const BOOT=['mounting ~/.local/state/lw/games','reading library: 35 zerados','counting trophies: 16 platinas','summing hours: 1070h + ~66h est','loading challenges','shuffling mystery deck ('+M.length+')','doctor: 0 issues','starting arcade'];
+let skipped=false;
+async function boot(){
+  document.body.classList.add('booting');
+  const b=$('#boot'),log=$('#blog'),prog=$('#bprog');const skip=()=>{skipped=true};
+  addEventListener('keydown',skip,{once:true});b.addEventListener('click',skip,{once:true});
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    await sleep(150);$('#blogo').classList.add('show');await sleep(560);const W=40;
+    for(let i=0;i<BOOT.length&&!skipped;i++){
+      const line=document.createElement('div');line.innerHTML=`<span style="color:var(--accent)">[ .. ]</span> ${BOOT[i]}`;log.appendChild(line);
+      await sleep(rnd(70,180));line.innerHTML=`<span class="ok">[ OK ]</span> ${BOOT[i]}`;
+      const p=Math.round((i+1)/BOOT.length*W);prog.textContent=`[${'#'.repeat(p)}${'-'.repeat(W-p)}] ${String(Math.round((i+1)/BOOT.length*100)).padStart(3)}%`;
+    }
+    if(!skipped)await sleep(300);
+  }
+  removeEventListener('keydown',skip);b.classList.add('out');document.body.classList.remove('booting');setTimeout(()=>b.remove(),420);
+  setView('perfil');say('[ OK ] lw games ready');
+}
+setPal(store.get('lw-pal','ember'));renderHW();detR();nextCard();boot();
+addEventListener('resize',()=>{const li=$$('#nav li')[VIEWS.indexOf(cur)];if(li)$('#band').style.top=li.offsetTop+'px';});
+</script>
+</body>
+</html>
