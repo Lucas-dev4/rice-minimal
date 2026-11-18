@@ -236,7 +236,10 @@ def scan_hydra():
             record = m.group(0)
             title = re.search(r'"title":"([^"]+)"', record)
             exe = m.group(1).replace('\\\\', '\\')
-            if title and '"isDeleted":true' not in record and exe.lower().endswith('.exe'):
+            # The .ldb files are Snappy-compressed: a record read raw can come out with
+            # compression bytes in the middle of the path. Only a path that exists is real.
+            if (title and '"isDeleted":true' not in record and exe.lower().endswith('.exe')
+                    and Path(exe).is_file()):
                 prefix = re.search(r'"winePrefixPath":"([^"]+)"', record)
                 found[exe] = wine_entry(exe, prefix.group(1) if prefix else None, title.group(1), source='hydra')
     return list(found.values())

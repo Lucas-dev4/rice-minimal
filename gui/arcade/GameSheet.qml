@@ -320,7 +320,7 @@ Item {
                     id: playButton
                     readonly property bool live: !!Games.session && Games.session.id === root.gameId
                     readonly property color tone: live ? Theme.red : Theme.ok
-                    width: parent.width - (removeButton.visible ? removeButton.width + 10 : 0)
+                    width: parent.width - metaButton.width - 10 - (removeButton.visible ? removeButton.width + 10 : 0)
                     height: 38
                     color: playMouse.containsMouse ? tone : "transparent"
                     border.width: 1
@@ -334,6 +334,16 @@ Item {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: playButton.live ? Games.stop(root.gameId) : root.launch(root.gameId)
                     }
+                }
+                // Refaz a busca no IGDB só deste jogo (capa, gêneros, duração), para quando a
+                // busca automática falhou em silêncio. Não troca capa nem horas já existentes.
+                AccentButton {
+                    id: metaButton
+                    anchors.verticalCenter: playButton.verticalCenter
+                    ghost: true
+                    enabledState: !Games.fetchingMeta
+                    label: Games.fetchingMeta ? "BUSCANDO…" : "↻ BUSCAR CAPA"
+                    onClicked: Games.meta(false, [root.gameId])
                 }
                 // Only for a game its source no longer has: two clicks.
                 AccentButton {

@@ -130,9 +130,15 @@ class Games(unittest.TestCase):
     def test_hydra_entries_with_an_executable_are_imported(self):
         db = self.home/'.config/hydralauncher/hydra-db'
         db.mkdir(parents=True)
+        exe = self.home/'Games/NFS/NFS11.exe'
+        exe.parent.mkdir(parents=True)
+        exe.write_bytes(b'x')
+        # The second copy is how a Snappy-compressed .ldb block reads raw: bytes in the path.
         (db/'000008.log').write_bytes(
             b'\x00junk{"title":"Need For Speed: Hot Pursuit","shop":"steam","objectId":"47870",'
-            b'"executablePath":"/home/x/Games/NFS/NFS11.exe","winePrefixPath":"/home/x/.wine_dodi","isDeleted":false}'
+            b'"executablePath":"' + str(exe).encode() + b'","winePrefixPath":"/home/x/.wine_dodi","isDeleted":false}'
+            b'{"title":"Need For Speed: Hot Pursuit","objectId":"47870",'
+            b'"executablePath":"' + str(exe).replace('Games', 'Ga\x91\x01mes').encode('latin-1') + b'","isDeleted":false}'
             b'{"title":"Sem exe","objectId":"1","isDeleted":false}')
         found = games.scan_hydra()
         self.assertEqual([g['title'] for g in found], ['Need For Speed: Hot Pursuit'])
