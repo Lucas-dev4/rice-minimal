@@ -17,7 +17,7 @@ import backups
 import lockscreen
 import shortcuts
 
-COMMANDS = {'status','gui','music','games','wallpaper','palette','profile','greeter','sync','shortcuts','lock','compat','backups','bt'}
+COMMANDS = {'status','gui','music','games','wallpaper','palette','profile','greeter','sync','shortcuts','lock','compat','emu','backups','bt'}
 THUMBS = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'rice-minimal/thumbs'
 THUMB_SIZE = 400
 
@@ -493,7 +493,30 @@ def main(argv):
     compat_cmd=actions.add_parser('compat').add_subparsers(dest='operation',required=True)
     for operation in ('scan','check'):
         compat_cmd.add_parser(operation,parents=[common])
+    # Emuladores e controle (extras/emulators.py).
+    emu=actions.add_parser('emu').add_subparsers(dest='operation',required=True)
+    emu.add_parser('list',parents=[common])
+    emu.add_parser('pads',parents=[common])
+    change_emu=emu.add_parser('set',parents=[common])
+    for name in ('emulator','key','value'):
+        change_emu.add_argument(name)
+    emu.add_parser('apply-pad',parents=[common]).add_argument('emulator')
+    emu.add_parser('pad-watch').add_argument('event')
+    save_pad=emu.add_parser('pad-save',parents=[common])
+    save_pad.add_argument('guid')
+    save_pad.add_argument('name')
+    save_pad.add_argument('pairs',nargs='+')
     args=parser.parse_args(argv)
+    if args.action == 'emu' and args.operation == 'pad-watch':
+        import emulators
+        try:
+            emulators.watch(args.event)
+        except (KeyboardInterrupt,BrokenPipeError):
+            pass
+        except (OSError,ValueError) as exc:
+            print(json.dumps({'error':str(exc)},ensure_ascii=False),flush=True)
+            return 1
+        return 0
     if args.action == 'gui':
         return gui()
     if args.action == 'music':
@@ -542,6 +565,13 @@ def main(argv):
         elif name == 'compat check':
             import compat
             data=compat.check()
+        elif name.startswith('emu '):
+            import emulators
+            if name == 'emu list': data=emulators.listing()
+            elif name == 'emu pads': data=emulators.pads()
+            elif name == 'emu set': data=emulators.set_value(args.emulator,args.key,args.value)
+            elif name == 'emu apply-pad': data=emulators.apply_pad(args.emulator)
+            else: data=emulators.pad_save(args.guid,args.name,args.pairs)
         elif name == 'lock restore':
             data={'rescue':lockscreen.restore()}
             theme.log_action('lock','OK','previous visuals restored')
