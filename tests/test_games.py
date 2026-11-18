@@ -332,7 +332,8 @@ class Games(unittest.TestCase):
                     return [{'id': 5, 'name': 'Dark Souls', 'genres': [{'name': 'Role-playing (RPG)'}], 'similar_games': [77]}]
                 if body.startswith('search'):
                     return []
-                return [{'id': 77, 'name': 'Lies of P', 'genres': [], 'total_rating': 84.4}]
+                return [{'id': 77, 'name': 'Lies of P', 'genres': [], 'total_rating': 84.4,
+                         'platforms': [{'id': 6, 'abbreviation': 'PC'}, {'id': 167, 'abbreviation': 'PS5'}]}]
         with patch.object(games, 'played_titles', return_value=mine):
             self.assertEqual(self.cli('scan')[1]['played_pending'], 2)
             with patch.object(games, 'Igdb', Fake):
@@ -343,9 +344,26 @@ class Games(unittest.TestCase):
             self.assertEqual((doc['played']['Dark Souls']['hrs'], doc['played']['Dark Souls']['plat']), (50, True))
             self.assertNotIn('igdb', doc['played']['Jogo Sem Par'])
             self.assertEqual(doc['igdb_similar']['77']['name'], 'Lies of P')
+            self.assertEqual((doc['igdb_similar']['77']['pc'], doc['igdb_similar']['77']['platforms']), (True, ['PC', 'PS5']))
             self.assertEqual(self.cli('scan')[1]['played_pending'], 0)
             with patch.object(games, 'Igdb', side_effect=AssertionError('queried again')):
                 self.assertEqual(self.cli('meta')[1], {'ok': True, 'matched': [], 'missed': []})
+
+    def test_platforms_say_if_there_is_a_pc_version_and_old_similar_games_are_refreshed(self):
+        self.assertEqual(games.platforms_of({'platforms': [{'id': 9, 'abbreviation': 'PS3'}]}), {'platforms': ['PS3'], 'pc': False})
+        self.assertEqual(games.platforms_of({'platforms': [{'id': 3, 'abbreviation': 'Linux'}]})['pc'], True)
+        self.assertEqual(games.platforms_of({}), {'platforms': [], 'pc': None})
+        games.update(lambda d: d.update(igdb_similar={'40': {'name': "Demon's Souls"}}))
+        class Fake:
+            def query(self, endpoint, body):
+                assert 'where id = (40)' in body, body
+                return [{'id': 40, 'name': "Demon's Souls", 'platforms': [{'id': 9, 'abbreviation': 'PS3'}]}]
+        with patch.object(games, 'played_titles', return_value=[]):
+            self.assertEqual(self.cli('scan')[1]['played_pending'], 1)
+            with patch.object(games, 'Igdb', Fake):
+                self.cli('meta')
+            self.assertEqual(games.load()['igdb_similar']['40']['pc'], False)
+            self.assertEqual(self.cli('scan')[1]['played_pending'], 0)
 
     def test_done_and_complete_get_their_dates_once(self):
         exe = self.home/'j.exe'

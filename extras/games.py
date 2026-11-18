@@ -452,7 +452,8 @@ def scan():
         save(data)
     return {'total': len(data['games']), 'new': new,
             'missing': sum(1 for g in data['games'] if g.get('missing')), 'errors': errors,
-            'played_pending': sum(1 for p in played_titles() if p['n'] not in data.get('played', {}))}
+            'played_pending': sum(1 for p in played_titles() if p['n'] not in data.get('played', {}))
+                              + sum(1 for v in data.get('igdb_similar', {}).values() if 'pc' not in v)}
 
 
 def add(exe, prefix=None, title=None, args=''):
@@ -1172,6 +1173,17 @@ def played_titles():
     return [{'n': g['n'], 'hrs': g.get('hrs'), 'plat': bool(g.get('plat'))} for g in items]
 
 
+# IGDB platform ids that count as PC: Windows (6) and Linux (3).
+PC_PLATFORMS = {6, 3}
+
+
+def platforms_of(game):
+    """Plataformas de um jogo do IGDB e se ele tem versão PC (None quando o IGDB não lista nenhuma)."""
+    found = game.get('platforms') or []
+    return {'platforms': [p.get('abbreviation') or str(p.get('id')) for p in found],
+            'pc': any(p.get('id') in PC_PLATFORMS for p in found) if found else None}
+
+
 def meta(ids=None, everything=False):
     """Busca metadados no IGDB e preenche só os campos vazios (capa, gêneros, duração estimada...).
     Também consulta, uma vez, os jogos que já joguei e estão fora da biblioteca: gêneros e
@@ -1181,7 +1193,9 @@ def meta(ids=None, everything=False):
     todo = [g for g in games_now if (ids and g['id'] in ids) or (not ids and (everything or 'igdb' not in g))]
     known = doc.get('played', {})
     played_todo = [] if ids else [p for p in played_titles() if everything or p['n'] not in known]
-    if not todo and not played_todo:
+    # Parecidos guardados antes de existir o campo "pc": buscados de novo para ganhar as plataformas.
+    stale = [] if ids else [int(k) for k, v in doc.get('igdb_similar', {}).items() if 'pc' not in v]
+    if not todo and not played_todo and not stale:
         return {'matched': [], 'missed': []}
     api = Igdb()
     found = {}
@@ -1221,15 +1235,15 @@ def meta(ids=None, everything=False):
             'similar': hit.get('similar_games', [])[:10]}} if hit else {}))
     # Similar games: one query for all, names and covers for the recommendations.
     similar_ids = sorted({i for v in found.values() if v['match'] for i in v['match']['similar']}
-                         | {i for v in played.values() if 'igdb' in v for i in v['igdb']['similar']})
+                         | {i for v in played.values() if 'igdb' in v for i in v['igdb']['similar']} | set(stale))
     similar = {}
     for start in range(0, len(similar_ids), 100):
         chunk = similar_ids[start:start + 100]
-        for s in api.query('games', 'fields id,name,url,first_release_date,cover.image_id,genres.name,total_rating; '
+        for s in api.query('games', 'fields id,name,url,first_release_date,cover.image_id,genres.name,total_rating,platforms.abbreviation; '
                                     f'where id = ({",".join(map(str, chunk))}); limit 100;'):
             similar[str(s['id'])] = {'name': s.get('name'), 'url': s.get('url'), 'year': year_of(s.get('first_release_date')),
                                      'genres': [x['name'] for x in s.get('genres', [])], 'rating': round(s['total_rating']) if s.get('total_rating') else None,
-                                     'image': (s.get('cover') or {}).get('image_id')}
+                                     'image': (s.get('cover') or {}).get('image_id'), **platforms_of(s)}
     def write(d):
         """Grava o que foi encontrado, dentro da trava."""
         matched, missed = [], []

@@ -24,6 +24,8 @@ Item {
     function hours(h) { return h > 0 ? (h < 10 ? h.toFixed(1).replace(/\.0$/, "") : String(Math.round(h))) + " h" : "—"; }
     // Timestamp → dd/MM/yy.
     function day(stamp) { return stamp ? Qt.formatDate(new Date(stamp * 1000), "dd/MM/yy") : "—"; }
+    // Aviso de "sem versão PC" pelas plataformas do IGDB (null se tem PC ou o IGDB não sabe).
+    function noPc(s) { return s.pc === false ? { k: "na", w: "sem versão PC" + (s.platforms && s.platforms.length ? " (" + s.platforms.slice(0, 3).join(", ") + ")" : "") } : null; }
     // Cor do aviso: não roda (vermelho), no limite (amarelo), fora do PC (apagado).
     function warnColor(w) { return w.k === "no" ? Theme.fail : w.k === "lim" ? Theme.warn : Theme.dim; }
     // Etiqueta do aviso depois do nome ("" se roda bem ou não há requisito conhecido).
@@ -99,7 +101,7 @@ Item {
         return Object.keys(score)
             .sort((a, b) => (score[b] - score[a]) || ((similar[b].rating || 0) - (similar[a].rating || 0)))
             .slice(0, 5)
-            .map(k => Object.assign({ because: because[k], warn: Games.warnOf(similar[k].name) }, similar[k]));
+            .map(k => Object.assign({ because: because[k], warn: noPc(similar[k]) || Games.warnOf(similar[k].name) }, similar[k]));
     }
 
     // ================= HEADER =================
