@@ -365,6 +365,30 @@ class Games(unittest.TestCase):
             self.assertEqual(games.load()['igdb_similar']['40']['pc'], False)
             self.assertEqual(self.cli('scan')[1]['played_pending'], 0)
 
+    def test_played_add_and_rec_hide_shape_the_recommendations(self):
+        games.update(lambda d: d.update(igdb_similar={'77': {'name': 'Lies of P', 'genres': ['RPG'], 'pc': True}}, rec_hidden=['77']))
+        class Fake:
+            def query(self, endpoint, body):
+                if 'where id = 77;' in body:
+                    return [{'id': 77, 'name': 'Lies of P', 'genres': [{'name': 'Role-playing (RPG)'}], 'similar_games': [77, 88]}]
+                assert 'where id = (88)' in body, body
+                return [{'id': 88, 'name': 'Nioh 2', 'platforms': [{'id': 6, 'abbreviation': 'PC'}]}]
+        with patch.object(games, 'Igdb', Fake):
+            self.assertEqual(self.cli('played-add', '77')[1]['played'], 'Lies of P')
+        doc = games.load()
+        self.assertEqual(doc['played']['Lies of P']['igdb'], {'id': 77, 'name': 'Lies of P', 'genres': ['Role-playing (RPG)'], 'similar': [77, 88]})
+        self.assertTrue(doc['played']['Lies of P']['manual'])
+        self.assertEqual((doc['igdb_similar']['88']['name'], doc['rec_hidden']), ('Nioh 2', []))
+        # Without an IGDB key it still goes in, with what is known.
+        games.update(lambda d: d['igdb_similar'].update({'99': {'name': 'Hades', 'genres': ['Indie']}}))
+        with patch.object(games, 'Igdb', side_effect=ValueError('sem chave')):
+            self.cli('played-add', '99')
+        self.assertEqual(games.load()['played']['Hades']['igdb']['genres'], ['Indie'])
+        self.assertEqual(self.cli('played-add', '5')[0], 1)               # not a suggestion
+        self.assertEqual(self.cli('rec-hide', '88')[1]['hidden'], 1)
+        self.assertEqual(self.cli('rec-hide', '88')[1]['hidden'], 1)      # once
+        self.assertEqual(self.cli('rec-hide', '--clear')[1]['hidden'], 0)
+
     def test_done_and_complete_get_their_dates_once(self):
         exe = self.home/'j.exe'
         exe.write_bytes(b'x')

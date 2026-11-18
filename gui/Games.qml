@@ -117,6 +117,10 @@ Singleton {
                     + (played.matched ? " · " + played.matched + " já jogados" : "") + (played.missed.length ? " · sem par: " + played.missed.join(", ") : ""));
         });
     }
+    // Recomendações: "já joguei" (entra nos já jogados) e "não quero" (some; clear traz de volta).
+    function playedAdd(igdbId, name) { run(["played-add", String(igdbId)], (ok, data) => ok ? changed("✓ " + name + " nos já jogados") : failed(data.error)); }
+    function recHide(igdbId, name) { run(["rec-hide", String(igdbId)], (ok, data) => ok ? changed("✕ " + name + " escondido") : failed(data.error)); }
+    function recUnhideAll() { run(["rec-hide", "--clear"], (ok, data) => ok ? changed("sugestões escondidas de volta") : failed(data.error)); }
     // Muda campos de um jogo (ex.: ["status=done"]) e mostra a mensagem se der certo.
     function set(id, pairs, message) {
         run(["set", id].concat(pairs), (ok, data) => ok ? (message ? changed(message) : null) : failed(data.error));

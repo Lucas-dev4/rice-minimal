@@ -1184,6 +1184,59 @@ def platforms_of(game):
             'pc': any(p.get('id') in PC_PLATFORMS for p in found) if found else None}
 
 
+def similar_details(api, ids):
+    """Nome, capa, ano, gêneros, nota e plataformas dos jogos parecidos (100 por consulta)."""
+    out = {}
+    ids = sorted(ids)
+    for start in range(0, len(ids), 100):
+        chunk = ids[start:start + 100]
+        for s in api.query('games', 'fields id,name,url,first_release_date,cover.image_id,genres.name,total_rating,platforms.abbreviation; '
+                                    f'where id = ({",".join(map(str, chunk))}); limit 100;'):
+            out[str(s['id'])] = {'name': s.get('name'), 'url': s.get('url'), 'year': year_of(s.get('first_release_date')),
+                                 'genres': [x['name'] for x in s.get('genres', [])], 'rating': round(s['total_rating']) if s.get('total_rating') else None,
+                                 'image': (s.get('cover') or {}).get('image_id'), **platforms_of(s)}
+    return out
+
+
+def played_add(igdb_id):
+    """"Já joguei" numa sugestão: o jogo entra nos já jogados (gosto e exclusão) com os
+    parecidos dele. Sem IGDB (sem chave ou sem rede), entra só com o que já se sabe."""
+    key = str(int(igdb_id))
+    known = load().get('igdb_similar', {}).get(key)
+    if not known:
+        raise ValueError('sugestão não encontrada: ' + key)
+    info = {'id': int(key), 'name': known['name'], 'genres': known.get('genres', []), 'similar': []}
+    similar = {}
+    try:
+        api = Igdb()
+        hit = api.query('games', f'fields id,name,genres.name,similar_games; where id = {key};')
+        if hit:
+            info.update(genres=[x['name'] for x in hit[0].get('genres', [])], similar=hit[0].get('similar_games', [])[:10])
+            similar = similar_details(api, set(info['similar']) - set(map(int, load().get('igdb_similar', {}))))
+    except (ValueError, OSError):
+        pass
+    def write(d):
+        """Grava o jogo nos já jogados e tira das escondidas."""
+        d.setdefault('igdb_similar', {}).update(similar)
+        d.setdefault('played', {})[known['name']] = {'n': known['name'], 'hrs': None, 'plat': False, 'manual': True,
+                                                    'checked': int(time.time()), 'igdb': info}
+        d['rec_hidden'] = [i for i in d.get('rec_hidden', []) if i != key]
+        return {'played': known['name']}
+    return update(write)
+
+
+def rec_hide(igdb_id=None, clear=False):
+    """"Não quero" numa sugestão: some das recomendações (clear traz todas de volta)."""
+    def write(d):
+        """Grava a lista de escondidas."""
+        hidden = [] if clear else d.get('rec_hidden', [])
+        if igdb_id is not None and str(int(igdb_id)) not in hidden:
+            hidden.append(str(int(igdb_id)))
+        d['rec_hidden'] = hidden
+        return {'hidden': len(hidden)}
+    return update(write)
+
+
 def meta(ids=None, everything=False):
     """Busca metadados no IGDB e preenche só os campos vazios (capa, gêneros, duração estimada...).
     Também consulta, uma vez, os jogos que já joguei e estão fora da biblioteca: gêneros e
@@ -1236,14 +1289,7 @@ def meta(ids=None, everything=False):
     # Similar games: one query for all, names and covers for the recommendations.
     similar_ids = sorted({i for v in found.values() if v['match'] for i in v['match']['similar']}
                          | {i for v in played.values() if 'igdb' in v for i in v['igdb']['similar']} | set(stale))
-    similar = {}
-    for start in range(0, len(similar_ids), 100):
-        chunk = similar_ids[start:start + 100]
-        for s in api.query('games', 'fields id,name,url,first_release_date,cover.image_id,genres.name,total_rating,platforms.abbreviation; '
-                                    f'where id = ({",".join(map(str, chunk))}); limit 100;'):
-            similar[str(s['id'])] = {'name': s.get('name'), 'url': s.get('url'), 'year': year_of(s.get('first_release_date')),
-                                     'genres': [x['name'] for x in s.get('genres', [])], 'rating': round(s['total_rating']) if s.get('total_rating') else None,
-                                     'image': (s.get('cover') or {}).get('image_id'), **platforms_of(s)}
+    similar = similar_details(api, similar_ids)
     def write(d):
         """Grava o que foi encontrado, dentro da trava."""
         matched, missed = [], []
@@ -1304,6 +1350,10 @@ def main(argv=None):
     ar2 = sub.add_parser('add-ready')
     ar2.add_argument('exe')
     ar2.add_argument('--name', required=True)
+    sub.add_parser('played-add').add_argument('igdb_id', type=int)
+    rh = sub.add_parser('rec-hide')
+    rh.add_argument('igdb_id', type=int, nargs='?')
+    rh.add_argument('--clear', action='store_true')
     ia = sub.add_parser('install-add')
     ia.add_argument('setup')
     ia.add_argument('exe')
@@ -1341,6 +1391,10 @@ def main(argv=None):
             data = add_ready(args.exe, args.name)
         elif args.action == 'install-add':
             data = install_add(args.setup, args.exe)
+        elif args.action == 'played-add':
+            data = played_add(args.igdb_id)
+        elif args.action == 'rec-hide':
+            data = rec_hide(args.igdb_id, args.clear)
         elif args.action == 'install-forget':
             data = install_forget(args.setup)
         else:

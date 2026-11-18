@@ -14,7 +14,7 @@ Item {
 
     property Item keyTarget: null
     property string title: ""
-    readonly property var hints: [["clique", "abre no IGDB"], ["alt 1-3", "seção"]]
+    readonly property var hints: [["clique", "abre no IGDB"], ["passe o mouse", "joguei / não quero"], ["alt 1-3", "seção"]]
     // Esta tela não usa teclas próprias.
     function handleKey(event) { return false; }
 
@@ -59,10 +59,14 @@ Item {
 
     // ---- recommendations --------------------------------------------------------------
     // How much each game says about my taste: hours, finished, 100%, favourite.
-    function weight(g) { return Games.hoursOf(g) + (g.status === "done" ? 10 : 0) + (g.complete ? 10 : 0) + (g.fav ? 5 : 0) + (g.status === "dropped" ? -5 : 0); }
+    // Raiz quadrada: 300 h pesam ~4x um jogo de 20 h, não 15x; um jogo só não domina as sugestões.
+    function soft(w) { return Math.sign(w) * Math.sqrt(Math.abs(w)); }
+    function weight(g) { return soft(Games.hoursOf(g) + (g.status === "done" ? 10 : 0) + (g.complete ? 10 : 0) + (g.fav ? 5 : 0) + (g.status === "dropped" ? -5 : 0)); }
     // Já jogados fora da biblioteca: todos zerados; horas e platina pesam como na biblioteca.
     readonly property var played: Object.values(Games.doc.played || {})
-    function playedWeight(p) { return (p.hrs || 0) + 10 + (p.plat ? 10 : 0); }
+    function playedWeight(p) { return soft((p.hrs || 0) + 10 + (p.plat ? 10 : 0)); }
+    // "Não quero": ids do IGDB escondidos das sugestões.
+    readonly property var hidden: Games.doc.rec_hidden || []
     readonly property var genreWeight: {
         const w = {};
         for (const g of games) if (g.igdb && g.igdb.genres) for (const name of g.igdb.genres) w[name] = (w[name] || 0) + weight(g);
@@ -93,7 +97,7 @@ Item {
             if (src.w <= 0) continue;
             for (const id of src.similar) {
                 const key = String(id), s = similar[key];
-                if (!s || ownIds.has(key) || mine.has(norm(s.name))) continue;
+                if (!s || ownIds.has(key) || mine.has(norm(s.name)) || hidden.indexOf(key) >= 0) continue;
                 score[key] = (score[key] || 0) + src.w;
                 if (!best[key] || best[key] < src.w) { best[key] = src.w; because[key] = src.title; }
             }
@@ -101,7 +105,7 @@ Item {
         return Object.keys(score)
             .sort((a, b) => (score[b] - score[a]) || ((similar[b].rating || 0) - (similar[a].rating || 0)))
             .slice(0, 5)
-            .map(k => Object.assign({ because: because[k], warn: noPc(similar[k]) || Games.warnOf(similar[k].name) }, similar[k]));
+            .map(k => Object.assign({ id: k, because: because[k], warn: noPc(similar[k]) || Games.warnOf(similar[k].name) }, similar[k]));
     }
 
     // ================= HEADER =================
@@ -360,7 +364,31 @@ Item {
                         cursorShape: rec.modelData.url ? Qt.PointingHandCursor : Qt.ArrowCursor
                         onClicked: if (rec.modelData.url) Qt.openUrlExternally(rec.modelData.url)
                     }
+                    // Hover: "já joguei" entra nos já jogados, "não quero" esconde.
+                    HoverHandler { id: recHover }
+                    Rectangle {
+                        visible: recHover.hovered
+                        anchors.right: parent.right
+                        anchors.verticalCenter: art.verticalCenter
+                        width: recButtons.width + 12
+                        height: recButtons.height + 8
+                        color: Theme.sheet
+                        Row {
+                            id: recButtons
+                            anchors.centerIn: parent
+                            spacing: 6
+                            AccentButton { ghost: true; label: "✓ joguei"; onClicked: Games.playedAdd(rec.modelData.id, rec.modelData.name) }
+                            AccentButton { ghost: true; label: "✕ não quero"; onClicked: Games.recHide(rec.modelData.id, rec.modelData.name) }
+                        }
+                    }
                 }
+            }
+            RiceText {
+                visible: root.hidden.length > 0
+                text: root.hidden.length + " escondida(s) · mostrar de novo"
+                color: hiddenMouse.containsMouse ? Theme.accent : Theme.faint
+                font.pixelSize: Theme.small
+                MouseArea { id: hiddenMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Games.recUnhideAll() }
             }
         }
     }
