@@ -49,7 +49,7 @@
   "extras/wallpapers/README.md": "d4eaa5057873bb5d9d3026efade2d6f76905fb63e8a475084f88af271ca25bde",
   "extras/wallpapers/wallpaper_tui.py": "49e039b084340d6164b6c60e595934af5de31513aa64875a0cebef6af7985e28",
   "gui/Games.qml": "9de202030588283696103d349876f388401c3a7a83e4f26edfba13fd8ca09e90",
-  "gui/Music.qml": "76d9e3d1d9bda7f485c8265eb346e4fa82442d73026f7dfa20386956531e47a1",
+  "gui/Music.qml": "4046b96564f6d03b5cf4b9f06ac183f9b68121165f27661e0ad7e1a365a4cba6",
   "gui/Spectrum.qml": "8ed52f271abf839d8360cc23a1069ca3db7af777cd5b0e0cad9ee3be2f8bbbbc",
   "gui/Status.qml": "56ac8e9548a39847b8b0afcdd1392fa35e1344b8627ade560d829ecdaf293425",
   "gui/Theme.qml": "891fbe2f6793c052d0525c9d369eb61dd740ca1bc8fd0aade3965dd0d7fb85de",

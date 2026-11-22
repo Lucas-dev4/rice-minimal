@@ -213,8 +213,32 @@ Singleton {
     function savedSession() {
         try { const s = JSON.parse(sessionFile.text()); return s.paths && s.paths.length ? s : null; } catch (error) { return null; }
     }
-    // Liga o cliamp com a sessão salva.
-    function startCliamp() { start(savedSession()); }
+    // Liga o cliamp com a sessão salva. O cliamp não abre se um caminho da lista não existe
+    // (música movida ou apagada), então os que sumiram ficam de fora antes.
+    function startCliamp() {
+        const saved = savedSession();
+        if (!saved) return start(null);
+        if (pathCheck.running) return;
+        pathCheck.saved = saved;
+        pathCheck.command = ["sh", "-c", 'for p; do case "$p" in *://*) echo 1 ;; *) [ -e "$p" ] && echo 1 || echo 0 ;; esac; done',
+                             "lw-music"].concat(saved.paths);
+        pathCheck.running = true;
+    }
+    // A sessão só com os caminhos que ainda existem (flags: "1"/"0" por caminho); a faixa
+    // atual é procurada de novo na lista menor. Sem nenhum, null (abre a pasta de música).
+    function keepExisting(saved, flags) {
+        const paths = saved.paths.filter((p, i) => flags[i] === "1");
+        if (paths.length === saved.paths.length) return saved;
+        if (!paths.length) return null;
+        const index = paths.indexOf(saved.paths[saved.index || 0]);
+        return { paths: paths, index: Math.max(0, index), position: index < 0 ? 0 : saved.position, volume: saved.volume };
+    }
+    Process {
+        id: pathCheck
+        property var saved: null
+        stdout: StdioCollector { id: pathFlags }
+        onExited: root.start(root.keepExisting(saved, pathFlags.text.split("\n")))
+    }
     // Ao fechar o LW em MÚSICA: salva a sessão e desliga o cliamp.
     function closeSession() {
         if (online && playlist.length) {
