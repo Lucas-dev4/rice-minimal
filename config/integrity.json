@@ -1,5 +1,5 @@
 {
-  "README.md": "a0beeb73317110775943c28b8ca443027fc6fb32e7baeca8661a3d7d8ebe8576",
+  "README.md": "0aa257c51c7668f58882b39d98b9695455a0a653a5bad605a9537cec2d5a744c",
   "config/autostart/rice-minimal.desktop": "c592575a7c2e736e66bd76410b9c52775b8190c7a69f9b9369efbf593d9477d4",
   "config/cliamp/config.toml": "b7411892f51694364881d0e9be4c590bab6787108215ebbc504fb4b81d2e3f2e",
   "config/fastfetch/config.jsonc": "548e76a29ea67501f11c38dce97279fafee1cea0d1c734cfcd8dedc0bf308f03",
@@ -99,7 +99,7 @@
   "gui/screens/ShortcutsScreen.qml": "4ed6cf1a9bd96efd34b83f91c8075c372b3a608a8553465247a932573ccd7496",
   "gui/screens/WallpaperScreen.qml": "e60ebac17cab854c0b7346d1167a7f6c3d4554a22e77e00e8c2325b031d2d1c9",
   "gui/shell.qml": "8335f7dc3b6706c3c61c548238c8593c6dc9abef6adac33f422a107d17c3743a",
-  "scripts/install.py": "889c497475b4a5fdde1406a498f9c11c0c486303b8ab9350c04ae4b56020c300",
+  "scripts/install.py": "7e9db99ebe53821ac7aa171d1f109f57f404bdcbe90d332fd4e6f1e0e061ec71",
   "scripts/restore.py": "45893f89c1e0118107470db6926bc57b1787bb4c4a88dd85623e016cc44d9c7c",
   "scripts/restore_greeter.sh": "97593b2431c520c005b313962ff502c59aac1109efb15a74c6d4b3272b50ee18",
   "scripts/session.py": "2b4094ea51eac30dc9fe957305e1fca9a68c69e24c89540885daaccf5a3b3c7a",

@@ -266,7 +266,7 @@ def main():
         print('Undo with: python3 scripts/restore.py', backup.relative_to(ROOT), '--apply')
     for line in post_install():
         print(line)
-    print('\nNot handled here (needs sudo): packages (Nemo: sudo pacman -S nemo nemo-fileroller), the login screen (config/greeter/greeter.toml).')
+    print('\nNot handled here (needs sudo): packages (Nemo: sudo pacman -S nemo nemo-fileroller cinnamon-translations), the login screen (config/greeter/greeter.toml).')
     return 0
 
 
