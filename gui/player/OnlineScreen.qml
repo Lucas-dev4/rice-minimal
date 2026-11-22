@@ -1,5 +1,7 @@
 // OnlineScreen.qml — tela ONLINE (MÚSICA): busca no YouTube (yt-dlp) e no SoundCloud (cliamp).
-// / busca, Tab troca a fonte, Enter toca agora, a põe como próxima.
+// / busca, Tab troca a fonte, Enter toca agora, a põe como próxima. Colar um link (música ou
+// playlist) na busca lista o que tem nele; b baixa a música, B a playlist inteira, x cancela.
+// O que baixa vai sozinho para a pasta de gênero do artista; g escolhe a pasta de um artista novo.
 import QtQuick
 import Quickshell.Io
 import qs
@@ -14,7 +16,9 @@ Item {
 
     property Item keyTarget: null
     property string title: ""
-    readonly property var hints: [["/", "buscar"], ["tab", "fonte"], ["↑↓", "move"], ["⏎", "tocar"], ["a", "próxima"]]
+    readonly property var hints: picking ? [["↑↓", "música"], ["←→", "pasta"], ["⏎", "mover"], ["esc", "fechar"]]
+        : [["/", "buscar/link"], ["tab", "fonte"], ["⏎", "tocar"], ["a", "próxima"], ["b", "baixar"], ["B", "playlist"]]
+            .concat(Downloads.unknown.length ? [["g", "pasta"]] : [])
 
     // Local files and radio have their own tabs; "cliamp" is its own radio; podcast results
     // are whole shows, not tracks.
@@ -34,6 +38,14 @@ Item {
     property int seq: 0
     property int cursor: 0
     readonly property var selected: results[cursor] || null
+    // Link colado na busca: os resultados vêm dele, e playlist é {title, url} se for uma.
+    property bool fromLink: false
+    property var playlist: null
+    // Escolha de pasta (g): música de artista novo em Downloads e a pasta de gênero marcada.
+    property bool picking: false
+    property int pickRow: 0
+    property int pickFolder: 0
+    readonly property var pickFile: Downloads.unknown[pickRow] || null
 
     // Ordem das fontes na lista.
     function rank(key) { const i = order.indexOf(key); return i < 0 ? order.length : i; }
@@ -49,18 +61,25 @@ Item {
             if (!list.some(p => p.key === provider)) provider = list.length ? list[0].key : "";
         });
     }
-    // Faz a busca na fonte escolhida.
+    // Um link (http/https) em vez de texto de busca.
+    function isLink(text) { return /^https?:\/\/\S+$/.test(text); }
+    // Faz a busca na fonte escolhida (um link sempre vai pelo yt-dlp).
     function search() {
         const query = box.text.trim();
-        if (!query || !provider) return;
+        const link = isLink(query);
+        if (!query || !(provider || (link && hasYtdlp))) return;
         error = "";
         searching = true;
         lastQuery = query;
         results = [];             // never show one source's results under another's name
+        fromLink = link;
+        playlist = null;
         const mine = ++seq;
-        if (provider === "ytdlp") {
+        if (link || provider === "ytdlp") {
+            if (link && !hasYtdlp) { searching = false; error = "links precisam do yt-dlp (sudo pacman -S yt-dlp)"; return; }
             ytSearch.mine = mine;
-            ytSearch.command = ["yt-dlp", "--flat-playlist", "--no-warnings", "-J", "ytsearch25:" + query];
+            ytSearch.link = link ? query : "";
+            ytSearch.command = ["yt-dlp", "--flat-playlist", "--no-warnings", "-J", link ? query : "ytsearch25:" + query];
             ytSearch.running = true;
             ytGuard.restart();
             return;
@@ -88,6 +107,18 @@ Item {
         Music.playTrack(track);
         Status.say("[ ▶ ] " + label(track), Theme.ok);
     }
+    // Baixa um resultado (MP3 em ~/Músicas/Downloads), pelo Downloads.qml.
+    function download(track) {
+        if (!track) return;
+        if (!/^https?:\/\//.test(track.path || "")) { Status.say("[ -- ] esse resultado não tem link para baixar", Theme.dim); return; }
+        if (!hasYtdlp) { Status.say("[ !! ] baixar precisa do yt-dlp: sudo pacman -S yt-dlp", Theme.red); return; }
+        Downloads.add(track.path, false, label(track));
+    }
+    // Baixa a playlist inteira do link colado (numa pasta com o nome dela).
+    function downloadPlaylist() {
+        if (!playlist) { Status.say("[ -- ] cole o link de uma playlist na busca (/) para baixar ela inteira", Theme.dim); return; }
+        Downloads.add(playlist.url, true, playlist.title);
+    }
     // Põe um resultado como próxima faixa.
     function queueNext(track) {
         if (!track) return;
@@ -106,8 +137,27 @@ Item {
         cursor = Math.max(0, Math.min(results.length - 1, cursor + step));
         view.positionViewAtIndex(cursor, ListView.Contain);
     }
+    // Abre a escolha de pasta para as músicas de artista novo.
+    function openPicker() {
+        if (!Downloads.unknown.length) { Status.say("[ -- ] nada em Downloads esperando pasta", Theme.dim); return; }
+        pickRow = Math.min(pickRow, Downloads.unknown.length - 1);
+        picking = true;
+    }
+    // Teclas da escolha de pasta (todas ficam nela enquanto está aberta).
+    function pickKey(event) {
+        const n = Downloads.folders.length;
+        if (event.key === Qt.Key_Escape || event.text === "g") picking = false;
+        else if (event.key === Qt.Key_Down) pickRow = Math.min(Downloads.unknown.length - 1, pickRow + 1);
+        else if (event.key === Qt.Key_Up) pickRow = Math.max(0, pickRow - 1);
+        else if (event.key === Qt.Key_Right && n) pickFolder = (pickFolder + 1) % n;
+        else if (event.key === Qt.Key_Left && n) pickFolder = (pickFolder + n - 1) % n;
+        else if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter) && pickFile && n)
+            Downloads.moveTo(pickFile.file, Downloads.folders[pickFolder]);
+        return true;
+    }
     // Teclas da tela.
     function handleKey(event) {
+        if (picking) return pickKey(event);
         const t = event.text;
         if (event.key === Qt.Key_Slash) { box.focusInput(); return true; }
         if (event.key === Qt.Key_Tab) { cycleProvider(); return true; }
@@ -115,6 +165,10 @@ Item {
         if (event.key === Qt.Key_Up) { moveCursor(-1); return true; }
         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) { play(selected); return true; }
         if (t === "a") { queueNext(selected); return true; }
+        if (t === "b") { download(selected); return true; }
+        if (t === "B") { downloadPlaylist(); return true; }
+        if (t === "x" && Downloads.active) { Downloads.cancel(); return true; }
+        if (t === "g") { openPicker(); return true; }
         return false;
     }
     // Test hook (music IPC `query`).
@@ -129,6 +183,7 @@ Item {
     Process {
         id: ytSearch
         property int mine: 0
+        property string link: ""
         stdout: StdioCollector { id: ytOut }
         stderr: StdioCollector { id: ytErr }
         onExited: code => {
@@ -142,9 +197,14 @@ Item {
                 root.results = [];
                 return;
             }
-            root.results = (data.entries || []).filter(e => e && e.url).map(e => ({
-                title: e.title || e.url, artist: e.channel || e.uploader || "",
+            // A playlist (ou busca) traz entries; o link de uma música só, o próprio vídeo.
+            const link = ytSearch.link;
+            const entries = data.entries ? data.entries : (link ? [Object.assign({}, data, { url: data.webpage_url || link })] : []);
+            root.results = entries.filter(e => e && e.url).map(e => ({
+                title: e.title || e.url, artist: e.artist || e.channel || e.uploader || "",
                 path: e.url, duration_secs: e.duration || 0, stream: true }));
+            if (link && data.entries)
+                root.playlist = { title: data.title || "Playlist", url: data.webpage_url || link };
             root.cursor = 0;
             view.positionViewAtBeginning();
         }
@@ -154,7 +214,15 @@ Item {
         interval: 30000
         onTriggered: if (ytSearch.running) { ytSearch.signal(15); root.searching = false; root.error = "o YouTube não respondeu em 30 s"; }
     }
-    Component.onCompleted: loadProviders()
+    Component.onCompleted: { loadProviders(); Downloads.organize(); }
+    Connections {
+        target: Downloads
+        // Acabaram as músicas sem pasta: fecha a escolha; senão mantém a linha dentro da lista.
+        function onUnknownChanged() {
+            if (!Downloads.unknown.length) root.picking = false;
+            else root.pickRow = Math.min(root.pickRow, Downloads.unknown.length - 1);
+        }
+    }
     Connections {
         target: Music
         function onOnlineChanged() { if (Music.online && !root.listed) root.loadProviders(); }
@@ -174,7 +242,7 @@ Item {
         SearchBox {
             id: box
             width: parent.width - goButton.width - 10
-            placeholder: "buscar música online"
+            placeholder: "buscar música online ou colar link (música/playlist)"
             keyTarget: root.keyTarget
             onAccepted: root.search()
         }
@@ -298,9 +366,91 @@ Item {
                     : root.listed && !root.providers.length ? "[ !! ] nenhuma fonte online — instale o yt-dlp (sudo pacman -S yt-dlp) e reabra o LW // MUSIC"
                     : root.searching ? "[ .. ] buscando em " + (root.names[root.provider] || root.provider) + "…"
                     : root.error ? "[ !! ] " + root.error
-                    : root.lastQuery ? "nada encontrado" : "/ para buscar · tab troca a fonte"
+                    : root.lastQuery ? "nada encontrado" : "/ para buscar ou colar um link · tab troca a fonte · b baixa"
                 color: root.error || (root.listed && !root.providers.length) ? Theme.red : root.searching ? Theme.accent : Theme.faint
             }
+        }
+    }
+
+    // ================= PASTA (g) =================
+    // Música de artista novo: escolha a pasta de gênero uma vez; as próximas do artista vão sozinhas.
+    Rectangle {
+        anchors.fill: table
+        visible: root.picking
+        color: Theme.sheet
+        border.width: 1
+        border.color: Theme.accent
+        z: 5
+        MouseArea { anchors.fill: parent }        // nothing under the panel reacts to clicks
+
+        RiceText {
+            id: pickHead
+            x: 14; y: 12
+            width: parent.width - 28
+            text: "SEM PASTA · artista novo — a pasta escolhida vale para as próximas músicas dele"
+            color: Theme.accent
+            font.pixelSize: Theme.small
+            font.letterSpacing: 1.5
+        }
+        ListView {
+            id: pickList
+            anchors.top: pickHead.bottom
+            anchors.topMargin: 10
+            x: 14
+            width: parent.width - 28
+            height: Math.min(contentHeight, parent.height * 0.42)
+            clip: true
+            model: Downloads.unknown
+            currentIndex: root.pickRow
+            onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+            delegate: Item {
+                id: pickItem
+                required property var modelData
+                required property int index
+                width: pickList.width
+                height: 24
+                Rectangle {
+                    anchors.fill: parent
+                    color: pickItem.index === root.pickRow ? Qt.alpha(Theme.fg, 0.05) : "transparent"
+                    Rectangle { width: 2; height: parent.height; color: pickItem.index === root.pickRow ? Theme.accent : "transparent" }
+                }
+                RiceText {
+                    x: 10
+                    width: parent.width - 20
+                    anchors.verticalCenter: parent.verticalCenter
+                    elide: Text.ElideRight
+                    text: (pickItem.modelData.artist || "sem artista") + "  —  " + pickItem.modelData.title
+                    color: pickItem.index === root.pickRow ? Theme.fg : Theme.dim
+                }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.pickRow = pickItem.index }
+            }
+        }
+        Rectangle { id: pickRule; anchors.top: pickList.bottom; anchors.topMargin: 10; x: 14; width: parent.width - 28; height: 1; color: Theme.line }
+        Flow {
+            anchors.top: pickRule.bottom
+            anchors.topMargin: 12
+            x: 14
+            width: parent.width - 28
+            spacing: 6
+            Repeater {
+                model: Downloads.folders
+                Chip {
+                    required property var modelData
+                    required property int index
+                    label: modelData
+                    on: index === root.pickFolder
+                    // Clique move direto para a pasta.
+                    onClicked: { root.pickFolder = index; if (root.pickFile) Downloads.moveTo(root.pickFile.file, modelData); }
+                }
+            }
+        }
+        RiceText {
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 10
+            x: 14
+            text: "↑↓ música · ←→ pasta · ⏎ move · clique na pasta move · esc fecha"
+            color: Theme.faint
+            font.pixelSize: Theme.small
         }
     }
 
@@ -314,14 +464,27 @@ Item {
         RiceText {
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 4
-            text: root.results.length ? root.results.length + " resultados · " + (root.names[root.provider] || root.provider) + (root.provider === "ytdlp" ? " · via yt-dlp" : " · via cliamp") : ""
-            color: Theme.faint
+            width: parent.width - buttons.width - 16
+            elide: Text.ElideRight
+            text: Downloads.active
+                ? "[ ↓ ] " + (Downloads.total > 1 ? Downloads.index + "/" + Downloads.total + " · " : "") + Downloads.title
+                  + " · " + Math.round(Downloads.percent) + "%" + (Downloads.queue.length ? " · +" + Downloads.queue.length + " na fila" : "") + " · x cancela"
+                : Downloads.unknown.length ? Downloads.unknown.length + (Downloads.unknown.length === 1 ? " música" : " músicas")
+                  + " de artista novo em Downloads · g escolhe a pasta"
+                : !root.results.length ? ""
+                : root.playlist ? root.playlist.title + " · " + root.results.length + " músicas · B baixa tudo"
+                : root.results.length + " resultados · " + (root.fromLink ? "link" : (root.names[root.provider] || root.provider))
+                  + (root.fromLink || root.provider === "ytdlp" ? " · via yt-dlp" : " · via cliamp")
+            color: Downloads.active || Downloads.unknown.length ? Theme.accent : Theme.faint
             font.pixelSize: Theme.small
         }
         Row {
+            id: buttons
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             spacing: 8
+            AccentButton { ghost: true; visible: !!root.playlist; label: "PLAYLIST (B)"; onClicked: root.downloadPlaylist() }
+            AccentButton { ghost: true; label: "BAIXAR (b)"; enabledState: !!root.selected; onClicked: root.download(root.selected) }
             AccentButton { ghost: true; label: "PRÓXIMA (a)"; enabledState: !!root.selected; onClicked: root.queueNext(root.selected) }
             AccentButton { label: "TOCAR ⏎"; enabledState: !!root.selected; onClicked: root.play(root.selected) }
         }

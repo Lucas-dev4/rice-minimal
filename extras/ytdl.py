@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""LW // MUSIC downloads through yt-dlp. Prints one JSON object per line (stream).
+
+  ytdl.py download URL [--playlist] [--root DIR]
+      Audio only, MP3 (best VBR), with title/artist tags and the thumbnail as a square
+      cover. One video goes to ROOT/Downloads/ as "Artist - Title.mp3"; with --playlist
+      the whole playlist goes to ROOT/Downloads/<playlist>/ as "NN - Title.mp3".
+      Already downloaded videos are skipped (archive in ~/.local/share/lw/yt-dlp-archive.txt).
+
+  Events: {"event": "start"|"item"|"progress"|"done"|"skip"|"error"|"end", ...}
+  "end" carries ok/done/skipped/errors; exit 0 when nothing failed.
+"""
+# ytdl.py — baixa músicas e playlists do YouTube pelo yt-dlp para a aba ONLINE do LW.
+# Grava em ~/Músicas/Downloads (playlist numa pasta própria) em MP3 com tags e capa,
+# e conta o progresso em linhas JSON para a tela (gui/player/OnlineScreen.qml).
+import argparse
+import json
+import os
+from pathlib import Path
+import shutil
+import signal
+import subprocess
+import sys
+
+# Linhas que o yt-dlp imprime para este script (o resto da saída é ignorado).
+TAG = 'LW\t'
+# Capa quadrada: corta o centro da miniatura 16:9 do vídeo. O yt-dlp separa os argumentos
+# do --ppa como um shell, por isso as aspas duplas em volta (as vírgulas ficam no crop).
+SQUARE = 'crop="\'if(gt(ih,iw),iw,ih)\':\'if(gt(iw,ih),ih,iw)\'"'
+
+
+def archive_path():
+    """Lista dos vídeos já baixados (o yt-dlp pula os que estão nela)."""
+    base = Path(os.environ.get('XDG_DATA_HOME', Path.home()/'.local/share'))
+    return base/'lw'/'yt-dlp-archive.txt'
+
+
+def command(url, root, playlist=False):
+    """A linha de comando do yt-dlp para uma música (ou, com playlist, a playlist inteira)."""
+    dest = Path(root)/'Downloads'
+    if playlist:
+        template = str(dest/'%(playlist_title,playlist|Playlist)s'/'%(playlist_index|0)02d - %(title).150B.%(ext)s')
+    else:
+        template = str(dest/'%(artist,creator,uploader|Desconhecido).60B - %(title).150B.%(ext)s')
+    return [
+        'yt-dlp', '--ignore-config', '--newline', '--no-colors', '--quiet', '--progress', '--no-simulate',
+        '--yes-playlist' if playlist else '--no-playlist', '--ignore-errors',
+        '-x', '--audio-format', 'mp3', '--audio-quality', '0',
+        '--embed-metadata', '--embed-thumbnail', '--convert-thumbnails', 'jpg',
+        '--ppa', f'ThumbnailsConvertor+ffmpeg_o:-c:v mjpeg -vf {SQUARE}',
+        # O YouTube só põe o artista em músicas oficiais; senão vale o canal (sem o " - Topic").
+        '--parse-metadata', '%(artist,creator,uploader|)s:%(meta_artist)s',
+        '--replace-in-metadata', 'meta_artist', r' - Topic$', '',
+        *(['--parse-metadata', '%(playlist_title,playlist|)s:%(meta_album)s',
+           '--parse-metadata', '%(playlist_index|)s:%(meta_track)s'] if playlist else []),
+        '--download-archive', str(archive_path()), '--no-overwrites',
+        '-o', template,
+        '--print', f'before_dl:{TAG}item\t%(playlist_index|1)s\t%(n_entries|1)s\t%(title)s',
+        '--print', f'after_move:{TAG}done\t%(filepath)s',
+        '--progress-template', f'download:{TAG}progress\t%(progress.downloaded_bytes|0)s\t'
+                               '%(progress.total_bytes,progress.total_bytes_estimate|0)s',
+        # --print liga o modo silencioso; sem ele o aviso de "já baixado" some.
+        '--no-quiet', '--', url,
+    ]
+
+
+def parse(line):
+    """Uma linha da saída do yt-dlp vira um evento (ou None se não interessa)."""
+    line = line.rstrip('\n')
+    if line.startswith(TAG):
+        kind, *fields = line[len(TAG):].split('\t')
+        if kind == 'item' and len(fields) >= 3:
+            return {'event': 'item', 'index': int(fields[0] or 1), 'total': int(fields[1] or 1),
+                    'title': '\t'.join(fields[2:])}
+        if kind == 'done' and fields:
+            return {'event': 'done', 'file': '\t'.join(fields)}
+        if kind == 'progress' and len(fields) == 2:
+            done, total = (float(x) if x.replace('.', '', 1).isdigit() else 0 for x in fields)
+            return {'event': 'progress', 'percent': round(100*done/total, 1) if total else 0}
+        return None
+    if 'has already been recorded in the archive' in line or 'has already been downloaded' in line:
+        return {'event': 'skip', 'message': line.split('] ', 1)[-1]}
+    if line.startswith('ERROR:'):
+        return {'event': 'error', 'message': line[6:].strip()}
+    return None
+
+
+def emit(event):
+    """Manda um evento para a tela (uma linha JSON)."""
+    print(json.dumps(event, ensure_ascii=False), flush=True)
+
+
+def download(url, root, playlist=False):
+    """Roda o yt-dlp e transforma a saída dele em eventos; devolve o código de saída."""
+    if not shutil.which('yt-dlp'):
+        emit({'event': 'end', 'ok': False, 'done': 0, 'skipped': 0, 'errors': 1,
+              'message': 'yt-dlp não está instalado: sudo pacman -S yt-dlp'})
+        return 1
+    if not shutil.which('ffmpeg'):
+        emit({'event': 'end', 'ok': False, 'done': 0, 'skipped': 0, 'errors': 1,
+              'message': 'ffmpeg não está instalado: sudo pacman -S ffmpeg'})
+        return 1
+    archive_path().parent.mkdir(parents=True, exist_ok=True)
+    emit({'event': 'start', 'url': url, 'playlist': playlist, 'dest': str(Path(root)/'Downloads')})
+    child = subprocess.Popen(command(url, root, playlist), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             text=True, bufsize=1, start_new_session=True)
+
+    def stop(*_):
+        # Cancelado pela tela: para o yt-dlp e o ffmpeg dele junto.
+        try:
+            os.killpg(child.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+
+    counts = {'done': 0, 'skip': 0, 'error': 0}
+    last = None
+    for line in child.stdout:
+        event = parse(line)
+        if not event:
+            continue
+        if event['event'] in counts:
+            counts[event['event']] += 1
+        if event['event'] == 'error':
+            last = event['message']
+        emit(event)
+    code = child.wait()
+    cancelled = code < 0
+    ok = not cancelled and counts['error'] == 0 and code == 0
+    end = {'event': 'end', 'ok': ok, 'cancelled': cancelled, 'done': counts['done'],
+           'skipped': counts['skip'], 'errors': counts['error']}
+    if not ok:
+        end['message'] = 'cancelado' if cancelled else (last or f'yt-dlp saiu com {code}')
+    emit(end)
+    return 0 if ok else 1
+
+
+def main(argv=None):
+    """Linha de comando: ytdl.py download URL [--playlist] [--root DIR]."""
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = parser.add_subparsers(dest='cmd', required=True)
+    d = sub.add_parser('download')
+    d.add_argument('url')
+    d.add_argument('--playlist', action='store_true')
+    d.add_argument('--root', default=str(Path.home()/'Músicas'))
+    args = parser.parse_args(argv)
+    if not args.url.startswith(('http://', 'https://')):
+        emit({'event': 'end', 'ok': False, 'done': 0, 'skipped': 0, 'errors': 1, 'message': 'link inválido'})
+        return 1
+    return download(args.url, args.root, args.playlist)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
