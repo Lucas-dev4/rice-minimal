@@ -15,6 +15,12 @@ hl.bind("SUPER + N", hl.dsp.exec_cmd("/home/lucas/.local/bin/cliamp next"))
 hl.bind("SUPER + SHIFT + N", hl.dsp.exec_cmd("/home/lucas/.local/bin/cliamp prev"))
 hl.bind("SUPER + SHIFT + Space", hl.dsp.exec_cmd("/home/lucas/.local/bin/cliamp toggle"))
 hl.bind("SUPER + SHIFT + M", hl.dsp.exec_cmd("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"))
+-- Arquivos: Super+E abre o Nemo (no lugar do atalho do binds.lua) e Super+Shift+E o yazi num Kitty.
+hl.unbind("SUPER + E")
+hl.bind("SUPER + E", hl.dsp.exec_cmd("nemo"))
+hl.bind("SUPER + SHIFT + E", hl.dsp.exec_cmd("kitty --class yazi -e yazi"))
+-- O Nemo fica meio transparente (ativo 90%, inativo 82%); o resto das janelas continua opaco.
+hl.window_rule({ match = { class = "^(nemo)$" }, opacity = "0.90 0.82" })
 -- A janela do LW flutua, centralizada, com 64% x 78% do monitor.
 hl.window_rule({ match = { class = "^(org\\.quickshell)$", title = "^(LW)$" }, float = true, center = true, size = { "monitor_w*0.64", "monitor_h*0.78" } })
 

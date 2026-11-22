@@ -1,0 +1,10 @@
+# Preferências do Nemo que o rice aplica (dconf load /org/nemo/ < config/nemo/nemo.dconf).
+# Só estas chaves mudam; o resto continua como você deixou no Nemo.
+[preferences]
+default-folder-viewer='list-view'
+sort-directories-first=true
+show-image-thumbnails='always'
+thumbnail-limit=uint64 104857600
+size-prefixes='base-2'
+show-location-entry=true
+show-open-in-terminal-toolbar=true

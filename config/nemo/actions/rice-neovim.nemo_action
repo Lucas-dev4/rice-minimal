@@ -1,0 +1,10 @@
+# Botão direito num arquivo -> "Abrir no Neovim" (num Kitty). Instalado em ~/.local/share/nemo/actions/.
+[Nemo Action]
+Name=Abrir no Neovim
+Comment=Abre %N no Neovim num Kitty
+Exec=kitty -e nvim %F
+Icon-Name=accessories-text-editor
+Selection=notnone
+Extensions=nodirs;
+Quote=double
+Dependencies=kitty;nvim;

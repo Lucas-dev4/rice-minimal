@@ -98,7 +98,8 @@ var PHRASES = [
     { say: "Abrir launcher", key: "launcher", alt: ["abrir launcher"], noct: "panel-toggle launcher", group: "SHELL" },
     { say: "Abrir navegador", key: "abrir navegador", alt: ["navegador", "abrir firefox", "firefox"], cmd: "firefox", group: "APPS" },
     { say: "Abrir terminal", key: "abrir terminal", alt: ["terminal"], cmd: "kitty", group: "APPS" },
-    { say: "Abrir arquivos", key: "abrir arquivos", alt: ["arquivos"], cmd: "kitty --class yazi -e yazi", group: "APPS" },
+    { say: "Abrir arquivos", key: "abrir arquivos", alt: ["arquivos"], cmd: "nemo", group: "APPS" },
+    { say: "Arquivos no terminal (yazi)", key: "yazi", alt: ["arquivos terminal"], cmd: "kitty --class yazi -e yazi", group: "APPS" },
     { say: "Conta-gotas de cor", key: "cor seletor", alt: ["conta-gotas cor", "contagotas cor", "conta gotas cor"], cmd: "hyprpicker -a -n", group: "APPS" }
 ];
 var STOP = ["o", "a", "os", "as", "do", "da", "dos", "das", "de", "um", "uma", "e", "para", "pra", "no", "na", "ao", "em"];

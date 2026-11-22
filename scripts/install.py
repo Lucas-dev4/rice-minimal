@@ -44,6 +44,7 @@ FILES = [
     ('config/nvim/init.lua', '.config/nvim/init.lua'),
     ('config/nvim/lazy-lock.json', '.config/nvim/lazy-lock.json'),
     ('config/yazi/yazi.toml', '.config/yazi/yazi.toml'),
+    ('config/nemo/actions/rice-neovim.nemo_action', '.local/share/nemo/actions/rice-neovim.nemo_action'),
     ('config/autostart/rice-minimal.desktop', '.config/autostart/rice-minimal.desktop'),
 ]
 # Written once; the program rewrites them with the user's own preferences.
@@ -229,6 +230,13 @@ def post_install():
         steps.append('OK  Noctalia palette RiceMinimal')
     run('GNOME/GTK4 icon theme', ['gsettings', 'set', 'org.gnome.desktop.interface', 'icon-theme', ICON_THEME])
     run('GNOME/GTK4 cursor theme', ['gsettings', 'set', 'org.gnome.desktop.interface', 'cursor-theme', CURSOR_THEME])
+    if shutil.which('nemo'):
+        # Nemo: preferências do rice, Kitty como terminal e padrão para abrir pastas.
+        result = subprocess.run(['dconf', 'load', '/org/nemo/'], input=(ROOT/'config/nemo/nemo.dconf').read_text(),
+                                capture_output=True, text=True)
+        steps.append(f"{'OK' if result.returncode == 0 else 'WARN'}  Nemo preferences")
+        run('Nemo terminal', ['gsettings', 'set', 'org.cinnamon.desktop.default-applications.terminal', 'exec', 'kitty'])
+        run('Nemo opens folders', ['xdg-mime', 'default', 'nemo.desktop', 'inode/directory'])
     if os.environ.get('HYPRLAND_INSTANCE_SIGNATURE'):
         run('cursor in this session', ['hyprctl', 'setcursor', CURSOR_THEME, os.environ.get('XCURSOR_SIZE', '24')])
         run('sync running session', [sys.executable, str(ROOT/'extras/rice.py'), 'sync', '--json'])
@@ -258,7 +266,7 @@ def main():
         print('Undo with: python3 scripts/restore.py', backup.relative_to(ROOT), '--apply')
     for line in post_install():
         print(line)
-    print('\nNot handled here (needs sudo): packages, the login screen (config/greeter/greeter.toml).')
+    print('\nNot handled here (needs sudo): packages (Nemo: sudo pacman -S nemo nemo-fileroller), the login screen (config/greeter/greeter.toml).')
     return 0
 
 
