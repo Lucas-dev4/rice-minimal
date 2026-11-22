@@ -486,13 +486,20 @@ local function new_column()
 	vim.api.nvim_win_set_width(0, math.max(40, math.floor(vim.o.columns * 0.35)))
 end
 
--- O texto da entrada: do buffer aberto (mesmo sem salvar) ou do disco.
-local function input_text(file)
-	local path = input_path(file)
+-- A saída esperada fica ao lado da entrada, com .out no lugar de .in.
+local function expected_path(file)
+	return (input_path(file):gsub("%.in$", ".out"))
+end
+
+-- Linhas de uma caixa: do buffer aberto (mesmo sem salvar) ou do disco.
+local function box_lines(path)
 	local buf = find_buf(path)
-	local lines = buf ~= -1 and vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+	return buf ~= -1 and vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 		or (vim.fn.filereadable(path) == 1 and vim.fn.readfile(path) or {})
-	local text = table.concat(lines, "\n")
+end
+
+local function input_text(file)
+	local text = table.concat(box_lines(input_path(file)), "\n")
 	return text:match("%S") and (text .. "\n") or nil
 end
 
@@ -505,7 +512,9 @@ local function steps_for(file, buf)
 	if ft == "c" then
 		return { { "gcc", "-std=c17", "-Wall", "-Wextra", "-g", file, "-o", bin, "-lm" }, { bin } }
 	elseif ft == "cpp" then
-		return { { "g++", "-std=c++20", "-Wall", "-Wextra", "-g", file, "-o", bin }, { bin } }
+		-- Sanitizers acusam overflow de int e acesso fora da memória em tempo de execução.
+		return { { "g++", "-std=c++20", "-O2", "-Wall", "-Wextra", "-Wshadow",
+			"-fsanitize=address,undefined", "-g", file, "-o", bin }, { bin } }
 	elseif ft == "nasm" then
 		if not has("nasm") then return nil, "nasm não está instalado: sudo pacman -S nasm" end
 		-- Com "global main" o programa usa a libc e é ligado pelo gcc; com _start, pelo ld.
@@ -580,6 +589,131 @@ local function write(lines, group)
 	end
 end
 
+local function trim_tail(lines)
+	local out = vim.list_slice(lines)
+	while #out > 0 and not out[#out]:match("%S") do table.remove(out) end
+	return out
+end
+
+-- Exemplos ao lado do código: a.cpp -> a1.in/a1.out, a2.in/a2.out... em ordem numérica.
+local function find_tests(file)
+	local dir, name = vim.fn.fnamemodify(file, ":h"), vim.fn.fnamemodify(file, ":t:r")
+	local tests = {}
+	for entry, kind in vim.fs.dir(dir) do
+		local n = kind ~= "directory" and entry:sub(1, #name) == name and entry:sub(#name + 1):match("^(%d+)%.in$")
+		if n then
+			local base = dir .. "/" .. name .. n
+			local out = vim.fn.filereadable(base .. ".out") == 1 and vim.fn.readfile(base .. ".out") or nil
+			table.insert(tests, { n = tonumber(n), label = name .. n, input = vim.fn.readfile(base .. ".in"), output = out })
+		end
+	end
+	table.sort(tests, function(a, b) return a.n < b.n end)
+	return tests
+end
+
+-- Caixas de entrada (Alt+I) e de saída esperada (Alt+O): vários casos separados
+-- por uma linha só com --- (três ou mais traços). Linhas em branco nas pontas são ignoradas.
+local function split_cases(lines)
+	local cases, cur = {}, {}
+	local function close()
+		while #cur > 0 and not cur[1]:match("%S") do table.remove(cur, 1) end
+		cur = trim_tail(cur)
+		if #cur > 0 then table.insert(cases, cur) end
+		cur = {}
+	end
+	for _, line in ipairs(lines) do
+		if line:match("^%-%-%-+%s*$") then close() else table.insert(cur, line) end
+	end
+	close()
+	return cases
+end
+
+-- Compara linha a linha ignorando espaços no fim da linha e linhas vazias no fim.
+local function normalize(lines)
+	local out = {}
+	for i, line in ipairs(lines) do out[i] = (line:gsub("%s+$", "")) end
+	while #out > 0 and out[#out] == "" do table.remove(out) end
+	return out
+end
+
+local TEST_TIMEOUT_MS = 10000
+-- Sem isso o UBSan só avisa e o programa segue com código 0 (o caso passaria como OK).
+local SANITIZER_ENV = { UBSAN_OPTIONS = "halt_on_error=1:print_stacktrace=1" }
+
+-- Roda o programa com cada entrada e confere com a saída esperada (se houver).
+local function run_tests(cmd, file, tests, gen)
+	local cwd = vim.fn.fnamemodify(file, ":h")
+	local passed, failed = 0, 0
+	write({ string.format("$ %s  (%d casos)", vim.fn.fnamemodify(cmd[#cmd], ":t"), #tests) }, "Comment")
+
+	local function case(i)
+		if run.gen ~= gen then return end
+		local t = tests[i]
+		if not t then
+			local total = passed + failed
+			return write({ "", string.format("[ %s ] %d/%d casos certos", failed == 0 and "OK" or "FAIL", passed, total) },
+				failed == 0 and "DiagnosticOk" or "DiagnosticError")
+		end
+		local stdout, stderr, timed_out = {}, {}, false
+		local started = vim.uv.hrtime()
+		local job = vim.fn.jobstart(cmd, {
+			cwd = cwd,
+			env = SANITIZER_ENV,
+			stdout_buffered = true,
+			stderr_buffered = true,
+			on_stdout = function(_, data) stdout = data or {} end,
+			on_stderr = function(_, data) stderr = data or {} end,
+			on_exit = function(_, code)
+				if run.gen ~= gen then return end
+				run.job = nil
+				local secs = (vim.uv.hrtime() - started) / 1e9
+				local got = normalize(stdout)
+				if timed_out or code ~= 0 then
+					failed = failed + 1
+					write({ string.format("caso %s: ERRO  %s", t.label,
+						timed_out and string.format("passou de %d s", TEST_TIMEOUT_MS / 1000) or ("saiu com " .. code)) }, "DiagnosticError")
+					-- Mensagem do sanitizer / erro de execução.
+					local err = normalize(stderr)
+					if #err > 0 then write(vim.tbl_map(function(l) return "  " .. l end, err), "WarningMsg") end
+				elseif not t.output then
+					write({ string.format("caso %s: sem saída esperada, saída obtida:", t.label) }, "WarningMsg")
+					write(vim.tbl_map(function(l) return "  " .. l end, got))
+				else
+					local want = normalize(t.output)
+					if vim.deep_equal(want, got) then
+						passed = passed + 1
+						write({ string.format("caso %s: OK  (%.2f s)", t.label, secs) }, "DiagnosticOk")
+					else
+						failed = failed + 1
+						write({ string.format("caso %s: ERRO  (- esperado, + obtido)", t.label) }, "DiagnosticError")
+						local diff = vim.diff(table.concat(want, "\n") .. "\n", table.concat(got, "\n") .. "\n", { ctxlen = 2 })
+						for _, line in ipairs(vim.split(diff, "\n", { trimempty = true })) do
+							local c = line:sub(1, 1)
+							if line:match("^%-%-%-") or line:match("^%+%+%+") then
+								-- cabeçalho de arquivo do diff unificado: irrelevante aqui
+							elseif c == "-" then write({ "  " .. line }, "Removed")
+							elseif c == "+" then write({ "  " .. line }, "Added")
+							elseif c == "@" then write({ "  " .. line }, "Comment")
+							else write({ "  " .. line }) end
+						end
+					end
+				end
+				case(i + 1)
+			end,
+		})
+		if job <= 0 then
+			return write({ "[ FAIL ] não foi possível executar " .. cmd[1] }, "DiagnosticError")
+		end
+		run.job = job
+		vim.fn.chansend(job, table.concat(t.input, "\n") .. "\n")
+		vim.fn.chanclose(job, "stdin")
+		vim.defer_fn(function()
+			if run.job == job then timed_out = true; vim.fn.jobstop(job) end
+		end, TEST_TIMEOUT_MS)
+	end
+	case(1)
+end
+
 local function run_file()
 	local file = code_file()
 	if not file then return vim.notify("Salve o arquivo antes de rodar", vim.log.levels.WARN) end
@@ -589,13 +723,32 @@ local function run_file()
 	vim.cmd("silent! update")
 	vim.api.nvim_buf_call(buf, function() vim.cmd("silent! update") end)
 	local steps, reason = steps_for(file, buf)
-	local stdin = input_text(file)
+	-- Prioridade: caixas (entrada com --- ou saída esperada preenchida), depois
+	-- exemplos a1.in/a1.out da pasta; sem nada disso, uma execução comum.
+	local ins, outs = split_cases(box_lines(input_path(file))), split_cases(box_lines(expected_path(file)))
+	local tests, mismatch = {}, nil
+	if #outs > 0 or #ins > 1 then
+		for i = 1, math.max(#ins, #outs) do
+			tests[i] = { label = tostring(i), input = ins[i] or {}, output = outs[i] }
+		end
+		if #outs > 0 and #ins ~= #outs then
+			mismatch = string.format("[ !! ] entrada tem %d casos e saída esperada tem %d", #ins, #outs)
+		end
+	else
+		tests = find_tests(file)
+	end
+	local stdin = #tests == 0 and input_text(file) or nil
+	run.gen = (run.gen or 0) + 1
+	local gen = run.gen
 	if run.job then vim.fn.jobstop(run.job) end
 	panel()
 	if not steps then return write({ "[ !! ] " .. reason }, "WarningMsg") end
 	vim.fn.mkdir(build, "p")
 	local started = vim.uv.hrtime()
-	if stdin then
+	if #tests > 0 then
+		write({ string.format("< testes: %s .. %s", tests[1].label, tests[#tests].label) }, "Comment")
+		if mismatch then write({ mismatch }, "WarningMsg") end
+	elseif stdin then
 		-- Mostra o que vai para o programa; strtrans deixa caracteres invisíveis à vista.
 		local lines = vim.split(stdin, "\n", { trimempty = true })
 		local shown = vim.fn.strtrans(lines[1] or ""):sub(1, 40)
@@ -617,11 +770,16 @@ local function run_file()
 		end
 		run.job = vim.fn.jobstart(cmd, {
 			cwd = vim.fn.fnamemodify(file, ":h"),
+			env = SANITIZER_ENV,
 			on_stdout = output,
 			on_stderr = output,
 			on_exit = function(_, code)
+				if run.gen ~= gen then return end
 				run.job = nil
-				if code == 0 and index < #steps then return step(index + 1) end
+				if code == 0 and index < #steps then
+					if index + 1 == #steps and #tests > 0 then return run_tests(steps[#steps], file, tests, gen) end
+					return step(index + 1)
+				end
 				local ms = (vim.uv.hrtime() - started) / 1e6
 				write({ "", string.format("[ %s ] saiu com %d em %.2f s", code == 0 and "OK" or "FAIL", code, ms / 1000) },
 					code == 0 and "DiagnosticOk" or "DiagnosticError")
@@ -636,6 +794,8 @@ local function run_file()
 			vim.fn.chanclose(run.job, "stdin")
 		end
 	end
+	-- Interpretados (um passo só) vão direto para os testes.
+	if #steps == 1 and #tests > 0 then return run_tests(steps[1], file, tests, gen) end
 	step(1)
 end
 
@@ -649,11 +809,39 @@ local function show_input(file)
 		vim.b[buf].rice_target = file
 		vim.bo[buf].filetype = "text"
 	end)
-	vim.wo[run.input_win].winbar = " entrada: " .. vim.fn.fnamemodify(file, ":t")
+	vim.wo[run.input_win].winbar = " entrada: " .. vim.fn.fnamemodify(file, ":t") .. "   (casos separados por ---)"
 end
 
--- Alt+I abre (ou fecha) a caixa de entrada do arquivo atual, acima da saída.
-local function toggle_input()
+-- Carrega na caixa a saída esperada de um arquivo de código.
+local function show_expected(file)
+	vim.api.nvim_win_call(run.input_win, function()
+		vim.cmd("edit " .. vim.fn.fnameescape(expected_path(file)))
+		local buf = vim.api.nvim_get_current_buf()
+		vim.b[buf].rice_target = file
+		vim.bo[buf].filetype = "text"
+	end)
+	vim.wo[run.input_win].winbar = " saída esperada: " .. vim.fn.fnamemodify(file, ":t") .. "   (casos separados por ---)"
+end
+
+-- A vaga de cima da coluna mostra a entrada (Alt+I) ou a saída esperada (Alt+O).
+run.slot = "input"
+
+local function show_slot(file)
+	if run.slot == "tests" then show_expected(file) else show_input(file) end
+end
+
+-- Alt+I / Alt+O: abre a caixa; se ela já mostra o outro tipo, troca; se mostra o mesmo, fecha.
+local function toggle_box(kind)
+	if run.input_win and vim.api.nvim_win_is_valid(run.input_win) and run.slot ~= kind then
+		local file = code_file()
+		if not file then return end
+		run.slot = kind
+		show_slot(file)
+		vim.api.nvim_set_current_win(run.input_win)
+		vim.cmd.startinsert()
+		return
+	end
+	run.slot = kind
 	if run.input_win and vim.api.nvim_win_is_valid(run.input_win) then
 		local was_here = vim.api.nvim_get_current_win() == run.input_win
 		quietly(function()
@@ -680,14 +868,18 @@ local function toggle_input()
 		end
 	end)
 	run.input_win = vim.api.nvim_get_current_win()
-	show_input(file)
+	show_slot(file)
 	vim.wo[run.input_win].number = false
 	vim.wo[run.input_win].signcolumn = "no"
 	balance()
 	vim.cmd.startinsert()
 end
 
+local function toggle_input() toggle_box("input") end
+local function toggle_tests() toggle_box("tests") end
+
 map({ "n", "i", "x" }, "<A-i>", toggle_input, { desc = "Caixa de entrada do Ctrl+R" })
+map({ "n", "i", "x" }, "<A-o>", toggle_tests, { desc = "Caixa de saída esperada do Ctrl+R" })
 
 -- Alt+1 código, Alt+2 entrada, Alt+3 saída (de cima para baixo na coluna).
 -- Se a janela não existe, o atalho cria. Na saída, sai do modo inserção.
@@ -739,7 +931,9 @@ local function open_all()
 		panel()
 		write({ "Ctrl+R compila e roda" }, "Comment")
 	end
-	if not (run.input_win and vim.api.nvim_win_is_valid(run.input_win)) then toggle_input() end
+	if not (run.input_win and vim.api.nvim_win_is_valid(run.input_win)) then
+		toggle_input()
+	end
 	vim.api.nvim_set_current_win(code)
 	vim.cmd.startinsert()
 end
@@ -750,14 +944,14 @@ vim.api.nvim_create_autocmd("VimEnter", {
 	end,
 })
 
--- Trocou de arquivo de código: a caixa passa a mostrar a entrada dele.
+-- Trocou de arquivo de código: a caixa passa a mostrar a entrada (ou os testes) dele.
 vim.api.nvim_create_autocmd("BufEnter", {
 	callback = function(args)
 		if not (is_code(args.buf) and runnable[vim.bo[args.buf].filetype]) then return end
 		if not (run.input_win and vim.api.nvim_win_is_valid(run.input_win)) then return end
 		local file = vim.api.nvim_buf_get_name(args.buf)
 		local shown = vim.b[vim.api.nvim_win_get_buf(run.input_win)].rice_target
-		if shown ~= file then vim.schedule(function() show_input(file) end) end
+		if shown ~= file then vim.schedule(function() show_slot(file) end) end
 	end,
 })
 

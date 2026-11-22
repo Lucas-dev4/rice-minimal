@@ -1,5 +1,5 @@
 {
-  "README.md": "3414ca8a106ad6bd04b701086cabf0fd9ef622934b0bbd57b0387cbf66a50c3e",
+  "README.md": "2fef3d56f76290551df13f94b6bd4f60b534c012ccd507e1be64f27567d2eaa5",
   "config/autostart/rice-minimal.desktop": "c592575a7c2e736e66bd76410b9c52775b8190c7a69f9b9369efbf593d9477d4",
   "config/cliamp/config.toml": "b7411892f51694364881d0e9be4c590bab6787108215ebbc504fb4b81d2e3f2e",
   "config/fastfetch/config.jsonc": "548e76a29ea67501f11c38dce97279fafee1cea0d1c734cfcd8dedc0bf308f03",
@@ -13,7 +13,7 @@
   "config/hypr/rice-integration.lua": "882cd4eb84796e1cffcbe36d03ce07001d4cb777d75c05e585c574cc84ec2035",
   "config/hypr/rice-minimal.lua": "ffbb2d470cd1ba170a012a4e74ab9b23f05c04ff46e5fbb288753a37fc502fc7",
   "config/kitty/kitty.conf": "638d21f8369bec2e0fb70a23764ff212b57427470d566550d3dfca553a8c0f71",
-  "config/nvim/init.lua": "457ce6860934006206392b39e7766101ee5737c5a10fc3f59d60f59135f0669b",
+  "config/nvim/init.lua": "4d97393640055b3d3902c11d3eca55d419985758ac1b5f0212472fa3886c76fb",
   "config/nvim/lazy-lock.json": "2e7e7c4e73909e3427a38e5d607087889c743b482809fd0d057bad23490d83f7",
   "config/waybar/config.jsonc": "507e4e019c499f0f776ec2c7fd79de36a3df88be56089368a781bfcc874f07b9",
   "config/waybar/style.css": "65a84312dcddba0a706fa9d14e5fc929d420fdcace0140438936cc2b4db27284",
