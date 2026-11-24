@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>LW // games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12100e; --panel:#171513; --raise:#1d1a17; --line:#2a2622; --line-2:#3a342e;
+    --fg:#c9c1b6; --dim:#6f675e; --faint:#4a443e;
+    --accent:#e8a46b; --accent-a:rgba(232,164,107,.09); --hot:#f6d5ad;
+    --ok:#b5d97a; --warn:#e86b6b; --yel:#e8c86b; --blue:#8ab4e8; --vio:#b8a6e8;
+    --font:"JetBrains Mono","Iosevka","Fira Code",monospace;
+    --t-fast:140ms; --t-med:240ms; --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  @media (prefers-reduced-motion: reduce){ :root{ --t-fast:0ms; --t-med:0ms; } }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{ background:#d9d2c7; font:12.5px/1.55 var(--font); color:var(--fg); display:grid; place-items:center; -webkit-font-smoothing:antialiased; }
+  button{ background:none; border:0; font:inherit; color:inherit; cursor:pointer; }
+  input, select, textarea{ font:inherit; }
+  .win{
+    width:1220px; height:780px; background:var(--bg); border:1px solid var(--line);
+    display:grid; grid-template-columns:232px 1fr; grid-template-rows:1fr 34px;
+    position:relative; overflow:hidden;
+    box-shadow:0 40px 90px -20px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.4);
+  }
+  .win::after{ content:''; position:absolute; inset:0; pointer-events:none; z-index:40;
+    background:repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.08) 2px 3px); mix-blend-mode:multiply; }
+
+  /* SIDEBAR */
+  .side{ background:var(--panel); border-right:1px solid var(--line); padding:30px 0 18px; display:flex; flex-direction:column; min-height:0; }
+  .brand{ padding:0 22px; }
+  .logo{ color:var(--accent); font-size:9.5px; line-height:1.05; white-space:pre; text-shadow:0 0 18px rgba(232,164,107,.25); }
+  .sub{ color:var(--dim); margin-top:10px; display:flex; justify-content:space-between; }
+  .sub span:last-child{ color:var(--faint); }
+  .label{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; padding:0 22px; margin:22px 0 6px; }
+  .nav{ list-style:none; position:relative; }
+  .nav li{ position:relative; padding:4px 22px; cursor:pointer; color:var(--dim); display:flex; justify-content:space-between; transition:color var(--t-fast); }
+  .nav li .k{ color:var(--faint); }
+  .nav li .t{ display:inline-block; transition:transform var(--t-fast) var(--ease); }
+  .nav li:hover{ color:var(--fg); } .nav li:hover .t{ transform:translateX(4px); }
+  .nav li.on{ color:var(--accent); font-weight:600; } .nav li.on .k{ color:var(--accent); }
+  .band{ position:absolute; left:0; right:0; height:27px; background:var(--accent-a); border-left:2px solid var(--accent); transition:top var(--t-med) var(--ease); pointer-events:none; }
+  .srcf div{ padding:2px 22px; display:flex; justify-content:space-between; color:var(--dim); cursor:pointer; transition:color var(--t-fast); }
+  .srcf div:hover{ color:var(--fg); }
+  .srcf div.on{ color:var(--fg); }
+  .srcf div.on span:first-child::before{ content:'■ '; }
+  .srcf div:not(.on) span:first-child::before{ content:'□ '; color:var(--faint); }
+  .srcf i{ font-style:normal; color:var(--faint); }
+  .run{ margin-top:auto; padding:0 22px; }
+  .run .box{ border:1px solid var(--line-2); padding:10px; position:relative; overflow:hidden; }
+  .run .box.live{ border-color:var(--ok); }
+  .run .box.live::before{ content:''; position:absolute; inset:0; background:linear-gradient(90deg, transparent, rgba(181,217,122,.08), transparent); animation:sweep 2.4s linear infinite; }
+  @keyframes sweep{ from{ transform:translateX(-100%); } to{ transform:translateX(100%); } }
+  .run .rt{ color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .run .rs{ color:var(--dim); font-size:11px; display:flex; justify-content:space-between; margin-top:2px; }
+  .run .rs b{ color:var(--ok); font-weight:400; }
+
+  /* MAIN */
+  .main{ display:flex; flex-direction:column; padding:22px 26px 14px; min-height:0; }
+  .head{ display:flex; align-items:center; gap:8px; color:var(--dim); }
+  .title{ color:var(--accent); font-weight:800; letter-spacing:.6px; }
+  .count{ color:var(--dim); border:1px solid var(--line); padding:0 6px; font-size:11px; }
+  .rule{ flex:1; height:1px; background:repeating-linear-gradient(90deg,var(--line) 0 4px,transparent 4px 8px); }
+  .search{ width:220px; display:flex; align-items:center; gap:8px; border:1px solid var(--line); background:var(--panel); padding:3px 8px; transition:border-color var(--t-fast), box-shadow var(--t-fast); }
+  .search:focus-within{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-a); }
+  .search .sl{ color:var(--accent); }
+  .search input{ flex:1; background:none; border:0; outline:0; color:var(--fg); }
+  .search input::placeholder{ color:var(--faint); }
+  .chip{ padding:1px 8px; border:1px solid var(--line); color:var(--dim); transition:all var(--t-fast) var(--ease); }
+  .chip:hover{ color:var(--fg); border-color:var(--line-2); }
+  .chip.on{ color:var(--bg); background:var(--accent); border-color:var(--accent); }
+  .bar2{ display:flex; gap:6px; margin:12px 0 4px; align-items:center; }
+  .bar2 .hint{ margin-left:auto; color:var(--faint); font-size:11px; }
+  .view{ display:none; flex:1; min-height:0; flex-direction:column; }
+  .view.on{ display:flex; animation:in var(--t-med) var(--ease); }
+  @keyframes in{ from{ opacity:0; transform:translateY(6px); } }
+  .panel{ border:1px solid var(--line); background:var(--panel); padding:14px 16px; min-height:0; overflow:auto; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
+  .sec{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; margin:14px 0 7px; }
+  .sec:first-child{ margin-top:0; }
+
+  /* LIBRARY */
+  .cols{ display:grid; grid-template-columns:1fr 300px; gap:20px; flex:1; min-height:0; margin-top:8px; }
+  .scroll{ overflow-y:auto; min-height:0; padding:12px 10px; margin:0 -10px;
+    mask-image:linear-gradient(transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+    scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
+  .grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:16px; }
+  .card{ aspect-ratio:3/4; position:relative; cursor:pointer; opacity:0; transform:translateY(8px); animation:in2 var(--t-med) var(--ease) forwards; }
+  @keyframes in2{ to{ opacity:1; transform:none; } }
+  .card .cv{ position:absolute; inset:0; border:1px solid var(--line); overflow:hidden; filter:brightness(.72) saturate(.85); transition:filter var(--t-fast), transform 500ms var(--ease); }
+  .card:hover .cv, .card.cur .cv{ filter:none; }
+  .card:hover .cv{ transform:scale(1.03); }
+  .cv .tt{ position:absolute; left:8px; right:8px; bottom:26px; font-weight:800; font-size:13px; line-height:1.15; color:#f3e9dc; text-shadow:0 1px 8px rgba(0,0,0,.8); }
+  .cv .gl{ position:absolute; right:8px; top:8px; font-size:22px; color:rgba(255,255,255,.18); font-weight:800; }
+  .cv .ft{ position:absolute; left:0; right:0; bottom:0; padding:3px 8px; background:rgba(12,10,9,.82); font-size:10px; color:var(--dim); display:flex; justify-content:space-between; }
+  .cv .pr{ position:absolute; left:0; bottom:0; height:2px; background:var(--accent); }
+  .card::after{
+    content:''; position:absolute; inset:-6px; pointer-events:none;
+    --c:var(--accent); --l:14px; --w:2px;
+    background:
+      linear-gradient(var(--c),var(--c)) top left / var(--l) var(--w), linear-gradient(var(--c),var(--c)) top left / var(--w) var(--l),
+      linear-gradient(var(--c),var(--c)) top right / var(--l) var(--w), linear-gradient(var(--c),var(--c)) top right / var(--w) var(--l),
+      linear-gradient(var(--c),var(--c)) bottom left / var(--l) var(--w), linear-gradient(var(--c),var(--c)) bottom left / var(--w) var(--l),
+      linear-gradient(var(--c),var(--c)) bottom right / var(--l) var(--w), linear-gradient(var(--c),var(--c)) bottom right / var(--w) var(--l);
+    background-repeat:no-repeat; opacity:0; transform:scale(1.06);
+    transition:opacity var(--t-fast) var(--ease), transform var(--t-med) var(--ease);
+  }
+  .card.cur::after{ opacity:1; transform:none; }
+  .tags{ position:absolute; top:6px; left:6px; display:flex; gap:4px; z-index:2; }
+  .tag{ font-size:9.5px; padding:0 5px; background:rgba(18,16,14,.9); border:1px solid var(--line-2); color:var(--dim); }
+  .st-want{ color:var(--blue); border-color:rgba(138,180,232,.35); }
+  .st-playing{ color:var(--accent); border-color:rgba(232,164,107,.4); }
+  .st-done{ color:var(--ok); border-color:rgba(181,217,122,.35); }
+  .st-dropped{ color:var(--dim); }
+  .tag.live{ color:var(--bg); background:var(--ok); border-color:var(--ok); animation:pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse{ 50%{ opacity:.55; } }
+  .tag.fav{ color:var(--accent); }
+  .empty{ grid-column:1/-1; color:var(--faint); padding:60px; text-align:center; white-space:pre; }
+
+  /* DETAIL */
+  .dcov{ aspect-ratio:16/9; position:relative; border:1px solid var(--line-2); overflow:hidden; }
+  .dcov .tt{ position:absolute; left:12px; bottom:10px; right:12px; font-weight:800; font-size:18px; color:#f3e9dc; text-shadow:0 1px 10px rgba(0,0,0,.9); }
+  .dcov .gl{ position:absolute; right:12px; top:8px; font-size:34px; color:rgba(255,255,255,.18); font-weight:800; }
+  .kv{ display:grid; grid-template-columns:auto 1fr; gap:3px 12px; color:var(--fg); margin-top:10px; }
+  .kv > span:nth-child(odd){ color:var(--faint); }
+  .badge{ font-size:10px; padding:0 6px; border:1px solid var(--line-2); color:var(--dim); }
+  .stsel{ display:flex; gap:4px; flex-wrap:wrap; }
+  .stsel button{ font-size:10.5px; padding:1px 7px; border:1px solid var(--line); color:var(--dim); transition:all var(--t-fast); }
+  .stsel button:hover{ color:var(--fg); }
+  .stsel button.on.want{ background:var(--blue); border-color:var(--blue); color:var(--bg); }
+  .stsel button.on.playing{ background:var(--accent); border-color:var(--accent); color:var(--bg); }
+  .stsel button.on.done{ background:var(--ok); border-color:var(--ok); color:var(--bg); }
+  .stsel button.on.dropped{ background:var(--dim); border-color:var(--dim); color:var(--bg); }
+  .prog{ display:flex; align-items:center; gap:8px; }
+  .prog input{ flex:1; accent-color:var(--accent); }
+  .prog b{ color:var(--accent); font-weight:400; min-width:34px; text-align:right; }
+  .tog{ display:flex; align-items:center; gap:8px; cursor:pointer; color:var(--dim); padding:2px 0; }
+  .tog input{ display:none; }
+  .tog span{ width:28px; height:14px; border:1px solid var(--line-2); position:relative; flex:none; transition:all var(--t-fast); }
+  .tog span::after{ content:''; position:absolute; top:2px; left:2px; width:8px; height:8px; background:var(--dim); transition:transform var(--t-med) var(--ease), background var(--t-fast); }
+  .tog input:checked + span{ border-color:var(--accent); background:var(--accent-a); }
+  .tog input:checked + span::after{ transform:translateX(14px); background:var(--accent); }
+  .tog:hover{ color:var(--fg); }
+  .cmd{ background:var(--bg); border:1px solid var(--line); padding:7px 8px; font-size:10.5px; color:var(--fg); word-break:break-all; }
+  .cmd::before{ content:'$ '; color:var(--accent); }
+  .notes{ width:100%; background:var(--bg); border:1px solid var(--line); color:var(--fg); padding:6px 8px; resize:none; height:52px; outline:0; font-size:11px; }
+  .notes:focus{ border-color:var(--accent); }
+  .play{ width:100%; margin-top:14px; padding:8px; border:1px solid var(--ok); color:var(--ok); font-weight:800; letter-spacing:1px; position:relative; overflow:hidden; z-index:0; transition:color var(--t-fast); }
+  .play::before{ content:''; position:absolute; inset:0; background:var(--ok); transform:scaleX(0); transform-origin:left; transition:transform var(--t-med) var(--ease); z-index:-1; }
+  .play:hover{ color:var(--bg); } .play:hover::before{ transform:scaleX(1); }
+  .play.stop{ border-color:var(--warn); color:var(--warn); } .play.stop::before{ background:var(--warn); }
+
+  /* BACKLOG */
+  .kan{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; flex:1; min-height:0; margin-top:12px; }
+  .col{ border:1px solid var(--line); background:var(--panel); display:flex; flex-direction:column; min-height:0; transition:border-color var(--t-fast), background var(--t-fast); }
+  .col.over{ border-color:var(--accent); background:#1b1814; }
+  .col.foc{ border-color:var(--line-2); }
+  .col .ch{ padding:10px 12px 8px; display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid var(--line); }
+  .col .ch b{ font-weight:800; letter-spacing:1px; font-size:11.5px; }
+  .col .ch i{ font-style:normal; color:var(--faint); font-size:11px; }
+  .col .cl{ flex:1; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:7px; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
+  .kc{ border:1px solid var(--line-2); background:var(--raise); padding:7px 9px 8px; cursor:grab; position:relative; transition:transform var(--t-fast) var(--ease), border-color var(--t-fast), opacity var(--t-fast); animation:in var(--t-med) var(--ease); }
+  .kc:hover{ transform:translateY(-2px); border-color:var(--dim); }
+  .kc.sel{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+  .kc.drag{ opacity:.35; }
+  .kc .kt{ color:var(--fg); font-weight:600; display:flex; gap:6px; align-items:center; }
+  .kc .kt .sw{ width:8px; height:8px; flex:none; }
+  .kc .km{ color:var(--faint); font-size:10.5px; margin-top:3px; display:flex; justify-content:space-between; }
+  .kc .kp{ height:2px; background:var(--line); margin-top:6px; } .kc .kp i{ display:block; height:100%; }
+  .kc.landed{ animation:land 380ms var(--ease); }
+  @keyframes land{ 0%{ transform:scale(.92); box-shadow:0 0 0 2px var(--accent); } 100%{ transform:none; } }
+
+  /* STATS */
+  .tiles{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:12px; }
+  .tile{ border:1px solid var(--line); background:var(--panel); padding:12px 14px; }
+  .tile .n{ font-size:26px; font-weight:800; color:var(--fg); line-height:1.2; }
+  .tile .n small{ font-size:12px; color:var(--dim); font-weight:400; margin-left:4px; }
+  .tile .l{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; }
+  .tile .s{ color:var(--dim); font-size:11px; margin-top:2px; }
+  .sgrid{ display:grid; grid-template-columns:1.3fr 1fr; gap:14px; margin-top:14px; flex:1; min-height:0; }
+  .chart{ white-space:pre; font-size:12px; line-height:1.25; color:var(--accent); }
+  .chart .ax{ color:var(--faint); }
+  .hb{ display:grid; grid-template-columns:120px 1fr 48px; gap:10px; align-items:center; padding:2px 0; }
+  .hb .hn{ color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hb .hv{ color:var(--dim); text-align:right; }
+  .hb .hbar{ height:8px; background:var(--line); } .hb .hbar i{ display:block; height:100%; background:var(--accent); width:0; transition:width .6s var(--ease); }
+  .stack{ display:flex; height:10px; margin:6px 0 4px; } .stack span{ display:block; height:100%; transition:flex .5s var(--ease); }
+  .legend{ font-size:10.5px; color:var(--faint); display:flex; gap:12px; flex-wrap:wrap; }
+
+  /* MODAL */
+  .modal{ position:absolute; inset:0; z-index:30; background:rgba(12,10,9,.7); display:none; place-items:center; backdrop-filter:blur(2px); }
+  .modal.on{ display:grid; animation:in var(--t-med) var(--ease); }
+  .form{ width:520px; border:1px solid var(--accent); background:var(--panel); padding:18px 20px; }
+  .form .fh{ color:var(--accent); font-weight:800; letter-spacing:1px; margin-bottom:12px; display:flex; justify-content:space-between; }
+  .form .fh span{ color:var(--faint); font-weight:400; }
+  .fg{ display:grid; grid-template-columns:120px 1fr; gap:8px 12px; align-items:center; }
+  .fg label{ color:var(--faint); font-size:11px; letter-spacing:1px; }
+  .fg input, .fg select{ background:var(--bg); border:1px solid var(--line); color:var(--fg); padding:4px 8px; outline:0; width:100%; }
+  .fg input:focus, .fg select:focus{ border-color:var(--accent); }
+  .fg select option{ background:var(--bg); }
+  .form .fb{ display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+  .form .fx{ color:var(--faint); font-size:10.5px; grid-column:2; margin-top:-4px; }
+
+  .foot{ display:flex; gap:8px; align-items:center; padding-top:10px; border-top:1px solid var(--line); margin-top:12px; }
+  .foot .note{ margin-right:auto; color:var(--dim); }
+  .ghost{ padding:3px 10px; border:1px solid var(--line-2); color:var(--dim); transition:all var(--t-fast); }
+  .ghost:hover{ color:var(--fg); border-color:var(--fg); }
+  .ghost.dng:hover{ color:var(--warn); border-color:var(--warn); }
+  .apply{ padding:3px 14px; border:1px solid var(--accent); color:var(--accent); font-weight:600; position:relative; overflow:hidden; z-index:0; transition:color var(--t-fast); }
+  .apply::before{ content:''; position:absolute; inset:0; background:var(--accent); transform:scaleX(0); transform-origin:left; transition:transform var(--t-med) var(--ease); z-index:-1; }
+  .apply:hover{ color:var(--bg); } .apply:hover::before{ transform:scaleX(1); }
+
+  .status{ grid-column:1/-1; border-top:1px solid var(--line); background:var(--panel); display:flex; align-items:stretch; color:var(--dim); font-size:11.5px; }
+  .status > *{ display:flex; align-items:center; padding:0 14px; border-right:1px solid var(--line); }
+  .status .msg{ color:var(--ok); white-space:pre; flex:1; border-right:0; overflow:hidden; }
+  .status .keys{ border-left:1px solid var(--line); color:var(--faint); gap:12px; }
+  .status .keys kbd{ font:inherit; color:var(--dim); }
+  .status .last{ border-right:0; }
+  .clock{ color:var(--ok); }
+  .clock i{ font-style:normal; animation:blink 1s steps(1) infinite; }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  .launch{ position:absolute; inset:0; z-index:35; background:rgba(12,10,9,.92); display:none; flex-direction:column; justify-content:center; align-items:center; }
+  .launch.on{ display:flex; animation:in 200ms var(--ease); }
+  .launch .lt{ color:var(--accent); font-weight:800; font-size:20px; letter-spacing:1px; }
+  .launch .ll{ width:520px; margin-top:20px; font-size:12px; color:var(--dim); white-space:pre; min-height:110px; }
+  .launch .ll .ok{ color:var(--ok); }
+  .launch .lb{ width:520px; color:var(--accent); white-space:pre; margin-top:8px; }
+
+  .boot{ position:absolute; inset:0; z-index:38; background:var(--bg); display:flex; flex-direction:column; justify-content:center; align-items:center; transition:opacity 380ms var(--ease), transform 380ms var(--ease); }
+  .boot.out{ opacity:0; transform:scale(1.03); pointer-events:none; }
+  .boot .log{ width:420px; font-size:12px; color:var(--dim); white-space:pre; margin-top:24px; min-height:90px; }
+  .boot .log .ok{ color:var(--ok); }
+  .boot .bt2{ color:var(--accent); font-weight:800; letter-spacing:2px; font-size:16px; }
+</style>
+</head>
+<body>
+<div class="win" id="win">
+  <div class="boot" id="boot"><div class="bt2">LW // GAMES</div><div class="log" id="blog"></div></div>
+  <div class="launch" id="launch"><div class="lt" id="ltitle"></div><div class="ll" id="llog"></div><div class="lb" id="lbar"></div></div>
+
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">██╗     ██╗    ██╗
+██║     ██║    ██║
+██║     ██║ █╗ ██║
+██║     ██║███╗██║
+███████╗╚███╔███╔╝
+╚══════╝ ╚══╝╚══╝ </div>
+      <div class="sub"><span>// games</span><span>v0.1</span></div>
+    </div>
+    <div class="label">VIEW</div>
+    <ul class="nav" id="nav">
+      <div class="band" id="band"></div>
+      <li><span class="t">LIBRARY</span><span class="k">1</span></li>
+      <li><span class="t">BACKLOG</span><span class="k">2</span></li>
+      <li><span class="t">STATS</span><span class="k">3</span></li>
+    </ul>
+    <div class="label">SOURCES</div>
+    <div class="srcf" id="srcf"></div>
+    <div class="run">
+      <div class="label" style="padding:0;margin:0 0 6px">SESSION</div>
+      <div class="box" id="runbox"><div class="rt" id="rtt">nenhum jogo rodando</div><div class="rs" id="rts"></div></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="head">
+      <span class="title" id="title">LW // LIBRARY</span>
+      <span class="count" id="count">--</span>
+      <span class="rule"></span>
+      <label class="search"><span class="sl">/</span><input id="q" placeholder="buscar jogo" autocomplete="off"></label>
+    </div>
+
+    <!-- LIBRARY -->
+    <div class="view on" id="v0">
+      <div class="bar2" id="lbar2">
+        <span id="stf"></span>
+        <span style="color:var(--faint);margin:0 4px 0 10px;font-size:10.5px;letter-spacing:1.5px">SORT</span>
+        <span id="sortc"></span>
+        <span class="hint">⏎ jogar · s status · f favorito · e editar</span>
+      </div>
+      <div class="cols">
+        <div class="scroll" id="scroll"><div class="grid" id="grid"></div></div>
+        <div class="panel" id="det"></div>
+      </div>
+      <div class="foot">
+        <span class="note" id="lnote"></span>
+        <button class="ghost dng" id="bdel">REMOVE (x)</button>
+        <button class="apply" id="badd">ADD GAME (a)</button>
+      </div>
+    </div>
+
+    <!-- BACKLOG -->
+    <div class="view" id="v1">
+      <div class="kan" id="kan"></div>
+      <div class="foot">
+        <span class="note" id="bnote"></span>
+        <span style="color:var(--faint);font-size:11px">arraste entre colunas · <b style="color:var(--dim);font-weight:400">H/L</b> move o card · <b style="color:var(--dim);font-weight:400">J/K</b> prioridade</span>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="view" id="v2">
+      <div class="tiles" id="tiles"></div>
+      <div class="sgrid">
+        <div class="panel">
+          <div class="sec">HORAS POR SEMANA — ÚLTIMAS 10</div>
+          <div class="chart" id="chart"></div>
+          <div class="sec">POR FONTE</div>
+          <div class="stack" id="stack"></div>
+          <div class="legend" id="slegend"></div>
+        </div>
+        <div class="panel">
+          <div class="sec">MAIS JOGADOS</div>
+          <div id="top"></div>
+          <div class="sec">BACKLOG</div>
+          <div id="blog2"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="modal" id="modal">
+    <div class="form">
+      <div class="fh"><span id="ftitle" style="color:var(--accent);font-weight:800">ADD GAME</span><span>esc fecha · ⏎ salva</span></div>
+      <div class="fg">
+        <label>TÍTULO</label><input id="f_title" autocomplete="off">
+        <label>FONTE</label><select id="f_src"></select>
+        <label>COMANDO</label><input id="f_cmd" placeholder="steam steam://rungameid/APPID">
+        <div class="fx" id="f_cmdx"></div>
+        <label>STATUS</label><select id="f_st"></select>
+        <label>HORAS P/ ZERAR</label><input id="f_est" type="number" min="0" step="1" placeholder="estimativa (ex.: 30)">
+        <label>HORAS JOGADAS</label><input id="f_hrs" type="number" min="0" step=".5">
+      </div>
+      <div class="fb"><button class="ghost" id="fcancel">CANCEL</button><button class="apply" id="fsave">SAVE ⏎</button></div>
+    </div>
+  </div>
+
+  <footer class="status">
+    <span class="clock" id="clock"></span>
+    <span class="msg" id="msg"></span>
+    <span class="keys" id="hints"></span>
+    <span class="last" id="lst">—</span>
+  </footer>
+</div>
+
+<script>
+const $ = s=>document.querySelector(s);
+const rnd = (a,b)=>Math.floor(Math.random()*(b-a)+a);
+const hash = s=>{ let h = 2166136261; for(const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h>>>0; };
+const esc = s=>String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const DAY = 864e5;
+
+/* =====================================================================
+   DADOS
+   ===================================================================== */
+const SRC = {
+  steam:  {n:'steam',   c:'#8ab4e8', cmd:'steam steam://rungameid/{id}'},
+  heroic: {n:'heroic',  c:'#b8a6e8', cmd:'heroic --no-gui --launch {id}'},
+  lutris: {n:'lutris',  c:'#e8c86b', cmd:'lutris lutris:rungame/{id}'},
+  emu:    {n:'emulador',c:'#b5d97a', cmd:'retroarch -L {core} "{rom}"'},
+  native: {n:'nativo',  c:'#e8a46b', cmd:'{bin}'},
+};
+const ST = {want:'QUERO JOGAR', playing:'JOGANDO', done:'ZERADO', dropped:'LARGADO'};
+const STC = {want:'var(--blue)', playing:'var(--accent)', done:'var(--ok)', dropped:'var(--dim)'};
+const ORDER = ['want','playing','done','dropped'];
+
+/* jogos de exemplo — IDs e horas são só pra demonstração */
+const SAMPLE = [
+  ['Hollow Knight','steam','steam steam://rungameid/367520','playing',58,40,true],
+  ['Elden Ring','steam','steam steam://rungameid/1245620','want',0,100],
+  ['Celeste','steam','steam steam://rungameid/504230','done',22,10],
+  ['Hades','steam','steam steam://rungameid/1145360','done',71,25,true],
+  ['Outer Wilds','steam','steam steam://rungameid/753640','want',0,20],
+  ['Disco Elysium','steam','steam steam://rungameid/632470','playing',12,30],
+  ['Balatro','steam','steam steam://rungameid/2379780','playing',44,0],
+  ['Sekiro','steam','steam steam://rungameid/814380','dropped',9,40],
+  ['Factorio','steam','steam steam://rungameid/427520','want',0,0],
+  ['Pokémon Emerald','emu','retroarch -L mgba_libretro.so "~/roms/gba/emerald.gba"','playing',31,35],
+  ['Super Metroid','emu','retroarch -L snes9x_libretro.so "~/roms/snes/smetroid.sfc"','want',0,8],
+  ['Celeste Classic','native','~/games/pico8/pico8 -run celeste.p8','done',1,1],
+  ['Dead Cells','heroic','heroic --no-gui --launch <app_name>','dropped',6,30],
+  ['Stardew Valley','lutris','lutris lutris:rungame/stardew-valley','want',0,50],
+];
+function makeSample(){
+  const now = Date.now();
+  return SAMPLE.map(([title,src,cmd,st,hours,est,fav],i)=>{
+    const r = hash(title);
+    const prog = st==='done' ? 100 : st==='want' ? 0 : est ? Math.min(95, Math.round(hours/est*100)) : 0;
+    const sessions = [];
+    let left = hours;
+    while(left > 0.4){ const h = Math.min(left, 0.5 + (hash(title+left)%40)/10); sessions.push({d: now - (hash(title+sessions.length)%70)*DAY, h}); left -= h; }
+    return {id:'g'+r.toString(36), title, src, cmd, status:st, hours, est, progress:prog, fav:!!fav,
+      last: hours ? now - (r%30)*DAY - (r%7)*3600e3 : 0, notes:'', gamemode:true, mangohud:false, order:i, sessions};
+  });
+}
+let G;
+try{ G = JSON.parse(localStorage.getItem('lw-games')) || makeSample(); }catch(_){ G = makeSample(); }
+const save = ()=>{ try{ localStorage.setItem('lw-games', JSON.stringify(G)); }catch(_){} };
+
+const S = {view:0, cur:0, srcOn:new Set(Object.keys(SRC)), stF:'all', sort:'recent', bSel:null, bCol:0, running:null, editId:null, delArm:null};
+
+/* =====================================================================
+   CAPAS GERADAS
+   ===================================================================== */
+function coverCSS(g){
+  const r = hash(g.title), h = r % 360, h2 = (h + 30 + (r>>8)%80) % 360, a = (r>>4) % 360;
+  const pat = (r>>12) % 4;
+  const p = [
+    `repeating-linear-gradient(${a}deg, rgba(255,255,255,.05) 0 2px, transparent 2px 9px)`,
+    `radial-gradient(circle at ${20+(r%60)}% ${20+((r>>6)%60)}%, rgba(255,255,255,.18), transparent 45%)`,
+    `repeating-radial-gradient(circle at 70% 30%, rgba(255,255,255,.06) 0 1px, transparent 1px 12px)`,
+    `linear-gradient(${a}deg, transparent 40%, rgba(255,255,255,.08) 40% 42%, transparent 42%)`,
+  ][pat];
+  return `${p}, linear-gradient(${(r>>3)%360}deg, hsl(${h} 35% 22%), hsl(${h2} 45% 12%) 70%, hsl(${h} 20% 6%))`;
+}
+const glyph = t=>t.split(/\s+/).filter(w=>/^[A-Za-zÀ-ú0-9]/.test(w)).slice(0,2).map(w=>w[0].toUpperCase()).join('');
+
+/* =====================================================================
+   UTIL
+   ===================================================================== */
+function ago(t){
+  if(!t) return 'nunca';
+  const d = Math.floor((Date.now()-t)/DAY);
+  if(d<=0) return 'hoje'; if(d===1) return 'ontem'; if(d<7) return `há ${d} dias`; if(d<30) return `há ${Math.floor(d/7)} sem`; return `há ${Math.floor(d/30)} mês`;
+}
+const fh = h=>h >= 10 ? `${Math.round(h)} h` : `${(+h).toFixed(1)} h`;
+function visible(){
+  const q = $('#q').value.toLowerCase();
+  let l = G.filter(g=>S.srcOn.has(g.src) && (S.stF==='all' || g.status===S.stF) && (!q || g.title.toLowerCase().includes(q)));
+  const by = {recent:(a,b)=>(b.last||0)-(a.last||0) || a.title.localeCompare(b.title), name:(a,b)=>a.title.localeCompare(b.title), hours:(a,b)=>b.hours-a.hours};
+  return l.sort(by[S.sort]);
+}
+
+/* =====================================================================
+   LIBRARY
+   ===================================================================== */
+let VIS = [];
+function renderLib(anim=false){
+  VIS = visible();
+  if(S.cur >= VIS.length) S.cur = Math.max(0, VIS.length-1);
+  $('#grid').innerHTML = VIS.length ? VIS.map((g,i)=>`
+    <div class="card${i===S.cur?' cur':''}" data-i="${i}" style="${anim ? `animation-delay:${i*22}ms` : 'animation:none;opacity:1;transform:none'}">
+      <div class="cv" style="background:${coverCSS(g)}">
+        <span class="gl">${esc(glyph(g.title))}</span>
+        <span class="tt">${esc(g.title)}</span>
+        <span class="ft"><span>${SRC[g.src].n}</span><span>${g.hours ? fh(g.hours) : '—'}</span></span>
+        ${g.progress ? `<span class="pr" style="width:${g.progress}%;background:${STC[g.status]}"></span>` : ''}
+      </div>
+      <div class="tags">
+        ${S.running?.id===g.id ? '<span class="tag live">● LIVE</span>' : `<span class="tag st-${g.status}">${ST[g.status]}</span>`}
+        ${g.fav ? '<span class="tag fav">★</span>' : ''}
+      </div>
+    </div>`).join('') : '<div class="empty">nada encontrado\n\na = adicionar jogo</div>';
+  $('#grid').querySelectorAll('.card').forEach(c=>{
+    c.onclick = ()=>{ S.cur = +c.dataset.i; renderLib(); };
+    c.ondblclick = ()=>launch(VIS[+c.dataset.i]);
+  });
+  $('#grid .card.cur')?.scrollIntoView({block:'nearest', behavior:'smooth'});
+  $('#count').textContent = `${VIS.length}/${G.length}`;
+  $('#lnote').textContent = `${G.filter(g=>g.status==='playing').length} jogando · ${G.filter(g=>g.status==='want').length} na fila · ${fh(G.reduce((a,g)=>a+g.hours,0))} no total`;
+  renderDet(); renderSide(); renderFilters();
+}
+function renderFilters(){
+  $('#stf').innerHTML = [['all','TODOS'],...ORDER.map(k=>[k,ST[k]])].map(([k,n])=>`<button class="chip${S.stF===k?' on':''}" data-k="${k}">${n}</button>`).join(' ');
+  $('#stf').querySelectorAll('button').forEach(b=>b.onclick = ()=>{ S.stF = b.dataset.k; S.cur = 0; renderLib(true); });
+  $('#sortc').innerHTML = [['recent','recente'],['name','nome'],['hours','horas']].map(([k,n])=>`<button class="chip${S.sort===k?' on':''}" data-k="${k}">${n}</button>`).join(' ');
+  $('#sortc').querySelectorAll('button').forEach(b=>b.onclick = ()=>{ S.sort = b.dataset.k; renderLib(true); });
+}
+function renderDet(){
+  const g = VIS[S.cur], d = $('#det');
+  if(!g){ d.innerHTML = '<div style="color:var(--faint)">nenhum jogo selecionado</div>'; return; }
+  const live = S.running?.id===g.id;
+  d.innerHTML = `
+    <div class="dcov" style="background:${coverCSS(g)}"><span class="gl">${esc(glyph(g.title))}</span><span class="tt">${esc(g.title)}</span></div>
+    <div class="kv">
+      <span>fonte</span><span><span class="badge" style="color:${SRC[g.src].c};border-color:${SRC[g.src].c}55">${SRC[g.src].n}</span></span>
+      <span>jogado</span><span>${fh(g.hours)}${g.est ? ` <span style="color:var(--faint)">/ ~${g.est} h</span>` : ''}</span>
+      <span>última vez</span><span>${ago(g.last)}</span>
+      <span>sessões</span><span>${g.sessions.length}</span>
+    </div>
+    <div class="sec">STATUS (s)</div>
+    <div class="stsel">${ORDER.map(k=>`<button class="${k}${g.status===k?' on':''}" data-k="${k}">${ST[k]}</button>`).join('')}</div>
+    <div class="sec">PROGRESSO</div>
+    <div class="prog"><input type="range" id="dprog" min="0" max="100" value="${g.progress}"><b id="dprogv">${g.progress}%</b></div>
+    <div class="sec">LAUNCH</div>
+    <div class="cmd">${esc(launchCmd(g))}</div>
+    <label class="tog" style="margin-top:8px"><input type="checkbox" id="dgm" ${g.gamemode?'checked':''}><span></span>gamemoderun</label>
+    <label class="tog"><input type="checkbox" id="dmh" ${g.mangohud?'checked':''}><span></span>mangohud</label>
+    <div class="sec">NOTAS</div>
+    <textarea class="notes" id="dnotes" placeholder="onde parei, build, dicas…">${esc(g.notes)}</textarea>
+    <button class="play${live?' stop':''}" id="dplay">${live ? '■ STOP SESSION' : '▶ PLAY'}</button>`;
+  d.querySelectorAll('.stsel button').forEach(b=>b.onclick = ()=>setStatus(g, b.dataset.k));
+  $('#dprog').oninput = e=>{ g.progress = +e.target.value; $('#dprogv').textContent = g.progress+'%'; };
+  $('#dprog').onchange = ()=>{ if(g.progress===100 && g.status!=='done'){ setStatus(g,'done'); } else { save(); renderLib(); } };
+  $('#dgm').onchange = e=>{ g.gamemode = e.target.checked; save(); renderDet(); };
+  $('#dmh').onchange = e=>{ g.mangohud = e.target.checked; save(); renderDet(); };
+  $('#dnotes').onchange = e=>{ g.notes = e.target.value; save(); say('[ OK ] notas salvas'); };
+  $('#dplay').onclick = ()=>live ? stopRun() : launch(g);
+}
+function launchCmd(g){
+  const pre = [g.gamemode && 'gamemoderun', g.mangohud && 'mangohud'].filter(Boolean).join(' ');
+  if(!pre) return g.cmd;
+  if(g.src==='steam') return `${g.cmd}  # launch options: ${pre} %command%`;
+  return `${pre} ${g.cmd}`;
+}
+function setStatus(g, st){
+  if(g.status===st) return;
+  g.status = st;
+  if(st==='done') g.progress = 100;
+  save(); renderAll();
+  say(`[ OK ] ${g.title} → ${ST[st].toLowerCase()}`, STC[st]);
+}
+
+/* =====================================================================
+   LAUNCH / SESSÃO (simulada)
+   ===================================================================== */
+const sleep = ms=>new Promise(r=>setTimeout(r,ms));
+async function launch(g){
+  if(!g) return;
+  if(S.running){ say(`[ !! ] ${S.running.title} já está rodando`, 'var(--warn)'); return; }
+  const L = $('#launch'); L.classList.add('on');
+  $('#ltitle').textContent = g.title.toUpperCase();
+  const log = $('#llog'); log.innerHTML = '';
+  const steps = [
+    g.gamemode ? 'gamemode: CPU governor → performance' : 'gamemode: off',
+    g.mangohud ? 'mangohud: overlay on' : 'mangohud: off',
+    `${SRC[g.src].n}: ${g.src==='emu' ? 'carregando core + rom' : 'resolvendo executável'}`,
+    'hyprland: workspace 5 · fullscreen',
+    'spawn: ' + launchCmd(g).split('  #')[0],
+  ];
+  const W = 40;
+  for(let i=0;i<steps.length;i++){
+    const ln = document.createElement('div'); ln.innerHTML = `<span style="color:var(--accent)">[ .. ]</span> ${esc(steps[i])}`; log.appendChild(ln);
+    await sleep(rnd(140,280));
+    ln.innerHTML = `<span class="ok">[ OK ]</span> ${esc(steps[i])}`;
+    const p = Math.round((i+1)/steps.length*W);
+    $('#lbar').textContent = `[${'#'.repeat(p)}${'-'.repeat(W-p)}] ${Math.round((i+1)/steps.length*100)}%`;
+  }
+  await sleep(350);
+  L.classList.remove('on');
+  S.running = {id:g.id, title:g.title, t0:Date.now()};
+  if(g.status==='want') g.status = 'playing';
+  g.last = Date.now(); save();
+  renderAll();
+  say(`[ ▶ ] ${g.title} rodando`);
+}
+function stopRun(){
+  if(!S.running) return;
+  const g = G.find(x=>x.id===S.running.id);
+  const h = (Date.now()-S.running.t0)/3600e3;
+  const credit = Math.max(h, 0.25);
+  if(g){ g.hours = +(g.hours + credit).toFixed(2); g.sessions.push({d:Date.now(), h:credit}); g.last = Date.now(); if(g.est && g.status==='playing') g.progress = Math.min(99, Math.max(g.progress, Math.round(g.hours/g.est*100))); }
+  S.running = null; save(); renderAll();
+  say(`[ ■ ] sessão encerrada · +${fh(credit)} em ${g?.title}`, 'var(--accent)');
+}
+function renderSide(){
+  const c = k=>G.filter(g=>g.src===k).length;
+  $('#srcf').innerHTML = Object.entries(SRC).map(([k,s])=>`<div class="${S.srcOn.has(k)?'on':''}" data-k="${k}" style="${S.srcOn.has(k)?`color:${s.c}`:''}"><span>${s.n}</span><i>${c(k)}</i></div>`).join('');
+  $('#srcf').querySelectorAll('div').forEach(d=>d.onclick = ()=>{ const k = d.dataset.k; S.srcOn.has(k) ? S.srcOn.delete(k) : S.srcOn.add(k); if(!S.srcOn.size) S.srcOn.add(k); S.cur = 0; renderAll(true); });
+  const box = $('#runbox');
+  box.classList.toggle('live', !!S.running);
+  if(S.running){ $('#rtt').textContent = S.running.title; }
+  else { $('#rtt').textContent = 'nenhum jogo rodando'; $('#rts').innerHTML = ''; }
+}
+setInterval(()=>{
+  if(!S.running) return;
+  const s = Math.floor((Date.now()-S.running.t0)/1000);
+  $('#rts').innerHTML = `<span>em sessão</span><b>${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}</b>`;
+}, 1000);
+
+/* =====================================================================
+   BACKLOG
+   ===================================================================== */
+let dragId = null;
+function renderBack(landId){
+  const q = $('#q').value.toLowerCase();
+  $('#kan').innerHTML = ORDER.map((st,ci)=>{
+    const list = G.filter(g=>g.status===st && S.srcOn.has(g.src) && (!q || g.title.toLowerCase().includes(q))).sort((a,b)=>a.order-b.order);
+    const hrs = st==='want' ? list.reduce((a,g)=>a+(g.est||0),0) : list.reduce((a,g)=>a+g.hours,0);
+    return `<div class="col${ci===S.bCol?' foc':''}" data-st="${st}">
+      <div class="ch"><b style="color:${STC[st]}">${ST[st]}</b><i>${list.length} · ${st==='want' ? '~'+fh(hrs)+' p/ zerar' : fh(hrs)}</i></div>
+      <div class="cl">${list.map(g=>`
+        <div class="kc${S.bSel===g.id?' sel':''}${landId===g.id?' landed':''}" draggable="true" data-id="${g.id}">
+          <div class="kt"><span class="sw" style="background:${SRC[g.src].c}"></span>${esc(g.title)}${g.fav?' <span style="color:var(--accent)">★</span>':''}</div>
+          <div class="km"><span>${SRC[g.src].n}${S.running?.id===g.id ? ' · <b style="color:var(--ok);font-weight:400">LIVE</b>' : ''}</span><span>${st==='want' ? (g.est ? '~'+g.est+' h' : '?') : fh(g.hours)}</span></div>
+          ${st==='playing' ? `<div class="kp"><i style="width:${g.progress}%;background:${STC[st]}"></i></div>` : ''}
+        </div>`).join('') || '<div style="color:var(--faint);text-align:center;padding:20px 0;font-size:11px">arraste pra cá</div>'}</div>
+    </div>`;
+  }).join('');
+  $('#kan').querySelectorAll('.kc').forEach(c=>{
+    c.onclick = ()=>{ S.bSel = c.dataset.id; S.bCol = ORDER.indexOf(G.find(g=>g.id===S.bSel).status); renderBack(); };
+    c.ondblclick = ()=>launch(G.find(g=>g.id===c.dataset.id));
+    c.ondragstart = e=>{ dragId = c.dataset.id; c.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; };
+    c.ondragend = ()=>{ c.classList.remove('drag'); document.querySelectorAll('.col').forEach(x=>x.classList.remove('over')); };
+  });
+  $('#kan').querySelectorAll('.col').forEach(col=>{
+    col.ondragover = e=>{ e.preventDefault(); col.classList.add('over'); };
+    col.ondragleave = e=>{ if(!col.contains(e.relatedTarget)) col.classList.remove('over'); };
+    col.ondrop = e=>{
+      e.preventDefault(); col.classList.remove('over');
+      const g = G.find(x=>x.id===dragId); if(!g) return;
+      const cards = [...col.querySelectorAll('.kc')].filter(k=>k.dataset.id!==dragId);
+      const after = cards.find(k=>e.clientY < k.getBoundingClientRect().top + k.offsetHeight/2);
+      const st = col.dataset.st;
+      placeCard(g, st, after ? G.find(x=>x.id===after.dataset.id) : null);
+    };
+  });
+  const want = G.filter(g=>g.status==='want'), est = want.reduce((a,g)=>a+(g.est||0),0), pace = weeklyPace();
+  $('#bnote').innerHTML = `fila: ${want.length} jogos · ~${fh(est)} · no seu ritmo (${fh(pace)}/sem) ≈ <b style="color:var(--accent);font-weight:400">${pace ? Math.ceil(est/pace) : '∞'} semanas</b>`;
+  $('#count').textContent = `${G.length}`;
+  renderSide();
+}
+function placeCard(g, st, before){
+  const changed = g.status!==st;
+  g.status = st; if(st==='done') g.progress = 100;
+  const list = G.filter(x=>x.status===st && x!==g).sort((a,b)=>a.order-b.order);
+  const idx = before ? list.indexOf(before) : list.length;
+  list.splice(idx, 0, g); list.forEach((x,i)=>x.order = i);
+  S.bSel = g.id; S.bCol = ORDER.indexOf(st);
+  save(); renderBack(g.id);
+  if(changed) say(`[ OK ] ${g.title} → ${ST[st].toLowerCase()}`, STC[st]);
+}
+function backKeys(e){
+  const k = e.key, colList = st=>G.filter(g=>g.status===st && S.srcOn.has(g.src)).sort((a,b)=>a.order-b.order);
+  let g = G.find(x=>x.id===S.bSel);
+  if(k==='h' || k==='l' || k==='ArrowLeft' || k==='ArrowRight'){
+    S.bCol = Math.max(0, Math.min(3, S.bCol + (k==='h'||k==='ArrowLeft' ? -1 : 1)));
+    S.bSel = colList(ORDER[S.bCol])[0]?.id ?? null; renderBack(); return;
+  }
+  if(k==='j' || k==='k' || k==='ArrowDown' || k==='ArrowUp'){
+    const l = colList(ORDER[S.bCol]); if(!l.length) return;
+    let i = l.findIndex(x=>x.id===S.bSel); i = i<0 ? 0 : Math.max(0, Math.min(l.length-1, i + (k==='j'||k==='ArrowDown' ? 1 : -1)));
+    S.bSel = l[i].id; renderBack(); e.preventDefault(); return;
+  }
+  if(!g) return;
+  if(k==='H' || k==='L'){ const ci = ORDER.indexOf(g.status) + (k==='H' ? -1 : 1); if(ci>=0 && ci<4) placeCard(g, ORDER[ci], null); return; }
+  if(k==='J' || k==='K'){
+    const l = colList(g.status), i = l.indexOf(g), j = i + (k==='J' ? 1 : -1);
+    if(j<0 || j>=l.length) return;
+    [l[i], l[j]] = [l[j], l[i]]; l.forEach((x,n)=>x.order = n); save(); renderBack(g.id); return;
+  }
+  if(k==='Enter') launch(g);
+}
+
+/* =====================================================================
+   STATS
+   ===================================================================== */
+function weekly(n=10){
+  const now = Date.now(), w = new Array(n).fill(0);
+  G.forEach(g=>g.sessions.forEach(s=>{ const i = Math.floor((now - s.d)/(7*DAY)); if(i>=0 && i<n) w[n-1-i] += s.h; }));
+  return w;
+}
+const weeklyPace = ()=>{ const w = weekly(4); return w.reduce((a,b)=>a+b,0)/4; };
+function renderStats(){
+  const tot = G.reduce((a,g)=>a+g.hours,0), done = G.filter(g=>g.status==='done').length;
+  const fin = G.filter(g=>g.status==='done' || g.status==='dropped').length;
+  const want = G.filter(g=>g.status==='want'), est = want.reduce((a,g)=>a+(g.est||0),0), pace = weeklyPace();
+  $('#tiles').innerHTML = [
+    ['TOTAL JOGADO', `${Math.round(tot)}<small>h</small>`, `${G.reduce((a,g)=>a+g.sessions.length,0)} sessões`],
+    ['ZERADOS', `${done}<small>/ ${G.length}</small>`, `taxa de conclusão ${fin ? Math.round(done/fin*100) : 0}%`],
+    ['RITMO', `${pace.toFixed(1)}<small>h/sem</small>`, 'média das últimas 4 semanas'],
+    ['FILA', `${pace ? Math.ceil(est/pace) : '∞'}<small>sem</small>`, `~${Math.round(est)} h em ${want.length} jogos`],
+  ].map(([l,n,s])=>`<div class="tile"><div class="l">${l}</div><div class="n">${n}</div><div class="s">${s}</div></div>`).join('');
+  const w = weekly(10), mx = Math.max(1, ...w), rows = 8, BL = ' ▁▂▃▄▅▆▇█';
+  let out = '';
+  for(let r=rows-1; r>=0; r--){
+    out += `<span class="ax">${r===rows-1 ? String(Math.round(mx)).padStart(3)+'h' : r===0 ? '  0h' : '    '} │</span>`;
+    w.forEach(v=>{ const f = v/mx*rows - r; const ch = f>=1 ? '█' : f<=0 ? ' ' : BL[Math.round(f*8)]; out += ` ${ch.repeat(3)}`; });
+    out += '\n';
+  }
+  out += `<span class="ax">     └${'────'.repeat(w.length)}\n       ${w.map((_,i)=>i===w.length-1 ? 'now' : `-${w.length-1-i}`.padStart(3)).join(' ')}</span>`;
+  $('#chart').innerHTML = out;
+  const bySrc = Object.keys(SRC).map(k=>[k, G.filter(g=>g.src===k).reduce((a,g)=>a+g.hours,0)]).filter(x=>x[1]>0);
+  $('#stack').innerHTML = bySrc.map(([k,h])=>`<span style="flex:${h};background:${SRC[k].c}" title="${SRC[k].n} ${fh(h)}"></span>`).join('');
+  $('#slegend').innerHTML = bySrc.map(([k,h])=>`<span><span style="color:${SRC[k].c}">■</span> ${SRC[k].n} ${fh(h)}</span>`).join('');
+  const top = [...G].sort((a,b)=>b.hours-a.hours).slice(0,7), tm = top[0]?.hours || 1;
+  $('#top').innerHTML = top.map(g=>`<div class="hb"><span class="hn">${esc(g.title)}</span><span class="hbar"><i data-w="${g.hours/tm*100}" style="background:${STC[g.status]}"></i></span><span class="hv">${fh(g.hours)}</span></div>`).join('');
+  requestAnimationFrame(()=>document.querySelectorAll('#top .hbar i').forEach(i=>i.style.width = i.dataset.w+'%'));
+  const nx = want.sort((a,b)=>a.order-b.order).slice(0,5);
+  $('#blog2').innerHTML = nx.map((g,i)=>`<div class="hb" style="grid-template-columns:20px 1fr 60px"><span style="color:var(--faint)">${i+1}</span><span class="hn">${esc(g.title)}</span><span class="hv">${g.est ? '~'+g.est+' h' : '?'}</span></div>`).join('') || '<div style="color:var(--faint)">fila vazia</div>';
+  $('#count').textContent = `${G.length}`;
+  renderSide();
+}
+
+/* =====================================================================
+   FORM
+   ===================================================================== */
+$('#f_src').innerHTML = Object.entries(SRC).map(([k,s])=>`<option value="${k}">${s.n}</option>`).join('');
+$('#f_st').innerHTML = ORDER.map(k=>`<option value="${k}">${ST[k]}</option>`).join('');
+const cmdHint = ()=>{ const s = $('#f_src').value; $('#f_cmd').placeholder = SRC[s].cmd; $('#f_cmdx').textContent = 'modelo: ' + SRC[s].cmd; };
+$('#f_src').onchange = cmdHint;
+function openForm(g=null){
+  S.editId = g?.id ?? null;
+  $('#ftitle').textContent = g ? 'EDIT GAME' : 'ADD GAME';
+  $('#f_title').value = g?.title ?? ''; $('#f_src').value = g?.src ?? 'steam'; $('#f_cmd').value = g?.cmd ?? '';
+  $('#f_st').value = g?.status ?? 'want'; $('#f_est').value = g?.est || ''; $('#f_hrs').value = g?.hours || '';
+  cmdHint(); $('#modal').classList.add('on'); setTimeout(()=>$('#f_title').focus(), 30);
+}
+const closeForm = ()=>$('#modal').classList.remove('on');
+function saveForm(){
+  const title = $('#f_title').value.trim();
+  if(!title){ $('#f_title').focus(); return say('[ !! ] título vazio', 'var(--warn)'); }
+  const src = $('#f_src').value, cmd = $('#f_cmd').value.trim() || SRC[src].cmd;
+  const st = $('#f_st').value, est = +$('#f_est').value || 0, hrs = +$('#f_hrs').value || 0;
+  if(S.editId){
+    const g = G.find(x=>x.id===S.editId); Object.assign(g, {title, src, cmd, status:st, est, hours:hrs});
+    say(`[ OK ] ${title} atualizado`);
+  } else {
+    G.push({id:'g'+Date.now().toString(36), title, src, cmd, status:st, hours:hrs, est, progress: st==='done' ? 100 : 0, fav:false, last:0, notes:'', gamemode:true, mangohud:false, order:G.length, sessions:[]});
+    say(`[ OK ] ${title} adicionado`);
+  }
+  save(); closeForm(); renderAll(true);
+  if(!S.editId){ S.sort = 'name'; S.stF = 'all'; $('#q').value = ''; renderLib(true); S.cur = VIS.findIndex(g=>g.title===title); renderLib(); }
+}
+$('#fsave').onclick = saveForm; $('#fcancel').onclick = closeForm;
+$('#modal').onclick = e=>{ if(e.target.id==='modal') closeForm(); };
+$('#badd').onclick = ()=>openForm();
+$('#bdel').onclick = ()=>removeCur();
+function removeCur(){
+  const g = VIS[S.cur]; if(!g) return;
+  if(S.delArm!==g.id){ S.delArm = g.id; say(`[ ?? ] x de novo pra remover ${g.title}`, 'var(--warn)'); setTimeout(()=>S.delArm = null, 2500); return; }
+  G = G.filter(x=>x!==g); S.delArm = null; save(); renderAll(); say(`[ OK ] ${g.title} removido`, 'var(--accent)');
+}
+
+/* =====================================================================
+   VIEWS / TECLADO
+   ===================================================================== */
+const navLis = [...document.querySelectorAll('#nav li')];
+const TITLES = ['LIBRARY','BACKLOG','STATS'];
+const HINTS = [
+  '<span><kbd>hjkl</kbd> mover</span><span><kbd>⏎</kbd> jogar</span><span><kbd>s</kbd> status</span><span><kbd>a</kbd> add</span><span><kbd>/</kbd> busca</span>',
+  '<span><kbd>hjkl</kbd> navegar</span><span><kbd>HL</kbd> coluna</span><span><kbd>JK</kbd> prioridade</span><span><kbd>⏎</kbd> jogar</span>',
+  '<span><kbd>1</kbd> library</span><span><kbd>2</kbd> backlog</span>',
+];
+function setView(i){
+  S.view = i;
+  navLis.forEach((li,k)=>li.classList.toggle('on', k===i));
+  $('#band').style.top = navLis[i].offsetTop + 'px';
+  document.querySelectorAll('.view').forEach((v,k)=>v.classList.toggle('on', k===i));
+  decode($('#title'), 'LW // ' + TITLES[i]);
+  $('#hints').innerHTML = HINTS[i];
+  renderAll(i===0);
+}
+function renderAll(anim=false){ if(S.view===0) renderLib(anim); else if(S.view===1) renderBack(); else renderStats(); }
+navLis.forEach((li,i)=>li.onclick = ()=>setView(i));
+$('#q').oninput = ()=>{ S.cur = 0; renderAll(); };
+
+const COLS = 5;
+let booting = true;
+addEventListener('keydown', e=>{
+  if(booting) return;
+  if($('#modal').classList.contains('on')){
+    if(e.key==='Escape') closeForm();
+    if(e.key==='Enter'){ e.preventDefault(); saveForm(); }
+    return;
+  }
+  const ae = document.activeElement;
+  if(ae && (ae.tagName==='INPUT' || ae.tagName==='TEXTAREA')){ if(e.key==='Escape' || (e.key==='Enter' && ae.tagName==='INPUT')) ae.blur(); return; }
+  const k = e.key;
+  if(k>='1' && k<='3') return setView(+k-1);
+  if(k==='/'){ e.preventDefault(); return $('#q').focus(); }
+  if(k==='a') return openForm();
+  if(k==='Escape' && S.running) return;
+  if(S.view===1) return backKeys(e);
+  if(S.view!==0) return;
+  const mv = {ArrowLeft:-1,h:-1,ArrowRight:1,l:1,ArrowUp:-COLS,k:-COLS,ArrowDown:COLS,j:COLS}[k];
+  if(mv!==undefined){ S.cur = Math.max(0, Math.min(VIS.length-1, S.cur+mv)); renderLib(); e.preventDefault(); return; }
+  const g = VIS[S.cur]; if(!g) return;
+  if(k==='Enter') return S.running?.id===g.id ? stopRun() : launch(g);
+  if(k==='s') return setStatus(g, ORDER[(ORDER.indexOf(g.status)+1) % 4]);
+  if(k==='f'){ g.fav = !g.fav; save(); renderLib(); return say(g.fav ? `[ ★ ] ${g.title}` : `[ - ] ${g.title}`, 'var(--accent)'); }
+  if(k==='e') return openForm(g);
+  if(k==='x' || k==='Delete') return removeCur();
+});
+
+/* decode */
+const CH = '!<>-_\\/[]{}=+*^?#░▒';
+function decode(el, text){
+  let f = 0; const total = 12; clearInterval(el._t);
+  el._t = setInterval(()=>{ el.textContent = [...text].map((c,i)=>c===' ' ? ' ' : (i < f/total*text.length ? c : CH[rnd(0,CH.length)])).join(''); if(++f > total){ clearInterval(el._t); el.textContent = text; } }, 28);
+}
+function say(text, color='var(--ok)'){
+  const m = $('#msg'); m.style.color = color;
+  clearInterval(m._t); let i = 0;
+  m._t = setInterval(()=>{ m.textContent = text.slice(0, i += 2); if(i>=text.length) clearInterval(m._t); }, 12);
+}
+function tick(){ const [h,m,s] = new Date().toTimeString().slice(0,8).split(':'); $('#clock').innerHTML = `${h}<i>:</i>${m}<i>:</i>${s}`; }
+tick(); setInterval(tick, 1000);
+$('#lst').textContent = 'gamemode ✓';
+
+/* boot */
+(async ()=>{
+  const lines = ['scanning steam library', 'scanning heroic / lutris', 'scanning ~/roms', `${G.length} jogos · ready`];
+  const log = $('#blog'); let skip = false;
+  addEventListener('keydown', ()=>skip = true, {once:true}); $('#boot').addEventListener('click', ()=>skip = true, {once:true});
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    for(const l of lines){ if(skip) break; const d = document.createElement('div'); d.innerHTML = `<span style="color:var(--accent)">[ .. ]</span> ${l}`; log.appendChild(d); await sleep(rnd(90,170)); d.innerHTML = `<span class="ok">[ OK ]</span> ${l}`; }
+    if(!skip) await sleep(200);
+  }
+  $('#boot').classList.add('out'); setTimeout(()=>$('#boot').remove(), 420);
+  setTimeout(()=>booting = false, 50);
+  setView(0);
+  say(`[ OK ] ${G.length} jogos · ${G.filter(g=>g.status==='playing').length} em andamento`);
+})();
+</script>
+</body>
+</html>

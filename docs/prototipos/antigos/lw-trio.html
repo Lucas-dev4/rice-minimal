@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12100e">
+<title>LW // wall · music · games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --fg:#e9e1d6; --dim:#a39a8e; --faint:#6f675e; --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.15);
+    --accent:#e8a46b; --accent-a:rgba(232,164,107,.14); --hot:#f6d5ad; --ok:#b5d97a; --warn:#e86b6b; --yel:#e8c86b; --blue:#8ab4e8;
+    --pa:.46; --blur:18px; --font:"JetBrains Mono",ui-monospace,monospace; --ease:cubic-bezier(.2,.7,.2,1);
+    --dockh:64px; --minih:62px;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{ font:13px/1.55 var(--font); color:var(--fg); background:#0d0b0a; overscroll-behavior:none; overflow:hidden; }
+  button{ background:none; border:0; font:inherit; color:inherit; cursor:pointer; }
+  canvas.wp{ position:fixed; inset:0; width:100vw; height:100lvh; z-index:0; transition:opacity .9s var(--ease); }
+  #wpB{ opacity:0; }
+
+  .glass{ background:rgba(18,16,14,var(--pa)); backdrop-filter:blur(var(--blur)) saturate(1.2); -webkit-backdrop-filter:blur(var(--blur)) saturate(1.2);
+    border:1px solid var(--line); box-shadow:0 14px 40px -16px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.05); position:relative; }
+  .glass.k::before, .glass.k::after{ content:''; position:absolute; width:10px; height:10px; border-color:var(--accent); border-style:solid; opacity:.7; pointer-events:none; }
+  .glass.k::before{ top:-1px; left:-1px; border-width:1px 0 0 1px; } .glass.k::after{ bottom:-1px; right:-1px; border-width:0 1px 1px 0; }
+
+  /* topo */
+  .top{ position:fixed; top:0; left:0; right:0; z-index:20; display:flex; align-items:center; gap:10px; padding:calc(env(safe-area-inset-top) + 10px) 18px 10px;
+    background:linear-gradient(rgba(12,10,9,.55), transparent); }
+  .top b{ color:var(--accent); font-weight:800; letter-spacing:1px; }
+  .top .t{ color:var(--dim); }
+  .top .sp{ flex:1; }
+  .top .clk{ color:var(--fg); font-variant-numeric:tabular-nums; }
+  .top .clk i{ font-style:normal; color:var(--accent); animation:bl 1s steps(1) infinite; } @keyframes bl{ 50%{ opacity:.25; } }
+
+  /* páginas */
+  .pages{ position:fixed; inset:0; z-index:5; }
+  .page{ position:absolute; inset:0; overflow-y:auto; overflow-x:hidden; padding:calc(env(safe-area-inset-top) + 56px) 14px calc(env(safe-area-inset-bottom) + var(--dockh) + var(--minih) + 28px);
+    opacity:0; transform:translateX(24px); pointer-events:none; transition:opacity .35s var(--ease), transform .35s var(--ease); scrollbar-width:none; }
+  .page.on{ opacity:1; transform:none; pointer-events:auto; }
+  .page.left{ transform:translateX(-24px); }
+  .wrap{ max-width:980px; margin:0 auto; display:flex; flex-direction:column; gap:12px; }
+  .hd{ display:flex; align-items:baseline; justify-content:space-between; padding:4px 4px 0; }
+  .hd h1{ font-size:26px; font-weight:800; letter-spacing:.5px; }
+  .hd h1 span{ color:var(--accent); }
+  .hd .m{ color:var(--dim); font-size:11.5px; }
+  .ph{ display:flex; justify-content:space-between; color:var(--faint); font-size:10px; letter-spacing:2px; margin-bottom:10px; }
+  .ph .m{ letter-spacing:.5px; font-size:11px; color:var(--dim); }
+  .chips{ display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding:2px; }
+  .chip{ flex:none; padding:4px 11px; border:1px solid var(--line-2); color:var(--dim); font-size:11.5px; background:rgba(18,16,14,.35); backdrop-filter:blur(8px); transition:all .2s var(--ease); }
+  .chip.on{ color:#12100e; background:var(--accent); border-color:var(--accent); }
+
+  /* ===== WALL ===== */
+  .hero{ height:38vh; min-height:220px; border:1px solid var(--line-2); position:relative; overflow:hidden; }
+  .hero::after{ content:''; position:absolute; inset:0; background:linear-gradient(transparent 55%, rgba(12,10,9,.75)); }
+  .hero .info{ position:absolute; left:16px; right:16px; bottom:14px; z-index:2; display:flex; justify-content:space-between; align-items:flex-end; }
+  .hero .info b{ font-size:20px; font-weight:800; display:block; }
+  .hero .info span{ color:var(--dim); font-size:11.5px; }
+  .tagA{ font-size:10px; padding:1px 7px; border:1px solid var(--ok); color:var(--ok); background:rgba(18,16,14,.6); }
+  .wgrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:10px; }
+  .wc{ aspect-ratio:9/12; position:relative; overflow:hidden; border:1px solid var(--line); cursor:pointer; transition:transform .25s var(--ease), border-color .2s; opacity:0; animation:up .45s var(--ease) forwards; }
+  @media (min-width:700px){ .wc{ aspect-ratio:16/10; } }
+  .wc canvas{ width:100%; height:100%; display:block; transition:transform .5s var(--ease), filter .3s; filter:brightness(.8); }
+  .wc:hover canvas{ transform:scale(1.04); filter:none; }
+  .wc:active{ transform:scale(.97); }
+  .wc.on{ border-color:var(--accent); } .wc.on canvas{ filter:none; }
+  .wc .n{ position:absolute; left:8px; bottom:6px; font-size:11px; text-shadow:0 1px 4px rgba(0,0,0,.8); }
+  .wc .fav{ position:absolute; right:6px; top:4px; color:var(--accent); font-size:14px; text-shadow:0 1px 4px rgba(0,0,0,.8); }
+  .wc .on-t{ position:absolute; left:6px; top:6px; }
+  @keyframes up{ from{ opacity:0; transform:translateY(10px); } to{ opacity:1; transform:none; } }
+  .pal{ display:flex; height:22px; } .pal span{ flex:1; transition:background .6s; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .card{ padding:14px 16px; }
+  .kv{ display:grid; grid-template-columns:auto 1fr; gap:4px 14px; } .kv span:nth-child(odd){ color:var(--faint); }
+  .tog{ display:flex; align-items:center; justify-content:space-between; padding:6px 0; color:var(--dim); cursor:pointer; }
+  .tog + .tog{ border-top:1px solid var(--line); }
+  .tog input{ display:none; }
+  .tog i{ width:30px; height:16px; border:1px solid var(--line-2); position:relative; transition:all .2s; }
+  .tog i::after{ content:''; position:absolute; top:3px; left:3px; width:8px; height:8px; background:var(--faint); transition:transform .25s var(--ease), background .2s; }
+  .tog input:checked + i{ border-color:var(--accent); } .tog input:checked + i::after{ transform:translateX(14px); background:var(--accent); }
+
+  /* ===== MUSIC ===== */
+  .np{ padding:18px; }
+  .spec{ height:150px; display:flex; align-items:flex-end; gap:3px; margin-bottom:16px; }
+  .spec i{ flex:1; background:linear-gradient(to top, #6b4f3a, var(--accent) 60%, var(--hot)); min-height:2px; transition:height .12s linear; opacity:.9; }
+  .np .cv{ display:grid; grid-template-columns:72px 1fr; gap:14px; align-items:center; }
+  .cover{ width:72px; height:72px; border:1px solid var(--line-2); }
+  .np .tt{ font-size:20px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .np .ar{ color:var(--accent); }
+  .np .fm{ color:var(--faint); font-size:11px; }
+  .seek{ display:flex; align-items:center; gap:10px; margin-top:16px; color:var(--faint); font-size:11px; font-variant-numeric:tabular-nums; }
+  .seek .t{ flex:1; height:4px; background:var(--line); position:relative; cursor:pointer; } .seek .t i{ position:absolute; inset:0 auto 0 0; background:var(--accent); }
+  .seek .t i::after{ content:''; position:absolute; right:-5px; top:-4px; width:12px; height:12px; background:var(--hot); box-shadow:0 0 10px var(--accent); }
+  .ctl{ display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px; }
+  .ctl button{ padding:8px 12px; color:var(--dim); font-size:15px; transition:color .2s, transform .15s; }
+  .ctl button:active{ transform:scale(.9); }
+  .ctl button.on{ color:var(--accent); }
+  .ctl .big{ width:60px; height:60px; border:1px solid var(--accent); color:var(--accent); font-size:20px; display:grid; place-items:center; }
+  .ctl .big:hover{ background:var(--accent); color:#12100e; }
+  .pl .tr{ display:grid; grid-template-columns:28px 1fr auto; gap:10px; padding:10px 6px; align-items:center; cursor:pointer; transition:background .15s; }
+  .pl .tr + .tr{ border-top:1px solid var(--line); }
+  .pl .tr:hover{ background:rgba(255,255,255,.03); }
+  .pl .tr .n{ color:var(--faint); text-align:right; }
+  .pl .tr .a{ color:var(--dim); font-size:11px; }
+  .pl .tr.cur{ background:var(--accent-a); } .pl .tr.cur b{ color:var(--accent); }
+  .eqi{ display:inline-flex; gap:2px; align-items:flex-end; height:12px; } .eqi i{ width:3px; background:var(--accent); animation:eqb .8s ease-in-out infinite; }
+  .eqi i:nth-child(2){ animation-delay:-.3s; } .eqi i:nth-child(3){ animation-delay:-.55s; } .eqi.p i{ animation-play-state:paused; height:3px; }
+  @keyframes eqb{ 0%,100%{ height:3px; } 50%{ height:12px; } }
+  .vol{ display:flex; align-items:center; gap:10px; color:var(--faint); font-size:11px; margin-top:4px; }
+  .vol input{ flex:1; accent-color:var(--accent); }
+
+  /* ===== GAMES ===== */
+  .cont{ display:grid; grid-template-columns:110px 1fr; gap:14px; padding:14px; align-items:center; }
+  .gcov{ aspect-ratio:3/4; border:1px solid var(--line-2); position:relative; overflow:hidden; }
+  .gcov .gl{ position:absolute; right:6px; top:4px; font-size:22px; font-weight:800; color:rgba(255,255,255,.2); }
+  .gcov .tt{ position:absolute; left:7px; right:7px; bottom:7px; font-weight:800; font-size:12px; line-height:1.15; text-shadow:0 1px 6px rgba(0,0,0,.9); }
+  .cont .lab{ color:var(--faint); font-size:10px; letter-spacing:2px; }
+  .cont .gt{ font-size:18px; font-weight:800; margin:2px 0; }
+  .cont .gm{ color:var(--dim); font-size:11.5px; }
+  .gbar{ height:3px; background:var(--line); margin:10px 0; } .gbar i{ display:block; height:100%; background:var(--accent); }
+  .play{ padding:9px 18px; border:1px solid var(--ok); color:var(--ok); font-weight:800; letter-spacing:1px; transition:all .2s; }
+  .play:hover{ background:var(--ok); color:#12100e; }
+  .play.stop{ border-color:var(--warn); color:var(--warn); } .play.stop:hover{ background:var(--warn); color:#12100e; }
+  .ggrid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(105px,1fr)); gap:10px; }
+  @media (min-width:700px){ .ggrid{ grid-template-columns:repeat(auto-fill, minmax(140px,1fr)); } }
+  .gc{ cursor:pointer; opacity:0; animation:up .45s var(--ease) forwards; }
+  .gc .gcov{ transition:transform .25s var(--ease), border-color .2s; }
+  .gc:hover .gcov{ transform:translateY(-3px); border-color:var(--accent); }
+  .gc .st{ font-size:10px; margin-top:4px; display:flex; justify-content:space-between; color:var(--faint); }
+  .s-want{ color:var(--blue) !important; } .s-playing{ color:var(--accent) !important; } .s-done{ color:var(--ok) !important; } .s-dropped{ color:var(--faint) !important; }
+  .stats{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px; text-align:center; }
+  .stats div{ padding:10px 4px; } .stats b{ display:block; font-size:22px; font-weight:800; } .stats span{ color:var(--faint); font-size:10px; letter-spacing:1.5px; }
+
+  /* sheet */
+  .scrim{ position:fixed; inset:0; z-index:40; background:rgba(8,6,5,.5); opacity:0; pointer-events:none; transition:opacity .3s; }
+  .scrim.on{ opacity:1; pointer-events:auto; }
+  .sheet{ position:fixed; left:0; right:0; bottom:0; z-index:41; max-width:640px; margin:0 auto; padding:10px 18px calc(env(safe-area-inset-bottom) + 20px); transform:translateY(105%); transition:transform .4s var(--ease); --pa:.82; }
+  .sheet.on{ transform:none; }
+  .sheet .grab{ width:40px; height:4px; background:var(--line-2); margin:0 auto 14px; }
+  .sheet .sh{ display:grid; grid-template-columns:96px 1fr; gap:14px; }
+  .sts{ display:flex; gap:5px; flex-wrap:wrap; margin:12px 0; }
+  .sts button{ font-size:11px; padding:3px 9px; border:1px solid var(--line-2); color:var(--dim); }
+  .sts button.on{ color:#12100e; border-color:var(--accent); background:var(--accent); }
+
+  /* mini player + dock */
+  .mini{ position:fixed; z-index:30; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom) + var(--dockh) + 18px); max-width:640px; margin:0 auto; height:var(--minih);
+    display:grid; grid-template-columns:44px 1fr auto auto; gap:12px; align-items:center; padding:0 12px; --pa:.6; transition:transform .35s var(--ease); }
+  .mini .cover{ width:44px; height:44px; }
+  .mini .mt{ font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini .ma{ color:var(--dim); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini .ma b{ color:var(--ok); font-weight:400; }
+  .mini button{ font-size:16px; padding:6px 8px; color:var(--fg); }
+  .mini .mp{ position:absolute; left:0; right:0; bottom:0; height:2px; background:var(--line); } .mini .mp i{ display:block; height:100%; background:var(--accent); }
+  body.p1 .mini{ transform:translateY(calc(100% + var(--dockh) + 40px)); }
+  .dock{ position:fixed; z-index:31; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom) + 10px); max-width:640px; margin:0 auto; height:var(--dockh);
+    display:grid; grid-template-columns:repeat(3,1fr); --pa:.62; }
+  .dock button{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; color:var(--dim); font-size:10.5px; letter-spacing:1.5px; position:relative; transition:color .2s; }
+  .dock button i{ font-style:normal; font-size:18px; }
+  .dock button.on{ color:var(--accent); }
+  .dock .ind{ position:absolute; top:0; height:2px; width:calc(100%/3); background:var(--accent); box-shadow:0 0 8px var(--accent); transition:left .35s var(--ease); }
+
+  .toast{ position:fixed; z-index:50; left:50%; top:calc(env(safe-area-inset-top) + 54px); transform:translate(-50%,-10px); opacity:0; padding:6px 14px; font-size:12px; white-space:nowrap;
+    background:rgba(18,16,14,.85); backdrop-filter:blur(10px); border:1px solid var(--accent); transition:all .3s var(--ease); pointer-events:none; }
+  .toast.on{ opacity:1; transform:translate(-50%,0); } .toast b{ color:var(--accent); font-weight:400; }
+  .launch{ position:fixed; inset:0; z-index:60; display:none; place-items:center; background:rgba(10,8,7,.86); backdrop-filter:blur(6px); }
+  .launch.on{ display:grid; animation:fade .2s; } @keyframes fade{ from{ opacity:0; } }
+  .launch div{ width:min(420px, 86vw); font-size:12px; color:var(--dim); white-space:pre; }
+  .launch .lt{ color:var(--accent); font-weight:800; font-size:18px; margin-bottom:14px; white-space:normal; }
+  .launch .ok{ color:var(--ok); }
+  @media (prefers-reduced-motion: reduce){ *{ transition:none !important; animation:none !important; } .wc, .gc{ opacity:1; } }
+</style>
+</head>
+<body class="p0">
+<canvas class="wp" id="wpA"></canvas><canvas class="wp" id="wpB"></canvas>
+
+<div class="top"><b>LW</b><span class="t" id="ttl">// wall</span><span class="sp"></span><span class="clk" id="clk"></span></div>
+
+<div class="pages">
+  <!-- WALL -->
+  <section class="page on" id="pg0"><div class="wrap">
+    <div class="hd"><h1>wall<span>.</span></h1><span class="m" id="wcount"></span></div>
+    <div class="hero glass" id="hero"><canvas id="heroCv" style="width:100%;height:100%;display:block"></canvas>
+      <div class="info"><div><b id="wname"></b><span id="wmeta"></span></div><span class="tagA">● ATIVO</span></div></div>
+    <div class="row2">
+      <div class="glass k card"><div class="ph"><span>PALETA</span><span class="m">matugen</span></div><div class="pal" id="wpal"></div></div>
+      <div class="glass k card"><div class="ph"><span>SYNC</span><span class="m" id="wsync"></span></div>
+        <label class="tog">lock screen<input type="checkbox" checked><i></i></label>
+        <label class="tog">greeter<input type="checkbox" checked><i></i></label></div>
+    </div>
+    <div class="chips" id="wchips"></div>
+    <div class="wgrid" id="wgrid"></div>
+  </div></section>
+
+  <!-- MUSIC -->
+  <section class="page" id="pg1"><div class="wrap">
+    <div class="hd"><h1>music<span>.</span></h1><span class="m">cliamp</span></div>
+    <div class="glass k np">
+      <div class="spec" id="spec"></div>
+      <div class="cv"><canvas class="cover" id="mcov" width="72" height="72"></canvas>
+        <div style="min-width:0"><div class="tt" id="mt"></div><div class="ar" id="ma"></div><div class="fm" id="mf"></div></div></div>
+      <div class="seek"><span id="mcur">0:00</span><div class="t" id="mseek"><i id="mprog"></i></div><span id="mdur">0:00</span></div>
+      <div class="ctl"><button id="bsh">⇄</button><button id="bpr">|◀</button><button class="big" id="bpl">▶</button><button id="bnx">▶|</button><button id="brp" class="on">↻</button></div>
+      <div class="vol"><span>VOL</span><input type="range" id="vol" min="0" max="100" value="75"><span id="volv">75%</span></div>
+    </div>
+    <div class="glass k card pl"><div class="ph"><span>FILA</span><span class="m" id="qcount"></span></div><div id="queue"></div></div>
+  </div></section>
+
+  <!-- GAMES -->
+  <section class="page" id="pg2"><div class="wrap">
+    <div class="hd"><h1>games<span>.</span></h1><span class="m" id="gcount"></span></div>
+    <div class="glass k cont" id="cont"></div>
+    <div class="glass k card stats" id="gstats"></div>
+    <div class="chips" id="gchips"></div>
+    <div class="ggrid" id="ggrid"></div>
+  </div></section>
+</div>
+
+<div class="mini glass k" id="mini">
+  <canvas class="cover" id="micov" width="44" height="44"></canvas>
+  <div style="min-width:0"><div class="mt" id="mit"></div><div class="ma" id="mia"></div></div>
+  <button id="mipl">▶</button><button id="minx">▶|</button>
+  <div class="mp"><i id="miprog"></i></div>
+</div>
+<nav class="dock glass" id="dock">
+  <span class="ind" id="ind"></span>
+  <button data-p="0" class="on"><i>▦</i>WALL</button>
+  <button data-p="1"><i>♪</i>MUSIC</button>
+  <button data-p="2"><i>▶</i>GAMES</button>
+</nav>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet glass k" id="sheet"></div>
+<div class="toast" id="toast"></div>
+<div class="launch" id="launch"><div><div class="lt" id="llt"></div><div id="llog"></div></div></div>
+
+<script>
+const $ = s=>document.querySelector(s), $$ = s=>[...document.querySelectorAll(s)];
+const pad = n=>String(n).padStart(2,'0');
+const fmt = s=>`${Math.floor(s/60)}:${pad(Math.floor(s%60))}`;
+const esc = s=>String(s ?? '').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hash = s=>{ let h = 2166136261; for(const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h>>>0; };
+function rng(s){ return ()=>{ s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s>>>15, 1 | s); t = t + Math.imul(t ^ t>>>7, 61 | t) ^ t; return ((t ^ t>>>14)>>>0)/4294967296; }; }
+function toast(h){ const t = $('#toast'); t.innerHTML = h; t.classList.add('on'); clearTimeout(t._t); t._t = setTimeout(()=>t.classList.remove('on'), 1800); }
+
+/* =====================================================================
+   WALLPAPERS gerados
+   ===================================================================== */
+const WALLS = [
+  {n:'dusk ridge',   tag:'quente', sky:['#1a1426','#5a3048','#d8794a','#f2c38a'], hills:['#3a2430','#2a1a22','#1a1016','#0e090c'], sun:'#ffd9a0', stars:.2, sy:.5},
+  {n:'night shift',  tag:'escuro', sky:['#05070d','#0d1424','#1b2440','#33405e'], hills:['#141a2a','#0e1320','#0a0e18','#05070c'], sun:'#e8e4da', stars:1, sy:.3},
+  {n:'dune',         tag:'quente', sky:['#2a1d16','#7a4a2e','#c9844e','#ebc28d'], hills:['#8a5a38','#6a4228','#4a2c1a','#2a180e'], sun:'#fff0c8', stars:0, sy:.45},
+  {n:'fog valley',   tag:'frio',   sky:['#1d2224','#3b4447','#7d8a88','#c4c8bf'], hills:['#4a5452','#363e3d','#252b2a','#151918'], sun:'#f4f1e6', stars:0, sy:.42},
+  {n:'aurora',       tag:'frio',   sky:['#040a0c','#0b2a2a','#1d5a4a','#3a8a6a'], hills:['#0f2622','#0a1c19','#071412','#030a09'], sun:'#c8ffe0', stars:.8, sy:.25},
+  {n:'ember',        tag:'escuro', sky:['#0c0706','#2a0f0a','#6a2414','#c4502a'], hills:['#2a0e08','#1c0905','#120603','#080302'], sun:'#ffb070', stars:.3, sy:.55},
+  {n:'lavender',     tag:'frio',   sky:['#16121e','#3a2c52','#8a6aa8','#d8c0e0'], hills:['#3a2e4a','#2a2038','#1c1626','#0e0b14'], sun:'#fff0f8', stars:.4, sy:.48},
+  {n:'tide',         tag:'frio',   sky:['#0a1218','#16303e','#3a7088','#a8d0d8'], hills:['#1a3442','#122630','#0c1a22','#060e12'], sun:'#f0fbff', stars:0, sy:.4},
+];
+const FAV = new Set([0,4]);
+let wCur = 0, wFilter = 'todos';
+function paint(cv, W, H, S, seed=7){
+  const x = cv.getContext('2d'), r = rng(seed);
+  const g = x.createLinearGradient(0,0,0,H*.7); S.sky.forEach((k,i)=>g.addColorStop(i/3,k)); x.fillStyle = g; x.fillRect(0,0,W,H);
+  for(let i=0;i<(W*H/2500)*S.stars;i++){ x.globalAlpha = r()*.8; x.fillStyle = '#fff'; x.fillRect(r()*W, r()*H*.5, 1, 1); } x.globalAlpha = 1;
+  if(S.n==='aurora'){ for(let k=0;k<3;k++){ x.globalAlpha = .18; const ag = x.createLinearGradient(0,H*.1,0,H*.45); ag.addColorStop(0,'transparent'); ag.addColorStop(.5, k%2 ? '#6affc0' : '#a06aff'); ag.addColorStop(1,'transparent'); x.fillStyle = ag; x.beginPath(); x.moveTo(0,H*.2); for(let px=0;px<=W;px+=8) x.lineTo(px, H*(.2+k*.05) + Math.sin(px/W*6+k)*H*.06); x.lineTo(W,H*.5); x.lineTo(0,H*.5); x.fill(); } x.globalAlpha = 1; }
+  const sx = W*.62, sy = H*S.sy, sr = Math.min(W,H)*.11;
+  const sg = x.createRadialGradient(sx,sy,0,sx,sy,sr*4); sg.addColorStop(0,S.sun+'cc'); sg.addColorStop(.25,S.sun+'33'); sg.addColorStop(1,'transparent'); x.fillStyle = sg; x.fillRect(0,0,W,H);
+  x.fillStyle = S.sun; x.beginPath(); x.arc(sx,sy,sr,0,7); x.fill();
+  S.hills.forEach((col,li)=>{ const base = H*(.56+li*.1), amp = H*(.07-li*.01), f = 1.4+li*.85; x.fillStyle = col; x.beginPath(); x.moveTo(0,H);
+    for(let px=0;px<=W;px+=Math.max(2,W/300)){ x.lineTo(px, base - Math.sin(px/W*Math.PI*f + li*1.7)*amp - Math.sin(px/W*Math.PI*f*3.3+li)*amp*.25); } x.lineTo(W,H); x.fill(); });
+  const v = x.createRadialGradient(W/2,H/2,Math.min(W,H)*.3,W/2,H/2,Math.max(W,H)*.75); v.addColorStop(0,'transparent'); v.addColorStop(1,'rgba(0,0,0,.4)'); x.fillStyle = v; x.fillRect(0,0,W,H);
+}
+function sized(cv){ const d = devicePixelRatio||1, r = cv.getBoundingClientRect(); cv.width = Math.max(1,r.width*d); cv.height = Math.max(1,r.height*d); cv.getContext('2d').setTransform(d,0,0,d,0,0); return [r.width, r.height]; }
+let front = 'A';
+function setBG(i, fade=true){
+  const back = front==='A' ? 'B' : 'A', cv = $('#wp'+back);
+  cv.width = innerWidth*(devicePixelRatio||1); cv.height = Math.max(innerHeight, screen.height||0)*(devicePixelRatio||1);
+  const x = cv.getContext('2d'); x.setTransform(devicePixelRatio||1,0,0,devicePixelRatio||1,0,0);
+  paint(cv, innerWidth, Math.max(innerHeight, screen.height||0), WALLS[i]);
+  if(fade){ $('#wp'+back).style.opacity = 1; $('#wp'+front).style.opacity = 0; front = back; }
+  else { $('#wp'+back).style.opacity = 1; $('#wp'+front).style.opacity = 0; front = back; }
+}
+function renderWall(){
+  const W = WALLS[wCur];
+  const [w,h] = sized($('#heroCv')); paint($('#heroCv'), w, h, W);
+  $('#wname').textContent = W.n; $('#wmeta').textContent = `gerado · ${W.tag}`;
+  $('#wpal').innerHTML = [...W.sky, ...W.hills.slice(0,2)].map(c=>`<span style="background:${c}"></span>`).join('');
+  $('#wsync').textContent = 'em dia';
+  $('#wcount').textContent = `${WALLS.length} imagens · ${FAV.size} ★`;
+  $('#wchips').innerHTML = ['todos','★','quente','frio','escuro'].map(c=>`<button class="chip${c===wFilter?' on':''}" data-c="${c}">${c}</button>`).join('');
+  $$('#wchips .chip').forEach(b=>b.onclick = ()=>{ wFilter = b.dataset.c; renderWall(); });
+  const L = WALLS.map((w,i)=>({w,i})).filter(({w,i})=>wFilter==='todos' || (wFilter==='★' ? FAV.has(i) : w.tag===wFilter));
+  $('#wgrid').innerHTML = L.map(({w,i},k)=>`<div class="wc${i===wCur?' on':''}" data-i="${i}" style="animation-delay:${k*40}ms"><canvas></canvas>${i===wCur?'<span class="tagA on-t">● ATIVO</span>':''}${FAV.has(i)?'<span class="fav">★</span>':''}<span class="n">${w.n}</span></div>`).join('');
+  $$('#wgrid .wc').forEach(el=>{
+    const cv = el.querySelector('canvas'), [a,b] = sized(cv); paint(cv, a, b, WALLS[+el.dataset.i]);
+    el.onclick = ()=>{ if(+el.dataset.i===wCur) return; wCur = +el.dataset.i; setBG(wCur); renderWall(); toast(`wallpaper: <b>${WALLS[wCur].n}</b>`); };
+    let lp; el.addEventListener('touchstart', ()=>{ lp = setTimeout(()=>{ const i = +el.dataset.i; FAV.has(i) ? FAV.delete(i) : FAV.add(i); navigator.vibrate?.(15); renderWall(); }, 500); }, {passive:true});
+    el.addEventListener('touchend', ()=>clearTimeout(lp)); el.addEventListener('touchmove', ()=>clearTimeout(lp), {passive:true});
+    el.oncontextmenu = e=>{ e.preventDefault(); const i = +el.dataset.i; FAV.has(i) ? FAV.delete(i) : FAV.add(i); renderWall(); };
+  });
+}
+
+/* =====================================================================
+   MUSIC (visual simulado)
+   ===================================================================== */
+const TRACKS = [['neon rain','LW synth',150],['terminal dusk','LW synth',172],['kernel panic','LW synth',134],['cache miss','LW synth',161],['segfault lullaby','LW synth',188]];
+const M = {i:0, pos:38, play:true, shuf:false, rep:true, vol:75};
+const NB = 32; let LV = new Array(NB).fill(0);
+function coverArt(cv, seed, size){
+  const x = cv.getContext('2d'), r = rng(hash(seed)), N = 8, s = size/N, pal = ['#e8a46b','#f6d5ad','#7a5a3f','#3a342e','#b5d97a','#8ab4e8'], base = pal[Math.floor(r()*3)];
+  x.fillStyle = '#12100e'; x.fillRect(0,0,size,size);
+  for(let y=0;y<N;y++) for(let xx=0;xx<N/2;xx++) if(r()<.5){ x.fillStyle = r()<.7 ? base : pal[Math.floor(r()*pal.length)]; x.globalAlpha = .4+r()*.6; x.fillRect(xx*s+1,y*s+1,s-2,s-2); x.fillRect((N-1-xx)*s+1,y*s+1,s-2,s-2); }
+  x.globalAlpha = 1;
+}
+function renderMusic(full=true){
+  const [t,a,d] = TRACKS[M.i];
+  $('#mt').textContent = t; $('#ma').textContent = a; $('#mf').textContent = 'synth · 44.1 kHz · procedural';
+  $('#mcur').textContent = fmt(M.pos); $('#mdur').textContent = fmt(d); $('#mprog').style.width = M.pos/d*100+'%';
+  $('#bpl').textContent = M.play ? '❚❚' : '▶'; $('#bsh').classList.toggle('on', M.shuf); $('#brp').classList.toggle('on', M.rep);
+  $('#mit').textContent = t; $('#mipl').textContent = M.play ? '❚❚' : '▶'; $('#miprog').style.width = M.pos/d*100+'%';
+  updMiniSub();
+  if(!full) return;
+  coverArt($('#mcov'), t, 72); coverArt($('#micov'), t, 44);
+  $('#qcount').textContent = `${TRACKS.length} faixas`;
+  $('#queue').innerHTML = TRACKS.map(([tt,aa,dd],i)=>`<div class="tr${i===M.i?' cur':''}" data-i="${i}"><span class="n">${i===M.i ? `<span class="eqi${M.play?'':' p'}"><i></i><i></i><i></i></span>` : pad(i+1)}</span><div><b style="font-weight:600">${tt}</b><div class="a">${aa}</div></div><span class="a">${fmt(dd)}</span></div>`).join('');
+  $$('#queue .tr').forEach(r=>r.onclick = ()=>{ M.i = +r.dataset.i; M.pos = 0; M.play = true; renderMusic(); });
+}
+function nextTrack(){ M.i = M.shuf ? (M.i + 1 + Math.floor(Math.random()*(TRACKS.length-1))) % TRACKS.length : (M.i+1) % TRACKS.length; M.pos = 0; renderMusic(); }
+$('#bpl').onclick = $('#mipl').onclick = ()=>{ M.play = !M.play; renderMusic(); };
+$('#bnx').onclick = $('#minx').onclick = nextTrack;
+$('#bpr').onclick = ()=>{ if(M.pos > 3) M.pos = 0; else M.i = (M.i+TRACKS.length-1)%TRACKS.length, M.pos = 0; renderMusic(); };
+$('#bsh').onclick = ()=>{ M.shuf = !M.shuf; renderMusic(false); toast(`shuffle <b>${M.shuf?'on':'off'}</b>`); };
+$('#brp').onclick = ()=>{ M.rep = !M.rep; renderMusic(false); toast(`repeat <b>${M.rep?'all':'off'}</b>`); };
+$('#mseek').onclick = e=>{ const r = e.currentTarget.getBoundingClientRect(); M.pos = (e.clientX-r.left)/r.width*TRACKS[M.i][2]; renderMusic(false); };
+$('#vol').oninput = e=>{ M.vol = +e.target.value; $('#volv').textContent = M.vol+'%'; };
+$('#spec').innerHTML = '<i></i>'.repeat(NB);
+let tPrev = performance.now(), beat = 0;
+function loop(t){
+  const dt = (t - tPrev)/1000; tPrev = t;
+  if(M.play){ M.pos += dt; if(M.pos >= TRACKS[M.i][2]){ if(M.rep || M.i < TRACKS.length-1) nextTrack(); else M.play = false; } }
+  beat += dt;
+  const k = 60/78, ph = (beat % k)/k, kick = Math.exp(-ph*6);
+  LV = LV.map((v,i)=>{ const base = M.play ? (Math.exp(-i/NB*2.2)*(.45 + kick*.5) + Math.random()*.25*(1 - i/NB*.5)) * (M.vol/100+.25) : .02; return Math.max(base, v*.85); });
+  const bars = $('#spec').children; for(let i=0;i<NB;i++) bars[i].style.height = Math.min(100, LV[i]*100)+'%';
+  if(Math.floor(t/250) !== Math.floor((t-dt*1000)/250)) renderMusic(false);
+  requestAnimationFrame(loop);
+}
+
+/* =====================================================================
+   GAMES
+   ===================================================================== */
+const ST = {want:'quero jogar', playing:'jogando', done:'zerado', dropped:'largado'};
+const GAMES = [
+  ['Hollow Knight','steam','playing',58,40],['Elden Ring','steam','want',0,100],['Celeste','steam','done',22,10],['Hades','steam','done',71,25],
+  ['Outer Wilds','steam','want',0,20],['Disco Elysium','steam','playing',12,30],['Balatro','steam','playing',44,0],['Sekiro','steam','dropped',9,40],
+  ['Pokémon Emerald','emulador','playing',31,35],['Super Metroid','emulador','want',0,8],['Stardew Valley','lutris','want',0,50],['Dead Cells','heroic','dropped',6,30],
+].map(([t,src,s,h,est],i)=>({id:i, t, src, s, h, est, prog: s==='done' ? 100 : est ? Math.min(95, Math.round(h/est*100)) : 0, last: s==='playing' ? Date.now() - i*36e5*7 : 0}));
+let gFilter = 'todos', RUN = null;
+function cov(g){
+  const r = hash(g.t), h = r%360, h2 = (h+30+(r>>8)%80)%360, a = (r>>4)%360;
+  return `repeating-linear-gradient(${a}deg, rgba(255,255,255,.05) 0 2px, transparent 2px 9px), linear-gradient(${(r>>3)%360}deg, hsl(${h} 38% 24%), hsl(${h2} 45% 12%) 70%, hsl(${h} 20% 6%))`;
+}
+const gl = t=>t.split(/\s+/).filter(w=>/^[A-Za-zÀ-ú0-9]/.test(w)).slice(0,2).map(w=>w[0].toUpperCase()).join('');
+function renderGames(){
+  const last = GAMES.filter(g=>g.s==='playing').sort((a,b)=>b.last-a.last)[0];
+  const g = RUN ? GAMES[RUN.id] : last;
+  $('#cont').innerHTML = g ? `<div class="gcov" style="background:${cov(g)}"><span class="gl">${gl(g.t)}</span><span class="tt">${esc(g.t)}</span></div>
+    <div><div class="lab">${RUN ? '● EM SESSÃO' : 'CONTINUAR'}</div><div class="gt">${esc(g.t)}</div>
+    <div class="gm">${g.src} · ${g.h} h${g.est ? ` de ~${g.est} h` : ''}</div><div class="gbar"><i style="width:${g.prog}%"></i></div>
+    <button class="play${RUN?' stop':''}" id="gplay">${RUN ? '■ PARAR' : '▶ JOGAR'}</button></div>` : '<div style="color:var(--dim)">nada em andamento</div>';
+  $('#gplay') && ($('#gplay').onclick = ()=>RUN ? stopGame() : launch(g.id));
+  const want = GAMES.filter(x=>x.s==='want'), est = want.reduce((a,x)=>a+x.est,0);
+  $('#gstats').innerHTML = `<div><b>${GAMES.reduce((a,x)=>a+x.h,0)}</b><span>HORAS</span></div><div><b>${GAMES.filter(x=>x.s==='done').length}</b><span>ZERADOS</span></div><div><b>${Math.ceil(est/20)}</b><span>SEMANAS DE FILA</span></div>`;
+  $('#gcount').textContent = `${GAMES.length} jogos`;
+  $('#gchips').innerHTML = ['todos','jogando','quero jogar','zerado','largado'].map(c=>`<button class="chip${c===gFilter?' on':''}" data-c="${c}">${c}</button>`).join('');
+  $$('#gchips .chip').forEach(b=>b.onclick = ()=>{ gFilter = b.dataset.c; renderGames(); });
+  const L = GAMES.filter(x=>gFilter==='todos' || ST[x.s]===gFilter);
+  $('#ggrid').innerHTML = L.map((x,k)=>`<div class="gc" data-i="${x.id}" style="animation-delay:${k*35}ms"><div class="gcov" style="background:${cov(x)}"><span class="gl">${gl(x.t)}</span><span class="tt">${esc(x.t)}</span></div>
+    <div class="st"><span class="s-${x.s}">${RUN && RUN.id===x.id ? '● live' : ST[x.s]}</span><span>${x.h ? x.h+' h' : '—'}</span></div></div>`).join('');
+  $$('#ggrid .gc').forEach(el=>el.onclick = ()=>openSheet(+el.dataset.i));
+}
+function openSheet(id){
+  const g = GAMES[id];
+  $('#sheet').innerHTML = `<div class="grab"></div><div class="sh"><div class="gcov" style="background:${cov(g)}"><span class="gl">${gl(g.t)}</span></div>
+    <div><div class="gt" style="font-size:18px;font-weight:800">${esc(g.t)}</div><div class="gm" style="color:var(--dim)">${g.src}</div>
+    <div class="kv" style="margin-top:8px;font-size:12px"><span>jogado</span><span>${g.h} h</span><span>p/ zerar</span><span>${g.est ? '~'+g.est+' h' : '—'}</span><span>progresso</span><span>${g.prog}%</span></div></div></div>
+    <div class="sts">${Object.entries(ST).map(([k,v])=>`<button class="${g.s===k?'on':''}" data-k="${k}">${v}</button>`).join('')}</div>
+    <button class="play${RUN && RUN.id===id ? ' stop' : ''}" id="splay" style="width:100%">${RUN && RUN.id===id ? '■ PARAR SESSÃO' : '▶ JOGAR'}</button>`;
+  $$('#sheet .sts button').forEach(b=>b.onclick = ()=>{ g.s = b.dataset.k; if(g.s==='done') g.prog = 100; renderGames(); openSheet(id); toast(`${esc(g.t)} → <b>${ST[g.s]}</b>`); });
+  $('#splay').onclick = ()=>{ closeSheet(); RUN && RUN.id===id ? stopGame() : launch(id); };
+  $('#scrim').classList.add('on'); $('#sheet').classList.add('on');
+}
+function closeSheet(){ $('#scrim').classList.remove('on'); $('#sheet').classList.remove('on'); }
+$('#scrim').onclick = closeSheet;
+let sy0 = null; $('#sheet').addEventListener('touchstart', e=>sy0 = e.touches[0].clientY, {passive:true});
+$('#sheet').addEventListener('touchend', e=>{ if(sy0!==null && e.changedTouches[0].clientY - sy0 > 60) closeSheet(); sy0 = null; });
+async function launch(id){
+  if(RUN) return toast('já tem um jogo rodando');
+  const g = GAMES[id], L = $('#launch'); L.classList.add('on'); $('#llt').textContent = g.t.toUpperCase(); const log = $('#llog'); log.innerHTML = '';
+  for(const s of ['gamemode: performance', `${g.src}: resolvendo executável`, 'hyprland: workspace 5 · fullscreen', 'spawn']){
+    const d = document.createElement('div'); d.innerHTML = `<span style="color:var(--accent)">[ .. ]</span> ${s}`; log.appendChild(d);
+    await new Promise(r=>setTimeout(r, 220)); d.innerHTML = `<span class="ok">[ OK ]</span> ${s}`;
+  }
+  await new Promise(r=>setTimeout(r, 300)); L.classList.remove('on');
+  RUN = {id, t0:Date.now()}; if(g.s==='want') g.s = 'playing'; g.last = Date.now(); renderGames(); toast(`▶ <b>${esc(g.t)}</b>`);
+}
+function stopGame(){ const g = GAMES[RUN.id], h = Math.max(.25, (Date.now()-RUN.t0)/36e5); g.h = Math.round((g.h + h)*10)/10; RUN = null; renderGames(); toast(`sessão encerrada · <b>+${h.toFixed(2)} h</b>`); }
+function updMiniSub(){
+  if(RUN){ const s = Math.floor((Date.now()-RUN.t0)/1000); $('#mia').innerHTML = `<b>● ${esc(GAMES[RUN.id].t)} ${pad(Math.floor(s/60))}:${pad(s%60)}</b>`; }
+  else $('#mia').textContent = `${TRACKS[M.i][1]} · ${fmt(M.pos)}`;
+}
+
+/* =====================================================================
+   NAVEGAÇÃO
+   ===================================================================== */
+let page = 0;
+const NAMES = ['// wall','// music','// games'];
+function go(p){
+  if(p===page) return;
+  $$('.page').forEach((el,i)=>{ el.classList.toggle('on', i===p); el.classList.toggle('left', i<p); });
+  $$('.dock button').forEach(b=>b.classList.toggle('on', +b.dataset.p===p));
+  $('#ind').style.left = `calc(${p}*100%/3)`;
+  document.body.className = 'p'+p; page = p; $('#ttl').textContent = NAMES[p];
+  if(p===0) requestAnimationFrame(renderWall);
+}
+$$('.dock button').forEach(b=>b.onclick = ()=>go(+b.dataset.p));
+$('#mini').onclick = e=>{ if(e.target.tagName!=='BUTTON') go(RUN ? 2 : 1); };
+let tx0 = null, ty0 = null;
+$('.pages').addEventListener('touchstart', e=>{ tx0 = e.touches[0].clientX; ty0 = e.touches[0].clientY; }, {passive:true});
+$('.pages').addEventListener('touchend', e=>{ if(tx0===null) return; const dx = e.changedTouches[0].clientX - tx0, dy = e.changedTouches[0].clientY - ty0;
+  if(Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy)*1.6){ go(Math.max(0, Math.min(2, page + (dx < 0 ? 1 : -1)))); } tx0 = null; });
+addEventListener('keydown', e=>{ if(e.key>='1' && e.key<='3') go(+e.key-1); if(e.key===' '){ e.preventDefault(); $('#bpl').click(); } if(e.key==='Escape') closeSheet(); });
+
+function clock(){ const d = new Date(); $('#clk').innerHTML = `${pad(d.getHours())}<i>:</i>${pad(d.getMinutes())}`; }
+let rz; addEventListener('resize', ()=>{ clearTimeout(rz); rz = setTimeout(()=>{ setBG(wCur, false); renderWall(); }, 150); });
+
+setBG(0, false); renderWall(); renderMusic(); renderGames(); clock(); setInterval(clock, 1000);
+setInterval(()=>{ if(RUN) updMiniSub(); }, 1000);
+requestAnimationFrame(loop);
+setTimeout(()=>toast('deslize pros lados pra trocar de tela'), 900);
+</script>
+</body>
+</html>

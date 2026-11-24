@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>LW // control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  /* ================= TEMA — mexa aqui ================= */
+  :root{
+    --bg:        #12100e;
+    --panel:     #171513;
+    --raise:     #1d1a17;
+    --line:      #2a2622;
+    --line-2:    #3a342e;
+    --fg:        #c9c1b6;
+    --dim:       #6f675e;
+    --faint:     #4a443e;
+    --accent:    #e8a46b;
+    --accent-a:  rgba(232,164,107,.09);
+    --ok:        #b5d97a;
+    --warn:      #e86b6b;
+    --yel:       #e8c86b;
+    --font:      "JetBrains Mono","Iosevka","Fira Code",monospace;
+    --gap:       14px;
+    --thumb-dim: .72;
+    --t-fast:    140ms;
+    --t-med:     240ms;
+    --ease:      cubic-bezier(.2,.7,.2,1);
+  }
+  @media (prefers-reduced-motion: reduce){ :root{ --t-fast:0ms; --t-med:0ms; } }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    background:#d9d2c7;
+    font:12.5px/1.55 var(--font);
+    color:var(--fg);
+    display:grid; place-items:center;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{ background:var(--accent); color:var(--bg); }
+  button{ background:none; border:0; font:inherit; color:inherit; cursor:pointer; }
+
+  /* ================= JANELA ================= */
+  .win{
+    width:1220px; height:780px;
+    background:var(--bg);
+    border:1px solid var(--line);
+    display:grid;
+    grid-template-columns:232px 1fr;
+    grid-template-rows:1fr 34px;
+    position:relative; overflow:hidden;
+    box-shadow:0 40px 90px -20px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.4);
+  }
+  /* scanlines bem sutis */
+  .win::after{
+    content:''; position:absolute; inset:0; pointer-events:none; z-index:20;
+    background:repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.08) 2px 3px);
+    mix-blend-mode:multiply;
+  }
+  /* cantos ASCII */
+  .corner{ position:absolute; color:var(--faint); font-size:11px; line-height:1; z-index:5; pointer-events:none; }
+  .corner.tl{ top:6px; left:8px; } .corner.tr{ top:6px; right:8px; }
+
+  /* ================= SIDEBAR ================= */
+  .side{
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    padding:30px 0 18px;
+    display:flex; flex-direction:column;
+  }
+  .brand{ padding:0 22px; }
+  .logo{
+    color:var(--accent);
+    font-size:9.5px; line-height:1.05; white-space:pre;
+    text-shadow:0 0 18px rgba(232,164,107,.25);
+  }
+  .logo.glitch{ animation:glitch 180ms steps(2) 1; }
+  @keyframes glitch{
+    0%  { transform:translate(2px,0); text-shadow:-2px 0 #6bc4e8, 2px 0 #e86b8a; }
+    50% { transform:translate(-2px,1px); clip-path:inset(30% 0 40% 0); }
+    100%{ transform:none; clip-path:none; }
+  }
+  .sub{ color:var(--dim); margin-top:10px; display:flex; justify-content:space-between; }
+  .sub .ver{ color:var(--faint); }
+
+  .label{
+    color:var(--faint); font-size:10.5px; letter-spacing:1.5px;
+    padding:0 22px; margin:28px 0 8px;
+  }
+
+  .nav{ list-style:none; position:relative; }
+  .nav li{
+    position:relative; padding:5px 22px; cursor:pointer;
+    color:var(--dim); display:flex; justify-content:space-between;
+    transition:color var(--t-fast) var(--ease);
+  }
+  .nav li .k{ color:var(--faint); transition:color var(--t-fast); }
+  .nav li .t{ transition:transform var(--t-fast) var(--ease); display:inline-block; }
+  .nav li:hover{ color:var(--fg); }
+  .nav li:hover .t{ transform:translateX(4px); }
+  .nav li.on{ color:var(--accent); font-weight:600; }
+  .nav li.on .k{ color:var(--accent); }
+  .nav .band{
+    position:absolute; left:0; right:0; height:29px;
+    background:var(--accent-a);
+    border-left:2px solid var(--accent);
+    transition:top var(--t-med) var(--ease);
+    pointer-events:none;
+  }
+
+  .side-foot{ margin-top:auto; padding:0 22px; }
+  .prev{
+    aspect-ratio:16/10; border:1px solid var(--line-2);
+    background-size:cover; background-position:center;
+    position:relative;
+    transition:background var(--t-med) var(--ease);
+  }
+  .prev .lbl{
+    position:absolute; left:6px; bottom:5px; font-size:10px;
+    color:var(--fg); background:rgba(18,16,14,.8); padding:0 5px;
+  }
+  .swatches{ display:grid; grid-template-columns:repeat(6,1fr); gap:3px; margin-top:6px; }
+  .swatches span{
+    height:14px; cursor:pointer;
+    transition:background var(--t-med) var(--ease), transform var(--t-fast) var(--ease);
+  }
+  .swatches span:hover{ transform:translateY(-2px); }
+  .prof{ margin-top:10px; color:var(--dim); display:flex; justify-content:space-between; }
+  .prof b{ color:var(--fg); font-weight:400; }
+
+  /* ================= MAIN ================= */
+  .main{ display:flex; flex-direction:column; padding:22px 26px 14px; min-height:0; }
+  .head{ display:flex; align-items:center; gap:10px; color:var(--dim); }
+  .head .title{ color:var(--accent); font-weight:800; letter-spacing:.6px; }
+  .head .count{
+    color:var(--dim); border:1px solid var(--line); padding:0 6px; font-size:11px;
+  }
+  .head .rule{ flex:1; height:1px; background:repeating-linear-gradient(90deg,var(--line) 0 4px,transparent 4px 8px); }
+
+  .search{
+    width:230px; display:flex; align-items:center; gap:8px;
+    border:1px solid var(--line); background:var(--panel); padding:3px 8px;
+    transition:border-color var(--t-fast), box-shadow var(--t-fast);
+  }
+  .search:focus-within{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-a); }
+  .search .sl{ color:var(--accent); }
+  .search input{ flex:1; background:none; border:0; outline:0; font:inherit; color:var(--fg); caret-color:transparent; }
+  .search input::placeholder{ color:var(--faint); }
+  .caret{ color:var(--accent); animation:blink 1s steps(1) infinite; }
+  .search:not(:focus-within) .caret{ display:none; }
+  @keyframes blink{ 50%{ opacity:0; } }
+
+  .bar2{ display:flex; gap:6px; margin:14px 0 6px; align-items:center; }
+  .chip{
+    padding:1px 9px; border:1px solid var(--line); color:var(--dim);
+    transition:all var(--t-fast) var(--ease);
+  }
+  .chip:hover{ color:var(--fg); border-color:var(--line-2); }
+  .chip.on{ color:var(--bg); background:var(--accent); border-color:var(--accent); }
+  .bar2 .hint{ margin-left:auto; color:var(--faint); font-size:11px; }
+
+  .scroll{
+    flex:1; overflow-y:auto; min-height:0;
+    mask-image:linear-gradient(transparent 0, #000 22px, #000 calc(100% - 22px), transparent 100%);
+    padding:14px 10px;
+    margin:0 -10px;
+    scrollbar-width:thin; scrollbar-color:var(--line-2) transparent;
+  }
+  .grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:var(--gap); }
+
+  .thumb{
+    aspect-ratio:16/10; position:relative; cursor:pointer;
+    opacity:0; transform:translateY(8px);
+    animation:in var(--t-med) var(--ease) forwards;
+  }
+  @keyframes in{ to{ opacity:1; transform:none; } }
+  .thumb.hide{ display:none; }
+
+  .thumb .img{
+    position:absolute; inset:0; overflow:hidden;
+    border:1px solid var(--line);
+  }
+  .thumb .img i{
+    position:absolute; inset:0;
+    background-size:cover; background-position:center;
+    filter:brightness(var(--thumb-dim)) saturate(.9);
+    transition:filter var(--t-fast) var(--ease), transform 600ms var(--ease);
+  }
+  .thumb:hover .img i, .thumb.cur .img i{ filter:brightness(1) saturate(1); }
+  .thumb:hover .img i{ transform:scale(1.04); }
+
+  /* legenda deslizante */
+  .thumb .cap{
+    position:absolute; left:0; right:0; bottom:0;
+    padding:16px 8px 5px; font-size:10.5px;
+    background:linear-gradient(transparent, rgba(10,9,8,.9));
+    color:var(--fg);
+    transform:translateY(6px); opacity:0;
+    transition:all var(--t-fast) var(--ease);
+    display:flex; justify-content:space-between;
+  }
+  .thumb .cap span:last-child{ color:var(--dim); }
+  .thumb:hover .cap, .thumb.cur .cap{ transform:none; opacity:1; }
+
+  /* cursor: 4 cantos em vez de borda inteira */
+  .thumb::after{
+    content:''; position:absolute; inset:-6px; pointer-events:none;
+    --c:var(--accent); --l:14px; --w:2px;
+    background:
+      linear-gradient(var(--c),var(--c)) top    left  / var(--l) var(--w),
+      linear-gradient(var(--c),var(--c)) top    left  / var(--w) var(--l),
+      linear-gradient(var(--c),var(--c)) top    right / var(--l) var(--w),
+      linear-gradient(var(--c),var(--c)) top    right / var(--w) var(--l),
+      linear-gradient(var(--c),var(--c)) bottom left  / var(--l) var(--w),
+      linear-gradient(var(--c),var(--c)) bottom left  / var(--w) var(--l),
+      linear-gradient(var(--c),var(--c)) bottom right / var(--l) var(--w),
+      linear-gradient(var(--c),var(--c)) bottom right / var(--w) var(--l);
+    background-repeat:no-repeat;
+    opacity:0; transform:scale(1.06);
+    transition:opacity var(--t-fast) var(--ease), transform var(--t-med) var(--ease);
+  }
+  .thumb.cur::after{ opacity:1; transform:none; }
+
+  .tags{ position:absolute; top:6px; left:6px; display:flex; gap:4px; z-index:2; }
+  .tag{
+    font-size:9.5px; padding:0 5px; letter-spacing:.5px;
+    background:rgba(18,16,14,.88); color:var(--dim); border:1px solid var(--line-2);
+    animation:pop var(--t-med) var(--ease);
+  }
+  .tag.on{ color:var(--ok); border-color:rgba(181,217,122,.35); }
+  .tag.fav{ color:var(--accent); }
+  @keyframes pop{ from{ transform:scale(.6); opacity:0; } }
+
+  .empty{ grid-column:1/-1; text-align:center; color:var(--faint); padding:80px 0; white-space:pre; }
+
+  .info{
+    display:flex; align-items:center; gap:14px;
+    margin-top:10px; padding-top:10px; border-top:1px solid var(--line);
+    color:var(--dim);
+  }
+  .info b{ color:var(--fg); font-weight:600; }
+  .info .sep{ color:var(--faint); }
+  .info .sp{ flex:1; }
+  .apply{
+    padding:3px 14px; border:1px solid var(--accent); color:var(--accent); font-weight:600;
+    position:relative; overflow:hidden;
+    transition:color var(--t-fast);
+  }
+  .apply::before{
+    content:''; position:absolute; inset:0; background:var(--accent);
+    transform:scaleX(0); transform-origin:left; transition:transform var(--t-med) var(--ease); z-index:-1;
+  }
+  .apply:hover{ color:var(--bg); }
+  .apply:hover::before{ transform:scaleX(1); }
+  .apply{ z-index:0; }
+
+  /* ================= STATUS ================= */
+  .status{
+    grid-column:1/-1; border-top:1px solid var(--line); background:var(--panel);
+    display:flex; align-items:stretch; color:var(--dim); font-size:11.5px;
+  }
+  .status > *{ display:flex; align-items:center; padding:0 14px; border-right:1px solid var(--line); }
+  .status .btn:hover{ color:var(--accent); background:var(--accent-a); }
+  .status .clock{ color:var(--ok); }
+  .status .clock i{ font-style:normal; animation:blink 1s steps(1) infinite; }
+  .status .msg{ color:var(--ok); white-space:pre; flex:1; border-right:0; }
+  .status .keys{ border-left:1px solid var(--line); color:var(--faint); gap:12px; }
+  .status .keys kbd{ font:inherit; color:var(--dim); }
+  .status .last{ border-right:0; }
+
+  /* ================= VIEWS ================= */
+  .view{ display:none; flex:1; min-height:0; flex-direction:column; }
+  .view.on{ display:flex; animation:in var(--t-med) var(--ease); }
+  .soon{ flex:1; display:grid; place-items:center; color:var(--faint); white-space:pre; text-align:center; }
+
+  /* ================= SHORTCUTS ================= */
+  .legend{ color:var(--faint); font-size:11px; display:flex; gap:5px; align-items:center; }
+  .legend .kc{ margin-left:6px; }
+  .sc{ display:grid; grid-template-columns:1fr 300px; gap:20px; flex:1; min-height:0; margin-top:6px; }
+  .sc-list{
+    overflow-y:auto; min-height:0; padding:6px 0;
+    mask-image:linear-gradient(transparent 0, #000 16px, #000 calc(100% - 16px), transparent 100%);
+    scrollbar-width:thin; scrollbar-color:var(--line-2) transparent;
+  }
+  .grp{
+    color:var(--faint); font-size:10.5px; letter-spacing:1.5px;
+    padding:12px 10px 6px; display:flex; gap:8px; cursor:pointer; user-select:none;
+  }
+  .grp:hover{ color:var(--dim); }
+  .grp .n{ color:var(--dim); }
+  .grp .ar{ display:inline-block; transition:transform var(--t-fast) var(--ease); }
+  .grp.closed .ar{ transform:rotate(-90deg); }
+  .row{
+    display:grid; grid-template-columns:170px 1fr; align-items:center; gap:14px;
+    padding:6px 10px; cursor:pointer; border-left:2px solid transparent;
+    transition:background var(--t-fast), border-color var(--t-fast);
+  }
+  .row:hover{ background:rgba(255,255,255,.025); }
+  .row.cur{ background:var(--accent-a); border-left-color:var(--accent); }
+  .row .desc{ color:var(--fg); }
+  .row .cmd{
+    display:block; color:var(--faint); font-size:10.5px;
+    max-height:0; opacity:0; overflow:hidden;
+    transition:max-height var(--t-med) var(--ease), opacity var(--t-med);
+  }
+  .row.cur .cmd, .row:hover .cmd{ max-height:18px; opacity:1; }
+  .row.conflict .desc::after{ content:'  ⚠ conflito'; color:var(--warn); font-size:10.5px; }
+  .kk{ display:flex; gap:4px; flex-wrap:wrap; }
+  .kc{
+    min-width:22px; height:20px; padding:0 6px;
+    display:inline-grid; place-items:center;
+    border:1px solid var(--line-2); border-bottom-width:2px;
+    background:var(--raise); color:var(--fg); font-size:11px;
+  }
+  .kc.mod{ color:var(--accent); }
+
+  .det{
+    border:1px solid var(--line); background:var(--panel);
+    padding:18px; display:flex; flex-direction:column; gap:14px;
+  }
+  .det label{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; }
+  .det .big{ min-height:32px; margin-top:8px; }
+  .det .big .kc{ height:30px; min-width:34px; padding:0 10px; font-size:13px; animation:pop var(--t-med) var(--ease); }
+  .det input, .det select{
+    width:100%; margin-top:4px; padding:5px 8px;
+    background:var(--bg); border:1px solid var(--line); color:var(--fg);
+    font:inherit; outline:0; transition:border-color var(--t-fast);
+  }
+  .det input:focus, .det select:focus{ border-color:var(--accent); }
+  .det select option{ background:var(--bg); }
+  .rec{
+    border:1px dashed var(--line-2); padding:12px; text-align:center;
+    color:var(--dim); cursor:pointer; transition:all var(--t-fast);
+  }
+  .rec:hover{ border-color:var(--accent); color:var(--fg); }
+  .rec.on{ border-color:var(--accent); border-style:solid; color:var(--accent); animation:pulse 1s infinite; }
+  @keyframes pulse{ 50%{ box-shadow:0 0 0 4px var(--accent-a); } }
+  .warnbox{ color:var(--warn); font-size:11px; min-height:16px; }
+  .acts{ margin-top:auto; display:flex; gap:8px; justify-content:flex-end; }
+  .ghost{ padding:3px 10px; border:1px solid var(--line-2); color:var(--dim); transition:all var(--t-fast); }
+  .ghost:hover{ color:var(--fg); border-color:var(--fg); }
+
+  /* ================= SHARED ================= */
+  .sec{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; margin-bottom:8px; }
+  .panel{ border:1px solid var(--line); background:var(--panel); padding:16px; min-height:0; overflow:auto; }
+  .cols{ display:grid; grid-template-columns:1fr 300px; gap:20px; flex:1; min-height:0; margin:14px 0 12px; }
+  .foot{ display:flex; gap:8px; justify-content:flex-end; align-items:center; padding-top:10px; border-top:1px solid var(--line); }
+  .view > .foot{ margin-top:auto; }
+  .foot .note{ margin-right:auto; color:var(--dim); }
+  .st.ok{ color:var(--ok); } .st.warn{ color:var(--yel); } .st.fail{ color:var(--warn); }
+  .st.run{ color:var(--accent); } .st.na{ color:var(--dim); }
+  .chk{ display:flex; gap:10px; padding:3px 0; color:var(--fg); }
+  .chk .st{ flex:none; }
+  .note2{ color:var(--faint); font-size:11px; margin-top:14px; }
+
+  /* ================= PROFILES ================= */
+  .pcards{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:14px; }
+  .pcard{
+    border:1px solid var(--line); background:var(--panel); padding:14px; cursor:pointer;
+    transition:border-color var(--t-fast), transform var(--t-fast) var(--ease);
+  }
+  .pcard:hover{ border-color:var(--line-2); transform:translateY(-2px); }
+  .pcard.sel{ border-color:var(--accent); }
+  .pcard .hd{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+  .pcard .nm{ font-weight:800; letter-spacing:.6px; color:var(--fg); }
+  .pcard.sel .nm{ color:var(--accent); }
+  .pcard .ds{ color:var(--dim); margin-top:10px; white-space:pre; }
+  .mini{ height:140px; position:relative; overflow:hidden; border:1px solid var(--line); background-size:cover; }
+  .mini .track{ display:flex; width:200%; height:100%; transition:transform var(--d) ease-out; }
+  .mini .track.b{ transform:translateX(-50%); }
+  .mini .wsp{ flex:1; display:grid; grid-template-columns:1.4fr 1fr; gap:var(--g); padding:var(--g); }
+  .mini .wsp.one{ grid-template-columns:1fr; }
+  .mini .w{ background:rgba(18,16,14,var(--o)); border:1px solid var(--line-2); border-radius:var(--r); backdrop-filter:var(--bf); }
+  .mini .w::before{ content:'● ● ●'; display:block; font-size:6px; color:var(--faint); padding:3px 5px; }
+  .mini .wsn{ position:absolute; top:5px; right:6px; font-size:10px; background:rgba(18,16,14,.85); padding:0 5px; color:var(--accent); }
+  .pdiff{ display:grid; grid-template-columns:180px 1fr 1fr; border:1px solid var(--line); }
+  .pdiff div{ padding:5px 12px; border-bottom:1px solid var(--line); color:var(--dim); transition:color var(--t-fast); }
+  .pdiff .h{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; }
+  .pdiff .chg{ background:var(--accent-a); }
+  .pdiff .on{ color:var(--accent); }
+
+  /* ================= PALETTE ================= */
+  .pmeta{ color:var(--dim); } .pmeta b{ color:var(--fg); font-weight:400; }
+  .pgroups{ overflow:auto; min-height:0; padding-right:4px; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
+  .pgrp{ margin-bottom:18px; }
+  .sws{ display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:12px; }
+  .swc{ cursor:pointer; }
+  .swc .sq{
+    height:38px; border:1px solid var(--line-2); position:relative; overflow:hidden;
+    transition:background .6s var(--ease), transform var(--t-fast) var(--ease);
+  }
+  .swc:hover .sq{ transform:translateY(-2px); }
+  .swc .sq i{ position:absolute; left:0; right:0; bottom:0; height:0; transition:height var(--t-med) var(--ease), background .6s; }
+  .cmpon .swc .sq i{ height:42%; }
+  .swc .n{ font-size:10.5px; color:var(--fg); margin-top:5px; }
+  .swc .chg{ color:var(--accent); margin-left:4px; }
+  .swc .hx{ font-size:10px; color:var(--faint); }
+  .lbl2{ font-size:10px; color:var(--faint); letter-spacing:1.5px; margin:12px 0 5px; }
+  .lbl2:first-child{ margin-top:0; }
+  .pv-wall{ border:1px solid var(--line); background-size:cover; height:70px; }
+  .pv-bar{ display:flex; gap:8px; padding:3px 8px; font-size:10px; }
+  .pv-term{ padding:10px; font-size:10.5px; line-height:1.65; border:1px solid var(--line); white-space:pre; transition:background .6s, color .6s; }
+
+  /* ================= DOCTOR ================= */
+  .dsum{ display:flex; gap:28px; align-items:baseline; margin-top:14px; }
+  .dsum .big{ font-size:28px; font-weight:800; }
+  .dsum .lb{ color:var(--dim); margin-left:6px; }
+  .hbar{ display:flex; height:4px; margin:10px 0 4px; background:var(--line); overflow:hidden; }
+  .hbar span{ transition:width .3s var(--ease); }
+  .dlist{ flex:1; overflow:auto; min-height:0; margin-bottom:12px; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
+  .drow{ display:grid; grid-template-columns:62px 230px 1fr; gap:10px; padding:4px 10px; cursor:pointer; border-left:2px solid transparent; }
+  .drow:hover{ background:rgba(255,255,255,.025); }
+  .drow.cur{ background:var(--accent-a); border-left-color:var(--accent); }
+  .drow .nm2{ color:var(--fg); }
+  .drow .dt{ color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .drow.cur .dt{ white-space:normal; word-break:break-all; color:var(--fg); }
+
+  /* ================= BACKUPS ================= */
+  .blist{ overflow:auto; min-height:0; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
+  .brow{
+    display:grid; grid-template-columns:1fr 78px 46px 84px; gap:12px; align-items:center;
+    padding:5px 10px; cursor:pointer; border-left:2px solid transparent;
+  }
+  .brow:hover{ background:rgba(255,255,255,.025); }
+  .brow.cur{ background:var(--accent-a); border-left-color:var(--accent); }
+  .brow .bn{ color:var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .brow .tm{ color:var(--dim); }
+  .badge{ font-size:10px; padding:0 6px; border:1px solid; text-align:center; }
+  .badge.files{ color:var(--dim); border-color:var(--line-2); }
+  .badge.snapshot{ color:#8ab4e8; border-color:rgba(138,180,232,.35); }
+  .badge.full{ color:var(--accent); border-color:rgba(232,164,107,.4); }
+  .badge.lock{ color:#b8a6e8; border-color:rgba(184,166,232,.35); }
+  .szb{ display:flex; align-items:center; gap:6px; justify-content:flex-end; color:var(--dim); font-size:11px; }
+  .szb i{ height:3px; background:var(--line-2); display:block; transition:background var(--t-fast); }
+  .brow.cur .szb i{ background:var(--accent); }
+  .bt{ color:var(--accent); font-weight:600; word-break:break-all; }
+  .kv{ display:grid; grid-template-columns:72px 1fr; gap:6px 10px; margin:12px 0 16px; color:var(--fg); }
+  .kv > span:nth-child(odd){ color:var(--faint); }
+  .cmd2{ background:var(--bg); border:1px solid var(--line); padding:8px; font-size:11px; color:var(--fg); word-break:break-all; }
+  .cmd2::before{ content:'$ '; color:var(--accent); }
+  .wbox{ color:var(--yel); font-size:11px; border-left:2px solid var(--yel); padding:5px 8px; margin-top:14px; background:rgba(232,200,107,.06); }
+
+  /* ================= LOCK / GREETER ================= */
+  .lockpv, .grtpv{ position:relative; overflow:hidden; border:1px solid var(--line); background-size:cover; background-position:center; min-height:0; }
+  .lk-dim{ position:absolute; inset:0; background:#000; transition:opacity var(--t-med); }
+  .lk-c{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; }
+  .lk-clock{ font-size:58px; font-weight:800; color:#eee; letter-spacing:2px; }
+  .lk-date{ color:#bbb; margin-bottom:18px; }
+  .lk-pw{ border:1px solid rgba(255,255,255,.25); background:rgba(18,16,14,.6); color:#888; padding:3px 44px; font-size:11px; }
+  .lk-exit{ position:absolute; bottom:12px; width:100%; text-align:center; color:#888; font-size:11px; display:none; }
+  .lockpv.trial{ position:absolute; inset:0; z-index:15; border:0; cursor:pointer; animation:in 300ms var(--ease); }
+  .lockpv.trial .lk-exit{ display:block; }
+  .rng{ width:100%; accent-color:var(--accent); margin-top:6px; }
+  .grtpv{ display:grid; place-items:center; transition:background-image .4s; }
+  .g-card{
+    background:rgba(18,16,14,.84); border:1px solid var(--line-2); padding:24px 34px;
+    display:flex; flex-direction:column; align-items:center; gap:9px; backdrop-filter:blur(6px);
+  }
+  .g-clock{ font-size:30px; font-weight:800; color:var(--accent); }
+  .g-user{ color:var(--fg); }
+  .g-sess{ color:var(--faint); font-size:10.5px; }
+  .sw{ display:flex; align-items:center; gap:10px; cursor:pointer; }
+  .sw input{ display:none; }
+  .sw span{ width:34px; height:16px; border:1px solid var(--line-2); position:relative; flex:none; transition:all var(--t-fast); }
+  .sw span::after{
+    content:''; position:absolute; top:2px; left:2px; width:10px; height:10px; background:var(--dim);
+    transition:transform var(--t-med) var(--ease), background var(--t-fast);
+  }
+  .sw input:checked + span{ background:var(--accent-a); border-color:var(--accent); }
+  .sw input:checked + span::after{ transform:translateX(18px); background:var(--accent); }
+  .sw em{ font-style:normal; color:var(--dim); font-size:11px; }
+
+  /* ================= BOOT ================= */
+  .booting .thumb{ animation-play-state:paused; }
+  .boot{
+    position:absolute; inset:0; z-index:10; background:var(--bg);
+    display:flex; flex-direction:column; justify-content:center; align-items:center;
+    transition:opacity 380ms var(--ease), transform 380ms var(--ease);
+  }
+  .boot.out{ opacity:0; transform:scale(1.03); pointer-events:none; }
+  .boot .blogo{
+    color:var(--accent); white-space:pre; font-size:15px; line-height:1.05;
+    text-shadow:0 0 30px rgba(232,164,107,.35);
+    clip-path:inset(0 100% 0 0); transition:clip-path 520ms steps(18);
+  }
+  .boot .blogo.show{ clip-path:inset(0 0 0 0); }
+  .boot .log{
+    width:520px; height:170px; margin-top:30px;
+    font-size:12px; color:var(--dim); white-space:pre; overflow:hidden;
+    display:flex; flex-direction:column; justify-content:flex-end;
+  }
+  .boot .log .ok{ color:var(--ok); }
+  .boot .prog{ width:520px; margin-top:10px; color:var(--accent); font-size:12px; white-space:pre; }
+  .boot .skip{ position:absolute; bottom:16px; color:var(--faint); font-size:11px; }
+</style>
+</head>
+<body>
+
+<div class="win">
+  <span class="corner tl">┌</span><span class="corner tr">┐</span>
+
+  <div class="boot" id="boot">
+    <div class="blogo" id="blogo">██╗     ██╗    ██╗
+██║     ██║    ██║
+██║     ██║ █╗ ██║
+██║     ██║███╗██║
+███████╗╚███╔███╔╝
+╚══════╝ ╚══╝╚══╝ </div>
+    <div class="log" id="blog"></div>
+    <div class="prog" id="bprog"></div>
+    <div class="skip">press any key to skip</div>
+  </div>
+
+  <aside class="side">
+    <div class="brand">
+      <div class="logo" id="logo">██╗     ██╗    ██╗
+██║     ██║    ██║
+██║     ██║ █╗ ██║
+██║     ██║███╗██║
+███████╗╚███╔███╔╝
+╚══════╝ ╚══╝╚══╝ </div>
+      <div class="sub"><span>// control</span><span class="ver">v0.1</span></div>
+    </div>
+
+    <div class="label">MENU</div>
+    <ul class="nav" id="nav">
+      <div class="band" id="band"></div>
+      <li><span class="t">WALLPAPERS</span><span class="k">1</span></li>
+      <li><span class="t">SHORTCUTS</span><span class="k">2</span></li>
+      <li><span class="t">PROFILES</span><span class="k">3</span></li>
+      <li><span class="t">PALETTE</span><span class="k">4</span></li>
+      <li><span class="t">DOCTOR</span><span class="k">5</span></li>
+      <li><span class="t">BACKUPS</span><span class="k">6</span></li>
+      <li><span class="t">LOCK</span><span class="k">7</span></li>
+      <li><span class="t">GREETER</span><span class="k">8</span></li>
+    </ul>
+
+    <div class="side-foot">
+      <div class="label" style="padding:0;margin:0 0 8px">CURRENT</div>
+      <div class="prev" id="prev"><span class="lbl" id="prevlbl"></span></div>
+      <div class="swatches" id="sw"></div>
+      <div class="prof"><span>profile</span><b id="sprof">minimal</b></div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="head">
+      <span class="title" id="title">LW // WALLPAPERS</span>
+      <span class="count" id="count">--</span>
+      <span class="rule"></span>
+      <label class="search">
+        <span class="sl">/</span>
+        <input id="q" placeholder="search" autocomplete="off">
+        <span class="caret">█</span>
+      </label>
+    </div>
+
+  <div class="view on" id="v-wall">
+    <div class="bar2">
+      <button class="chip on" data-f="all">ALL</button>
+      <button class="chip" data-f="fav">★ FAV</button>
+      <span class="hint">f favoritar · F filtrar</span>
+    </div>
+
+    <div class="scroll" id="scroll"><div class="grid" id="grid"></div></div>
+
+    <div class="info">
+      <span id="meta"></span>
+      <span class="sp"></span>
+      <button class="apply" id="apply">APPLY ⏎</button>
+    </div>
+  </div>
+
+  <div class="view" id="v-sc">
+    <div class="bar2">
+      <span class="legend">
+        <span class="kc mod">◆</span> super <span class="kc mod">⌃</span> ctrl
+        <span class="kc mod">⌥</span> alt <span class="kc mod">⇧</span> shift
+      </span>
+      <span class="hint">r gravar · h/l recolher grupo</span>
+    </div>
+    <div class="sc">
+      <div class="sc-list" id="sclist"></div>
+      <div class="det">
+        <div><label>ATALHO</label><div class="kk big" id="dkeys"></div></div>
+        <div class="rec" id="rec">● GRAVAR ATALHO (r)</div>
+        <div><label>DESCRIÇÃO</label><input id="ddesc"></div>
+        <div><label>COMANDO</label><input id="dcmd"></div>
+        <div><label>GRUPO</label>
+          <select id="dgrp"><option>JANELA</option><option>FOCO</option><option>MOVER</option><option>WORKSPACE</option></select>
+        </div>
+        <div class="warnbox" id="dwarn"></div>
+        <div class="acts">
+          <button class="ghost" id="bcheck">CHECK</button>
+          <button class="ghost" id="brest">RESTORE</button>
+          <button class="apply" id="bsave">SAVE</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILES -->
+  <div class="view" id="v-prof">
+    <div class="pcards" id="pcards"></div>
+    <div class="sec" style="margin-top:22px">DIFERENÇAS</div>
+    <div class="pdiff" id="pdiff"></div>
+    <div class="foot">
+      <span class="note" id="pnote"></span>
+      <button class="ghost" id="prest">RESTORE PREVIOUS</button>
+      <button class="apply" id="papply">APPLY ⏎</button>
+    </div>
+  </div>
+
+  <!-- PALETTE -->
+  <div class="view" id="v-pal">
+    <div class="bar2">
+      <span class="pmeta" id="palmeta"></span>
+      <span class="hint">clique na cor = copiar hex</span>
+    </div>
+    <div class="bar2" style="margin-top:2px">
+      <span class="sec" style="margin:0 4px 0 0">SCHEME</span><span id="schemes"></span>
+      <span class="sec" style="margin:0 4px 0 14px">MODE</span><span id="modes"></span>
+      <button class="chip" id="cmp" style="margin-left:auto">COMPARE</button>
+    </div>
+    <div class="cols">
+      <div class="pgroups" id="pgroups"></div>
+      <div class="panel" id="pview"></div>
+    </div>
+    <div class="foot">
+      <span class="note" id="palnote"></span>
+      <button class="ghost" id="palrest">RESTORE PREVIOUS</button>
+      <button class="apply" id="palgen">REGENERATE</button>
+    </div>
+  </div>
+
+  <!-- DOCTOR -->
+  <div class="view" id="v-doc">
+    <div class="dsum" id="dsum"></div>
+    <div class="hbar" id="hbar"></div>
+    <div class="dlist" id="dlist"></div>
+    <div class="foot">
+      <span class="note" id="dnote"></span>
+      <button class="apply" id="drun">RUN AGAIN</button>
+    </div>
+  </div>
+
+  <!-- BACKUPS -->
+  <div class="view" id="v-bak">
+    <div class="cols">
+      <div class="blist" id="blist"></div>
+      <div class="panel" id="bdet"></div>
+    </div>
+    <div class="foot">
+      <span class="note">restaurar só uma parte</span>
+      <button class="ghost" id="bprof">PREVIOUS PROFILE</button>
+      <button class="ghost" id="bpal">PREVIOUS PALETTE</button>
+    </div>
+  </div>
+
+  <!-- LOCK -->
+  <div class="view" id="v-lock">
+    <div class="cols" style="grid-template-columns:1fr 320px">
+      <div class="lockpv" id="lockpv">
+        <div class="lk-dim" id="lkdim"></div>
+        <div class="lk-c">
+          <div class="lk-clock" id="lkclock"></div>
+          <div class="lk-date" id="lkdate"></div>
+          <div class="lk-pw">password</div>
+        </div>
+        <div class="lk-exit">trial lock — clique ou Esc pra sair</div>
+      </div>
+      <div class="panel">
+        <div class="sec">STATUS</div>
+        <div id="lkchk"></div>
+        <div class="sec" style="margin-top:20px">DIM <span id="dimv" style="color:var(--accent)"></span></div>
+        <input type="range" class="rng" id="dim" min="55" max="90" value="60">
+        <div style="display:flex;gap:6px;margin-top:10px" id="lkpre"></div>
+        <div class="note2">visual only — password e PAM nunca são alterados.</div>
+      </div>
+    </div>
+    <div class="foot">
+      <span class="note"><span class="st ok">●</span> ACTIVE</span>
+      <button class="ghost" id="lkcheck">CHECK</button>
+      <button class="ghost" id="lkrest">RESTORE VISUALS</button>
+      <button class="ghost" id="lkupd">UPDATE</button>
+      <button class="apply" id="lktrial">TRIAL LOCK</button>
+    </div>
+  </div>
+
+  <!-- GREETER -->
+  <div class="view" id="v-grt">
+    <div class="cols" style="grid-template-columns:1fr 320px">
+      <div class="grtpv" id="grtpv">
+        <div class="g-card">
+          <div class="g-clock" id="gclock"></div>
+          <div class="g-user">lucas</div>
+          <div class="lk-pw">password</div>
+          <div class="g-sess">Hyprland (uwsm) ▾</div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="sec">STATUS</div>
+        <div id="gchk"></div>
+        <div class="sec" style="margin-top:20px">AUTO SYNC</div>
+        <label class="sw"><input type="checkbox" id="gauto" checked><span></span><em id="gautol"></em></label>
+        <div class="sec" style="margin-top:20px">LAST SENT</div>
+        <div id="glast" style="color:var(--fg)"></div>
+      </div>
+    </div>
+    <div class="foot">
+      <span class="note" id="gnote"></span>
+      <button class="apply" id="gsync">SYNC NOW</button>
+    </div>
+  </div>
+  </main>
+
+  <footer class="status">
+    <button class="btn">SYNC ALL</button>
+    <span class="clock" id="clock"></span>
+    <span class="msg" id="msg"></span>
+    <span class="keys" id="hints"><span><kbd>hjkl</kbd> move</span><span><kbd>⏎</kbd> apply</span><span><kbd>/</kbd> search</span></span>
+    <button class="btn last">LOG ^</button>
+  </footer>
+</div>
+
+<script>
+/* ---------- dados fake (troque por imagens: grad → url(...)) ---------- */
+const N = 21, COLS = 4;
+const rnd = (a,b)=>Math.floor(Math.random()*(b-a)+a);
+const id  = ()=>Math.random().toString(36).slice(2,8);
+const walls = Array.from({length:N},()=>{
+  const h = rnd(0,360);
+  const pal = [0,25,50,180,200,330].map(o=>`hsl(${(h+o)%360} ${rnd(25,70)}% ${rnd(15,75)}%)`);
+  return {
+    name:id(), res:'1920x1080', ext:'png', size:(Math.random()*4+.5).toFixed(1)+'M',
+    pal, fav:Math.random()<.2,
+    grad:`radial-gradient(circle at ${rnd(10,90)}% ${rnd(10,90)}%, ${pal[5]}, transparent 55%),
+          linear-gradient(${rnd(0,360)}deg, ${pal[0]}, ${pal[3]} 60%, ${pal[1]})`
+  };
+});
+
+const $ = s=>document.querySelector(s);
+const grid = $('#grid');
+let cur = 0, active = 12, favOnly = false, tab = 0;
+
+/* ---------- monta grade ---------- */
+walls.forEach((w,i)=>{
+  const el = document.createElement('div');
+  el.className = 'thumb';
+  el.style.animationDelay = (i*24)+'ms';
+  el.innerHTML = `
+    <div class="img"><i style="background-image:${w.grad}"></i></div>
+    <div class="tags"></div>
+    <div class="cap"><span>${w.name}</span><span>${w.res}</span></div>`;
+  el.onclick = ()=>{ cur=i; render(); };
+  el.ondblclick = apply;
+  grid.appendChild(el);
+});
+const thumbs = [...grid.children];
+const empty = Object.assign(document.createElement('div'),{className:'empty',textContent:'¯\\_(ツ)_/¯\n\nnada encontrado'});
+
+const visible = ()=>walls.map((w,i)=>i).filter(i=>
+  walls[i].name.includes($('#q').value.toLowerCase()) && (!favOnly || walls[i].fav));
+
+function render(){
+  const vis = visible();
+  if(vis.length && !vis.includes(cur)) cur = vis[0];
+  thumbs.forEach((t,i)=>{
+    t.classList.toggle('hide', !vis.includes(i));
+    t.classList.toggle('cur', i===cur);
+    t.querySelector('.tags').innerHTML =
+      (i===active ? '<span class="tag on">● ACTIVE</span>' : '') +
+      (walls[i].fav ? '<span class="tag fav">★</span>' : '');
+  });
+  vis.length ? empty.remove() : grid.appendChild(empty);
+
+  const w = walls[cur];
+  $('#meta').innerHTML = vis.length
+    ? `<b>wallhaven-${w.name}</b> <span class="sep">│</span> ${w.res} <span class="sep">│</span> ${w.ext} <span class="sep">│</span> ${w.size}`
+    : '';
+  const a = walls[active];
+  $('#prev').style.backgroundImage = a.grad;
+  $('#prevlbl').textContent = a.name;
+  $('#sw').innerHTML = a.pal.map(c=>`<span style="background:${c}" title="${c}"></span>`).join('');
+  if(tab===0) $('#count').textContent = `${vis.length}/${N}`;
+  if(vis.length && tab===0) thumbs[cur].scrollIntoView({block:'nearest', behavior:'smooth'});
+}
+
+/* ---------- decode no título ---------- */
+const CH = '!<>-_\\/[]{}=+*^?#░▒';
+function decode(el, text){
+  let f = 0; const total = 14;
+  clearInterval(el._t);
+  el._t = setInterval(()=>{
+    el.textContent = [...text].map((c,i)=>
+      c===' ' ? ' ' : (i < f/total*text.length ? c : CH[rnd(0,CH.length)])).join('');
+    if(++f > total){ clearInterval(el._t); el.textContent = text; }
+  }, 28);
+}
+
+/* ---------- status digitado ---------- */
+function say(text, color='var(--ok)'){
+  const m = $('#msg'); m.style.color = color;
+  clearInterval(m._t); let i = 0;
+  m._t = setInterval(()=>{ m.textContent = text.slice(0, ++i); if(i>=text.length) clearInterval(m._t); }, 12);
+}
+
+/* ---------- apply ---------- */
+function apply(){
+  if(!visible().length) return;
+  let p = 0; const W = 16;
+  clearInterval(apply._t);
+  apply._t = setInterval(()=>{
+    p++;
+    const m = $('#msg'); m.style.color = 'var(--accent)';
+    m.textContent = `applying [${'#'.repeat(p)}${'-'.repeat(W-p)}]`;
+    if(p>=W){
+      clearInterval(apply._t);
+      active = cur; render(); onWallApplied();
+      say(`[ OK ] wallhaven-${walls[cur].name} applied`);
+    }
+  }, 30);
+}
+$('#apply').onclick = apply;
+
+/* ---------- nav ---------- */
+const items = [...document.querySelectorAll('.nav li')];
+const HINTS = {
+  0:'<span><kbd>hjkl</kbd> move</span><span><kbd>⏎</kbd> apply</span><span><kbd>/</kbd> search</span>',
+  1:'<span><kbd>jk</kbd> move</span><span><kbd>hl</kbd> grupo</span><span><kbd>r</kbd> gravar</span><span><kbd>⏎</kbd> editar</span>',
+  2:'<span><kbd>hl</kbd> escolher</span><span><kbd>⏎</kbd> apply</span>',
+  3:'<span><kbd>c</kbd> compare</span><span><kbd>g</kbd> regenerate</span><span><kbd>r</kbd> restore</span>',
+  4:'<span><kbd>jk</kbd> move</span><span><kbd>hl</kbd> grupos</span><span><kbd>r</kbd> run</span>',
+  5:'<span><kbd>jk</kbd> move</span><span><kbd>y</kbd> copy cmd</span>',
+  6:'<span><kbd>hl</kbd> dim</span><span><kbd>t</kbd> trial</span>',
+  7:'<span><kbd>s</kbd> sync</span><span><kbd>a</kbd> auto</span>',
+};
+const VIEWS = ['v-wall','v-sc','v-prof','v-pal','v-doc','v-bak','v-lock','v-grt'];
+function setTab(i){
+  tab = i;
+  items.forEach((li,k)=>li.classList.toggle('on', k===i));
+  $('#band').style.top = items[i].offsetTop + 'px';
+  decode($('#title'), 'LW // ' + items[i].querySelector('.t').textContent);
+  $('#q').value = '';
+  VIEWS.forEach((v,k)=>$('#'+v).classList.toggle('on', k===i));
+  $('#hints').innerHTML = HINTS[i] ?? '';
+  $('#count').textContent = '--';
+  RENDER[i]();
+}
+items.forEach((li,i)=>li.onclick = ()=>setTab(i));
+
+/* ---------- filtros / busca / fav ---------- */
+function setFilter(fav){
+  favOnly = fav;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', (c.dataset.f==='fav')===fav));
+  render();
+}
+document.querySelectorAll('.chip').forEach(c=>c.onclick = ()=>setFilter(c.dataset.f==='fav'));
+$('#q').oninput = ()=> RENDER[tab]();
+function toggleFav(){
+  walls[cur].fav = !walls[cur].fav;
+  say(walls[cur].fav ? `[ ★ ] ${walls[cur].name} favorited` : `[ - ] ${walls[cur].name} unfavorited`, 'var(--accent)');
+  render();
+}
+
+/* ---------- teclado ---------- */
+document.onkeydown = e=>{
+  if(document.body.classList.contains('booting')) return;
+  if(recording){ handleRec(e); return; }
+  const ae = document.activeElement;
+  if(ae && (ae.tagName==='INPUT' || ae.tagName==='SELECT')){
+    if(e.key==='Escape' || e.key==='Enter') ae.blur();
+    return;
+  }
+  if(e.key==='/'){ $('#q').focus(); e.preventDefault(); return; }
+  if(e.key>='1' && e.key<='8'){ setTab(+e.key-1); return; }
+  KEYS[tab](e);
+};
+
+function wallKeys(e){
+  const mv = {ArrowLeft:-1,h:-1,ArrowRight:1,l:1,ArrowUp:-COLS,k:-COLS,ArrowDown:COLS,j:COLS}[e.key];
+  if(mv!==undefined){
+    const vis = visible(); if(!vis.length) return;
+    const p = Math.max(0, Math.min(vis.length-1, vis.indexOf(cur)+mv));
+    cur = vis[p]; render(); e.preventDefault();
+  }
+  else if(e.key==='Enter') apply();
+  else if(e.key==='f') toggleFav();
+  else if(e.key==='F') setFilter(!favOnly);
+}
+
+/* ---------- shortcuts ---------- */
+const SC = [
+  ['JANELA',   ['SUPER','Escape'],                  'Forçar fechar (kill)',        'hyprctl kill'],
+  ['JANELA',   ['SUPER','Q'],                       'Fechar janela',               'hl.dsp.window.close()'],
+  ['JANELA',   ['SUPER','ALT','Space'],             'Alternar flutuante',          'hl.dsp.window.float({ action = "toggle" })'],
+  ['JANELA',   ['SUPER','D'],                       'Maximizar',                   'hl.dsp.window.fullscreen({ mode = 1 })'],
+  ['JANELA',   ['SUPER','F'],                       'Tela cheia',                  'hl.dsp.window.fullscreen()'],
+  ['JANELA',   ['SUPER','J'],                       'Alternar split',              'hl.dsp.layout("togglesplit")'],
+  ['JANELA',   ['SUPER','mouse:272'],               'Arrastar janela',             'hl.dsp.window.drag()'],
+  ['FOCO',     ['SUPER','Left'],                    'Focar à esquerda',            'hl.dsp.focus({ direction = "left" })'],
+  ['FOCO',     ['SUPER','Right'],                   'Focar à direita',             'hl.dsp.focus({ direction = "right" })'],
+  ['FOCO',     ['SUPER','Up'],                      'Focar acima',                 'hl.dsp.focus({ direction = "up" })'],
+  ['FOCO',     ['SUPER','Down'],                    'Focar abaixo',                'hl.dsp.focus({ direction = "down" })'],
+  ['FOCO',     ['SUPER','Tab'],                     'Trocar janela',               'window-switcher'],
+  ['MOVER',    ['SUPER','SHIFT','Up'],              'Mover janela ↑',              'hl.dsp.window.move({ direction = "u" })'],
+  ['MOVER',    ['SUPER','SHIFT','Right'],           'Mover janela →',              'hl.dsp.window.move({ direction = "r" })'],
+  ['MOVER',    ['SUPER','SHIFT','Left'],            'Mover janela ←',              'hl.dsp.window.move({ direction = "l" })'],
+  ['MOVER',    ['SUPER','SHIFT','Down'],            'Mover janela ↓',              'hl.dsp.window.move({ direction = "d" })'],
+  ['MOVER',    ['SUPER','SHIFT','mouse_up'],        'Mover p/ monitor anterior',   'hl.dsp.window.move({ monitor = "-1" })'],
+  ['MOVER',    ['SUPER','SHIFT','mouse_down'],      'Mover p/ próximo monitor',    'hl.dsp.window.move({ monitor = "+1" })'],
+  ['WORKSPACE',['SUPER','CONTROL','SHIFT','Right'], 'Mover p/ próximo workspace',  'hl.dsp.window.move({ workspace = "m+1" })'],
+  ['WORKSPACE',['SUPER','CONTROL','SHIFT','Left'],  'Mover p/ workspace anterior', 'hl.dsp.window.move({ workspace = "m-1" })'],
+  ['WORKSPACE',['SUPER','CONTROL','SHIFT','mouse_up'],  'Mover p/ workspace anterior', 'hl.dsp.window.move({ workspace = "m-1" })'],
+  ['WORKSPACE',['SUPER','CONTROL','SHIFT','mouse_down'],'Mover p/ próximo workspace',  'hl.dsp.window.move({ workspace = "m+1" })'],
+].map(([g,k,d,c])=>({g,k,d,c}));
+const GROUPS = ['JANELA','FOCO','MOVER','WORKSPACE'];
+const MODS = ['SUPER','CONTROL','ALT','SHIFT'];
+const KMAP = {SUPER:'◆',CONTROL:'⌃',ALT:'⌥',SHIFT:'⇧',Left:'←',Right:'→',Up:'↑',Down:'↓',
+              Escape:'Esc',mouse_up:'scroll ↑',mouse_down:'scroll ↓','mouse:272':'LMB'};
+const kc = k=>`<span class="kc${MODS.includes(k)?' mod':''}" title="${k}">${KMAP[k]??k}</span>`;
+const combo = s=>s.k.join('+');
+let scCur = 0, scVis = [], closed = new Set(), recording = false, snapshot = JSON.stringify(SC);
+
+function conflicts(){
+  const m = {};
+  SC.forEach((s,i)=>(m[combo(s)] ??= []).push(i));
+  return new Set(Object.values(m).filter(a=>a.length>1).flat());
+}
+
+function renderSc(){
+  const q = $('#q').value.toLowerCase(), bad = conflicts();
+  const match = s=>!q || (s.d+' '+s.c+' '+s.k.join(' ')).toLowerCase().includes(q);
+  scVis = []; let html = '';
+  GROUPS.forEach(g=>{
+    const idx = SC.map((s,i)=>i).filter(i=>SC[i].g===g && match(SC[i]));
+    if(!idx.length) return;
+    const shut = closed.has(g) && !q;
+    html += `<div class="grp${shut?' closed':''}" data-g="${g}"><span class="ar">▾</span>${g}<span class="n">${idx.length}</span></div>`;
+    if(shut) return;
+    idx.forEach(i=>{
+      scVis.push(i); const s = SC[i];
+      html += `<div class="row${i===scCur?' cur':''}${bad.has(i)?' conflict':''}" data-i="${i}">
+        <span class="kk">${s.k.map(kc).join('')}</span>
+        <span><span class="desc">${s.d}</span><span class="cmd">${s.c}</span></span></div>`;
+    });
+  });
+  if(scVis.length && !scVis.includes(scCur)){ scCur = scVis[0]; return renderSc(); }
+  const list = $('#sclist');
+  list.innerHTML = html || '<div class="empty">¯\\_(ツ)_/¯\n\nnada encontrado</div>';
+  $('#count').textContent = `${scVis.length}/${SC.length}`;
+  list.querySelectorAll('.grp').forEach(el=>el.onclick = ()=>{
+    const g = el.dataset.g; closed.has(g) ? closed.delete(g) : closed.add(g); renderSc();
+  });
+  list.querySelectorAll('.row').forEach(el=>el.onclick = ()=>{ scCur = +el.dataset.i; renderSc(); });
+  list.querySelector('.row.cur')?.scrollIntoView({block:'nearest'});
+  detail(bad);
+}
+
+function detail(bad){
+  const s = SC[scCur]; if(!s) return;
+  $('#dkeys').innerHTML = s.k.map(kc).join('');
+  $('#ddesc').value = s.d; $('#dcmd').value = s.c; $('#dgrp').value = s.g;
+  const others = SC.filter((x,i)=>i!==scCur && combo(x)===combo(s)).map(x=>x.d);
+  $('#dwarn').textContent = bad.has(scCur) ? `⚠ também usado em: ${others.join(', ')}` : '';
+}
+
+$('#ddesc').oninput = e=>{ SC[scCur].d = e.target.value; const r = $(`.row[data-i="${scCur}"] .desc`); if(r) r.textContent = e.target.value; };
+$('#dcmd').oninput  = e=>{ SC[scCur].c = e.target.value; const r = $(`.row[data-i="${scCur}"] .cmd`);  if(r) r.textContent = e.target.value; };
+$('#dgrp').onchange = e=>{ SC[scCur].g = e.target.value; renderSc(); };
+
+/* gravar atalho */
+function startRec(){ recording = true; $('#rec').classList.add('on'); $('#rec').textContent = 'pressione o atalho… (Esc cancela)'; }
+function stopRec(){ recording = false; $('#rec').classList.remove('on'); $('#rec').textContent = '● GRAVAR ATALHO (r)'; }
+$('#rec').onclick = startRec;
+function handleRec(e){
+  e.preventDefault();
+  const mods = [];
+  if(e.metaKey) mods.push('SUPER'); if(e.ctrlKey) mods.push('CONTROL');
+  if(e.altKey)  mods.push('ALT');   if(e.shiftKey) mods.push('SHIFT');
+  if(['Meta','Control','Alt','Shift','OS','Super'].includes(e.key)){
+    $('#dkeys').innerHTML = mods.map(kc).join('') + '<span class="kc">…</span>'; return;
+  }
+  if(e.key==='Escape' && !mods.length){ stopRec(); detail(conflicts()); return; }
+  const key = {ArrowLeft:'Left',ArrowRight:'Right',ArrowUp:'Up',ArrowDown:'Down',' ':'Space'}[e.key]
+              ?? (e.key.length===1 ? e.key.toUpperCase() : e.key);
+  SC[scCur].k = [...mods, key];
+  stopRec(); renderSc();
+  conflicts().has(scCur) ? say('[ !! ] conflito de atalho', 'var(--warn)') : say(`[ OK ] atalho gravado: ${combo(SC[scCur])}`);
+}
+
+$('#bcheck').onclick = ()=>{ const n = conflicts().size; n ? say(`[ !! ] ${n} atalhos em conflito`, 'var(--warn)') : say('[ OK ] nenhum conflito'); };
+$('#brest').onclick  = ()=>{ SC.splice(0, SC.length, ...JSON.parse(snapshot)); renderSc(); say('[ OK ] restaurado', 'var(--accent)'); };
+$('#bsave').onclick  = ()=>{ snapshot = JSON.stringify(SC); say(`[ OK ] ${SC.length} atalhos salvos`); };
+
+function scKeys(e){
+  const mv = {ArrowDown:1,j:1,ArrowUp:-1,k:-1}[e.key];
+  if(mv){
+    const p = Math.max(0, Math.min(scVis.length-1, scVis.indexOf(scCur)+mv));
+    scCur = scVis[p]; renderSc(); e.preventDefault();
+  }
+  else if(e.key==='r'){ startRec(); e.preventDefault(); }
+  else if(e.key==='Enter'){ $('#dcmd').focus(); e.preventDefault(); }
+  else if(e.key==='h' || e.key==='ArrowLeft'){ closed.add(SC[scCur].g); renderSc(); }
+  else if(e.key==='l' || e.key==='ArrowRight'){ closed.delete(SC[scCur].g); renderSc(); }
+}
+
+/* ================= helpers ================= */
+const ST = {ok:'[ OK ]', warn:'[WARN]', fail:'[FAIL]', run:'[ .. ]', na:'[ -- ]'};
+const chkHTML = list=>list.map(([s,t])=>`<div class="chk"><span class="st ${s}">${ST[s]}</span><span>${t}</span></div>`).join('');
+const moveIn = (list, v, d)=> list.length ? list[Math.max(0, Math.min(list.length-1, list.indexOf(v)+d))] : v;
+const pad = n=>String(n).padStart(2,'0');
+function copy(text, label){
+  try{ navigator.clipboard.writeText(text).catch(()=>{}); }catch(_){}
+  say(`[ OK ] ${label} copiado`);
+}
+function hx(h,s,l){
+  s/=100; l/=100;
+  const k = n=>(n+h/30)%12, a = s*Math.min(l,1-l);
+  const f = n=>l - a*Math.max(-1, Math.min(k(n)-3, Math.min(9-k(n), 1)));
+  return '#'+[f(0),f(8),f(4)].map(x=>Math.round(x*255).toString(16).padStart(2,'0')).join('');
+}
+
+/* ================= PROFILES ================= */
+const PROFILES = [
+  {id:'MINIMAL', d:'Shell animations off.\nInstant workspace changes.', ms:0, g:3, r:0, o:.95, bf:'none',
+   s:{'shell animations':'off', 'workspace switch':'instant', gaps:'4 px', rounding:'0', blur:'off', 'kitty opacity':'0.85'}},
+  {id:'REFINED', d:'Shell animations on.\n150 ms workspace transition.', ms:150, g:6, r:3, o:.8, bf:'blur(3px)',
+   s:{'shell animations':'on', 'workspace switch':'150 ms', gaps:'8 px', rounding:'4', blur:'on', 'kitty opacity':'0.85'}},
+];
+let pSel = 0, pActive = 0, pPrev = 1;
+
+function renderProf(){
+  $('#pcards').innerHTML = PROFILES.map((p,i)=>`
+    <div class="pcard${i===pSel?' sel':''}" data-i="${i}">
+      <div class="hd"><span class="nm">${p.id}</span>${i===pActive?'<span class="tag on">● ACTIVE</span>':''}</div>
+      <div class="mini" style="background-image:${walls[active].grad};--d:${p.ms}ms;--g:${p.g}px;--r:${p.r}px;--o:${p.o};--bf:${p.bf}">
+        <div class="track">
+          <div class="wsp"><div class="w"></div><div class="w"></div></div>
+          <div class="wsp one"><div class="w"></div></div>
+        </div>
+        <span class="wsn">ws 1</span>
+      </div>
+      <div class="ds">${p.d}</div>
+    </div>`).join('');
+  document.querySelectorAll('.pcard').forEach(c=>{
+    c.onclick = ()=>{ pSel = +c.dataset.i; renderProf(); };
+    c.ondblclick = applyProf;
+  });
+  const keys = Object.keys(PROFILES[0].s);
+  $('#pdiff').innerHTML = '<div class="h">SETTING</div>' +
+    PROFILES.map((p,i)=>`<div class="h${i===pSel?' on':''}">${p.id}</div>`).join('') +
+    keys.map(k=>{
+      const chg = PROFILES[0].s[k] !== PROFILES[1].s[k];
+      return `<div>${k}</div>` + PROFILES.map((p,i)=>`<div class="${chg?'chg':''}${chg&&i===pSel?' on':''}">${p.s[k]}</div>`).join('');
+    }).join('');
+  $('#pnote').textContent = pSel===pActive ? 'perfil já ativo' : `⏎ pra aplicar ${PROFILES[pSel].id.toLowerCase()}`;
+  $('#prest').textContent = `RESTORE PREVIOUS: ${PROFILES[pPrev].id}`;
+  $('#sprof').textContent = PROFILES[pActive].id.toLowerCase();
+}
+function applyProf(){
+  if(pSel===pActive) return;
+  pPrev = pActive; pActive = pSel; renderProf();
+  say(`[ OK ] profile ${PROFILES[pActive].id.toLowerCase()} applied`);
+}
+$('#papply').onclick = applyProf;
+$('#prest').onclick = ()=>{ pSel = pPrev; applyProf(); };
+setInterval(()=>document.querySelectorAll('.mini .track').forEach(t=>{
+  t.classList.toggle('b');
+  t.nextElementSibling.textContent = t.classList.contains('b') ? 'ws 2' : 'ws 1';
+}), 1600);
+function profKeys(e){
+  if(['h','ArrowLeft'].includes(e.key)){ pSel = 0; renderProf(); }
+  else if(['l','ArrowRight'].includes(e.key)){ pSel = 1; renderProf(); }
+  else if(e.key==='Enter') applyProf();
+}
+
+/* ================= PALETTE ================= */
+const PAL_KEYS = {
+  BASE:['background','foreground','muted','accent'],
+  ANSI:['red','green','yellow','blue','magenta','cyan'],
+  BAR: ['bar_foreground','bar_window','bar_workspace','bar_accent','bar_clock','bar_cpu','bar_memory','bar_volume'],
+};
+let palCur = {background:'#1c1a18', foreground:'#ece6e2', muted:'#8f8a87', accent:'#cfc0b4',
+  red:'#d7b5ae', green:'#a9bc9c', yellow:'#d1c5a2', blue:'#a9b5bf', magenta:'#b8a6b6', cyan:'#a9bfb8',
+  bar_foreground:'#0e0d0c', bar_window:'#000000', bar_workspace:'#000000', bar_accent:'#6b4f3f',
+  bar_clock:'#6b4f3f', bar_cpu:'#4f5a33', bar_memory:'#5f5236', bar_volume:'#3e5a4c'};
+let palPrev = {background:'#15171d', foreground:'#e6e6e6', muted:'#8f8f8f', accent:'#c0c8dc',
+  red:'#d7b5ae', green:'#a9bc9c', yellow:'#d1c5a2', blue:'#a9b5bf', magenta:'#b8a6b6', cyan:'#a9bfb8',
+  bar_foreground:'#ffffff', bar_window:'#ffffff', bar_workspace:'#ffffff', bar_accent:'#8aaee8',
+  bar_clock:'#8aaee8', bar_cpu:'#a5e88a', bar_memory:'#e8cf8a', bar_volume:'#8ae8dc'};
+const palMeta = {scheme:'neutral', mode:'dark', src:'wallhaven-lm2x12', prevSrc:'a_blueprint_of_a_cassette_tape'};
+const SCHEMES = ['neutral','tonal-spot','vibrant','expressive'];
+let cmp = false;
+
+function renderPal(){
+  $('#pgroups').innerHTML = Object.entries(PAL_KEYS).map(([g,ks])=>`
+    <div class="pgrp"><div class="sec">${g}</div><div class="sws">
+      ${ks.map(k=>`<div class="swc" data-k="${k}"><div class="sq"><i></i></div><div class="n"></div><div class="hx"></div></div>`).join('')}
+    </div></div>`).join('');
+  paintPal();
+}
+function paintPal(){
+  const P = palCur;
+  document.querySelectorAll('#pgroups .swc').forEach(el=>{
+    const k = el.dataset.k, c = P[k], p = palPrev[k], ch = c.toLowerCase()!==p.toLowerCase();
+    el.querySelector('.sq').style.background = c;
+    el.querySelector('i').style.background = p;
+    el.querySelector('.n').innerHTML = k + (cmp && ch ? '<span class="chg">•</span>' : '');
+    el.querySelector('.hx').textContent = cmp && ch ? `${c} ← ${p}` : c;
+  });
+  $('#pgroups').classList.toggle('cmpon', cmp);
+  $('#cmp').classList.toggle('on', cmp);
+  $('#palmeta').innerHTML = `CURRENT <span class="sep">//</span> matugen 4.2 · <b>scheme-${palMeta.scheme}</b> · <b>${palMeta.mode}</b> · ${palMeta.src}`;
+  $('#schemes').innerHTML = SCHEMES.map(s=>`<button class="chip${s===palMeta.scheme?' on':''}" data-s="${s}">${s}</button>`).join(' ');
+  $('#modes').innerHTML = ['dark','light'].map(m=>`<button class="chip${m===palMeta.mode?' on':''}" data-m="${m}">${m}</button>`).join(' ');
+  const n = Object.keys(P).filter(k=>P[k].toLowerCase()!==palPrev[k].toLowerCase()).length;
+  $('#palnote').textContent = `${n} cores diferentes de ${palMeta.prevSrc}`;
+  const c = (k,t)=>`<span style="color:${P[k]}">${t}</span>`;
+  $('#pview').innerHTML = `
+    <div class="lbl2">WAYBAR</div>
+    <div class="pv-wall" style="background-image:${walls[active].grad}">
+      <div class="pv-bar">${c('bar_workspace','[1] [2]')}${c('bar_accent','|')}${c('bar_window','LW')}
+        <span style="margin-left:auto"></span>${c('bar_cpu','CPU 02%')}${c('bar_memory','RAM 3.4G')}${c('bar_volume','VOL')}${c('bar_clock','15:57')}</div>
+    </div>
+    <div class="lbl2">KITTY</div>
+    <div class="pv-term" style="background:${P.background};color:${P.foreground}">${[
+      `${c('accent','lucas@pc')} ${c('blue','~/rice')} ${c('muted','$')} git status`,
+      `${c('green','  modified: hyprland.lua')}`,
+      `${c('red','  deleted:  old.conf')}`,
+      `${c('yellow','warning:')} 2 files changed`,
+      `${c('magenta','fn')} ${c('cyan','main')}() { ${c('muted','// todo')} }`,
+    ].join('\n')}</div>
+    <div class="lbl2">ACCENT</div>
+    <div style="display:flex;gap:6px">
+      <span class="kc" style="color:${P.accent};border-color:${P.accent}">[ 1 ] ATIVO</span>
+      <span class="kc" style="color:${P.muted}">[ 2 ] inativo</span>
+    </div>`;
+}
+function regen(){
+  palPrev = {...palCur};
+  palMeta.prevSrc = `${palMeta.src} (antes)`;
+  const h = rnd(0,360);
+  const s = {neutral:10,'tonal-spot':28,vibrant:60,expressive:45}[palMeta.scheme];
+  const dark = palMeta.mode==='dark';
+  const tone = (hh,ss,ld,ll)=>hx(hh%360, ss, dark ? ld : ll);
+  palCur = {
+    background:tone(h,s*.5,10,94), foreground:tone(h,s*.4,90,12), muted:tone(h,s*.3,56,46), accent:tone(h,s+20,74,40),
+    red:tone(5,s+25,76,42), green:tone(110,s+15,72,34), yellow:tone(48,s+25,74,38),
+    blue:tone(210,s+15,74,40), magenta:tone(300,s+10,74,42), cyan:tone(175,s+15,72,34),
+    bar_foreground:tone(h,10,90,8), bar_window:tone(h,10,92,6), bar_workspace:tone(h,10,92,6),
+    bar_accent:tone(h,s+15,70,34), bar_clock:tone(h,s+15,70,34), bar_cpu:tone(h+90,s+15,70,34),
+    bar_memory:tone(h+40,s+15,70,34), bar_volume:tone(h+150,s+15,70,34),
+  };
+  paintPal();
+  say(`[ OK ] palette regenerated — scheme-${palMeta.scheme} / ${palMeta.mode}`);
+}
+function restorePal(){
+  [palCur, palPrev] = [palPrev, palCur];
+  [palMeta.src, palMeta.prevSrc] = [palMeta.prevSrc, palMeta.src];
+  paintPal(); say('[ OK ] previous palette restored', 'var(--accent)');
+}
+$('#pgroups').onclick = e=>{ const el = e.target.closest('.swc'); if(el) copy(palCur[el.dataset.k], `${el.dataset.k} ${palCur[el.dataset.k]}`); };
+$('#schemes').onclick = e=>{ const s = e.target.dataset.s; if(s){ palMeta.scheme = s; regen(); } };
+$('#modes').onclick   = e=>{ const m = e.target.dataset.m; if(m){ palMeta.mode = m; regen(); } };
+$('#cmp').onclick     = ()=>{ cmp = !cmp; paintPal(); };
+$('#palgen').onclick  = regen;
+$('#palrest').onclick = restorePal;
+function palKeys(e){
+  if(e.key==='c'){ cmp = !cmp; paintPal(); }
+  else if(e.key==='g') regen();
+  else if(e.key==='r') restorePal();
+}
+
+/* ================= DOCTOR ================= */
+const DOC = [
+  ['SESSION','Hyprland version','Hyprland 0.57.1 built from branch v0.57.1 at commit acc1aa0bfd4bd575dcb0f76c35ccf12b660a…','ok'],
+  ['SESSION','Hyprland Lua errors','no errors','ok'],
+  ['SESSION','Lua appearance include','/home/lucas/.config/hypr/hyprland.lua','ok'],
+  ['SESSION','UWSM graphical session','active','ok'],
+  ['SESSION','Wayland portals','active','ok'],
+  ['SERVICES','Waybar','active — pid 1263','ok'],
+  ['SERVICES','Noctalia services','running','ok'],
+  ['SERVICES','Noctalia config','✓ Config is valid','ok'],
+  ['SERVICES','Audio / PipeWire',"PipeWire 'pipewire-0' [1.6.10, lucas@pc, cookie:3337616012]",'ok'],
+  ['SERVICES','NetworkManager','active','ok'],
+  ['SERVICES','Native screen locker','allow_empty_password = false','ok'],
+  ['BINARIES','matugen','/usr/bin/matugen','ok'],
+  ['BINARIES','waypaper','/usr/bin/waypaper','ok'],
+  ['BINARIES','kitty','/usr/bin/kitty','ok'],
+  ['BINARIES','fish','/usr/bin/fish','ok'],
+  ['BINARIES','nvim','/usr/bin/nvim','ok'],
+  ['BINARIES','qs','/usr/bin/qs','ok'],
+  ['CONFIG','Kitty opacity','0.85','ok'],
+  ['CONFIG','Fish syntax','ok','ok'],
+  ['CONFIG','Neovim Lua syntax','ok','ok'],
+  ['CONFIG','Neovim colors (pywal.nvim)','/home/lucas/.cache/wal/colors-wal.vim','ok'],
+  ['CONFIG','Super validation','51 atalhos estáticos válidos; expressões dinâmicas preservadas','ok'],
+  ['CONFIG','Wallpaper reference','/home/lucas/Imagens/Wallpapers/wallhaven-lm2x12_1920x1080.png','ok'],
+  ['CONFIG','Thumbnail cache','2 miniaturas órfãs — exemplo de WARN pra ver o visual','warn'],
+].map(([g,n,d,s])=>({g,n,d,s}));
+const GORDER = ['SESSION','SERVICES','BINARIES','CONFIG'];
+let docCur = 0, docVis = [], docClosed = new Set(GORDER), docRunning = false;
+
+function renderDoc(){
+  const q = $('#q').value.toLowerCase();
+  const cnt = {ok:0, warn:0, fail:0, run:0};
+  DOC.forEach(d=>cnt[d.s]++);
+  $('#dsum').innerHTML = ['ok','warn','fail'].map(s=>
+    `<span><span class="big st ${s}">${cnt[s]}</span><span class="lb">${s}</span></span>`).join('') +
+    (cnt.run ? `<span class="st run">running… ${DOC.length-cnt.run}/${DOC.length}</span>` : '');
+  const pct = s=>cnt[s]/DOC.length*100;
+  $('#hbar').innerHTML = `<span style="width:${pct('ok')}%;background:var(--ok)"></span>
+    <span style="width:${pct('warn')}%;background:var(--yel)"></span>
+    <span style="width:${pct('fail')}%;background:var(--warn)"></span>`;
+
+  const match = d=>!q || (d.n+' '+d.d).toLowerCase().includes(q);
+  const row = i=>{ docVis.push(i); const d = DOC[i];
+    return `<div class="drow${i===docCur?' cur':''}" data-i="${i}"><span class="st ${d.s}">${ST[d.s]}</span><span class="nm2">${d.n}</span><span class="dt">${d.d}</span></div>`; };
+  docVis = []; let html = '';
+  const issues = DOC.map((d,i)=>i).filter(i=>['warn','fail'].includes(DOC[i].s) && match(DOC[i]));
+  if(issues.length){
+    html += `<div class="grp"><span class="ar">▾</span><span class="st warn">ATTENTION</span><span class="n">${issues.length}</span></div>`;
+    issues.forEach(i=>html += row(i));
+  }
+  GORDER.forEach(g=>{
+    const idx = DOC.map((d,i)=>i).filter(i=>DOC[i].g===g && !issues.includes(i) && match(DOC[i]));
+    if(!idx.length) return;
+    const shut = docClosed.has(g) && !q;
+    const okN = idx.filter(i=>DOC[i].s==='ok').length;
+    html += `<div class="grp${shut?' closed':''}" data-g="${g}"><span class="ar">▾</span>${g}<span class="n">${okN}/${idx.length} ok</span></div>`;
+    if(!shut) idx.forEach(i=>html += row(i));
+  });
+  $('#dlist').innerHTML = html;
+  $('#count').textContent = `${cnt.ok}/${DOC.length}`;
+  $('#dnote').textContent = docRunning ? '' : (cnt.warn||cnt.fail ? `${cnt.warn+cnt.fail} item(s) pedem atenção` : 'tudo certo');
+  if(!docRunning) $('#dlist .drow.cur')?.scrollIntoView({block:'nearest'});
+}
+async function runDoc(){
+  if(docRunning) return;
+  docRunning = true;
+  const final = DOC.map(d=>d.s);
+  DOC.forEach(d=>d.s='run'); docClosed.clear();
+  if(tab===4) renderDoc();
+  for(let i=0; i<DOC.length; i++){
+    await sleep(rnd(25,70));
+    DOC[i].s = final[i];
+    if(tab===4) renderDoc();
+  }
+  docRunning = false; docClosed = new Set(GORDER);
+  if(tab===4) renderDoc();
+  const bad = final.filter(s=>s!=='ok').length;
+  bad ? say(`[ !! ] doctor: ${bad} warning(s)`, 'var(--yel)') : say('[ OK ] doctor: all checks passed');
+}
+$('#drun').onclick = runDoc;
+$('#dlist').onclick = e=>{
+  const g = e.target.closest('.grp[data-g]');
+  if(g){ const k = g.dataset.g; docClosed.has(k) ? docClosed.delete(k) : docClosed.add(k); return renderDoc(); }
+  const r = e.target.closest('.drow');
+  if(r){ docCur = +r.dataset.i; renderDoc(); }
+};
+function docKeys(e){
+  const d = {j:1, ArrowDown:1, k:-1, ArrowUp:-1}[e.key];
+  if(d){ docCur = moveIn(docVis, docCur, d); renderDoc(); e.preventDefault(); }
+  else if(e.key==='r') runDoc();
+  else if(e.key==='l'){ docClosed.clear(); renderDoc(); }
+  else if(e.key==='h'){ docClosed = new Set(GORDER); renderDoc(); }
+}
+
+/* ================= BACKUPS ================= */
+const BAK = [
+  ['install-20261108-092439-684916','files','08/11','09:24',3],
+  ['install-20261108-092010-325341','files','08/11','09:20',1],
+  ['install-20261108-091533-596720','files','08/11','09:15',1],
+  ['nvim-20261107-234802','snapshot','07/11','23:48',2],
+  ['lock-visual-1794087438707281121','lock','07/11','18:37',2],
+  ['polish-20261107-181932','snapshot','07/11','18:19',3],
+  ['rice-final-20261105-231618','full','05/11','23:16',667],
+  ['phase4-20261105-224647','full','05/11','22:50',390],
+  ['phase3-20261105-220201-094267','files','05/11','22:15',39],
+  ['20261105-215155-900634','files','05/11','21:51',2],
+  ['20261105-214902-082254','files','05/11','21:49',1],
+  ['20261105-212603','files','05/11','21:28',6],
+].map(([n,t,d,h,kb])=>({n,t,d,h,kb}));
+const BTYPE = {
+  files:'arquivos alterados por uma etapa de instalação',
+  snapshot:'snapshot de configs antes de uma mudança',
+  full:'o rice inteiro',
+  lock:'só o visual da tela de bloqueio',
+};
+const now = new Date(), today = `${pad(now.getDate())}/${pad(now.getMonth()+1)}`;
+const yest = (d=>`${pad(d.getDate())}/${pad(d.getMonth()+1)}`)(new Date(Date.now()-864e5));
+const dayLabel = d=> d===today ? `HOJE · ${d}` : d===yest ? `ONTEM · ${d}` : d;
+const fmtK = kb=>kb>=1000 ? (kb/1000).toFixed(1)+'M' : kb+'K';
+let bakCur = 0, bakVis = [];
+
+function renderBak(){
+  const q = $('#q').value.toLowerCase();
+  const max = Math.max(...BAK.map(b=>b.kb));
+  bakVis = []; let html = '', lastDay = null;
+  BAK.forEach((b,i)=>{
+    if(q && !(b.n+' '+b.t).toLowerCase().includes(q)) return;
+    if(b.d!==lastDay){
+      lastDay = b.d;
+      html += `<div class="grp"><span>${dayLabel(b.d)}</span><span class="n">${BAK.filter(x=>x.d===b.d).length}</span></div>`;
+    }
+    bakVis.push(i);
+    const w = Math.max(3, Math.log10(b.kb+1)/Math.log10(max+1)*44);
+    html += `<div class="brow${i===bakCur?' cur':''}" data-i="${i}">
+      <span class="bn">${b.n}</span><span class="badge ${b.t}">${b.t}</span>
+      <span class="tm">${b.h}</span><span class="szb"><i style="width:${w}px"></i>${fmtK(b.kb)}</span></div>`;
+  });
+  if(bakVis.length && !bakVis.includes(bakCur)) bakCur = bakVis[0];
+  $('#blist').innerHTML = html || '<div class="empty">¯\\_(ツ)_/¯\n\nnada encontrado</div>';
+  $('#count').textContent = `${bakVis.length}/${BAK.length}`;
+  $('#blist .brow.cur')?.scrollIntoView({block:'nearest'});
+
+  const b = BAK[bakCur];
+  $('#bdet').innerHTML = `
+    <div class="sec">BACKUP</div>
+    <div class="bt">${b.n}</div>
+    <div class="kv">
+      <span>tipo</span><span><span class="badge ${b.t}">${b.t}</span></span>
+      <span>quando</span><span>${b.d} ${b.h}</span>
+      <span>tamanho</span><span>${fmtK(b.kb)}</span>
+      <span>contém</span><span>${BTYPE[b.t]}</span>
+    </div>
+    <div class="sec">RESTAURAR — TERMINAL</div>
+    <div class="cmd2" id="bcmd">python3 scripts/restore.py backups/${b.n}</div>
+    <button class="ghost" id="bcopy" style="width:100%;margin-top:8px">COPY COMMAND (y)</button>
+    <div class="sec" style="margin-top:16px">LOGIN SCREEN</div>
+    <div class="cmd2">sudo sh /var/backups/rice-greeter/restore.sh</div>
+    ${b.t==='full' ? '<div class="wbox">⚠ full restore substitui código mais novo e pode remover esta janela. Faça commit antes.</div>' : ''}`;
+  $('#bcopy').onclick = copyBak;
+}
+const copyBak = ()=>copy($('#bcmd').textContent, 'comando');
+$('#blist').onclick = e=>{ const r = e.target.closest('.brow'); if(r){ bakCur = +r.dataset.i; renderBak(); } };
+$('#bprof').onclick = ()=>{ pSel = pPrev; applyProf(); };
+$('#bpal').onclick  = restorePal;
+function bakKeys(e){
+  const d = {j:1, ArrowDown:1, k:-1, ArrowUp:-1}[e.key];
+  if(d){ bakCur = moveIn(bakVis, bakCur, d); renderBak(); e.preventDefault(); }
+  else if(e.key==='y') copyBak();
+}
+
+/* ================= LOCK ================= */
+let dim = 60;
+const LK_PRE = [['LIGHT',55],['BALANCED',60],['DARK',75]];
+function renderLock(){
+  $('#lockpv').style.backgroundImage = walls[active].grad;
+  $('#lkdim').style.opacity = dim/100;
+  $('#dim').value = dim;
+  $('#dimv').textContent = dim + '%';
+  $('#lkchk').innerHTML = chkHTML([
+    ['ok','Active'], ['ok','Trial passed on this layout'], ['ok','Layout: HDMI-A-1'],
+    ['na',`Dim: mínimo 55%, efetivo ${dim}%`],
+  ]);
+  $('#lkpre').innerHTML = LK_PRE.map(([n,v])=>`<button class="chip${v===dim?' on':''}" data-v="${v}">${n}</button>`).join('');
+}
+$('#dim').oninput = e=>{ dim = +e.target.value; renderLock(); };
+$('#lkpre').onclick = e=>{ const v = e.target.dataset.v; if(v){ dim = +v; renderLock(); } };
+function trial(on){
+  $('#lockpv').classList.toggle('trial', on);
+  on ? say('[ .. ] trial lock running', 'var(--accent)') : say('[ OK ] trial passed');
+}
+$('#lktrial').onclick = ()=>trial(true);
+$('#lockpv').onclick  = ()=>{ if($('#lockpv').classList.contains('trial')) trial(false); };
+$('#lkcheck').onclick = ()=>say('[ OK ] lock: 3/3 checks');
+$('#lkupd').onclick   = ()=>say(`[ OK ] lock visuals updated — dim ${dim}%`);
+$('#lkrest').onclick  = ()=>{ dim = 60; renderLock(); say('[ OK ] lock visuals restored', 'var(--accent)'); };
+function lockKeys(e){
+  if(e.key==='Escape') trial(false);
+  else if(e.key==='t') trial(true);
+  else if(['h','ArrowLeft'].includes(e.key)){ dim = Math.max(55, dim-5); renderLock(); }
+  else if(['l','ArrowRight'].includes(e.key)){ dim = Math.min(90, dim+5); renderLock(); }
+}
+
+/* ================= GREETER ================= */
+let gAuto = true, gSent = null, gLast = new Date();
+gLast.setHours(9,24,40);
+function ago(d){
+  const m = Math.floor((Date.now()-d)/60000);
+  if(m<1) return 'agora mesmo';
+  if(m<60) return `há ${m} min`;
+  return `há ${Math.floor(m/60)}h ${m%60}min`;
+}
+function renderGrt(){
+  if(gSent===null) gSent = active;
+  const synced = gSent===active;
+  $('#grtpv').style.backgroundImage = walls[gSent].grad;
+  $('#gchk').innerHTML = chkHTML([
+    ['ok','Colors match the theme'],
+    synced ? ['ok','Image matches the wallpaper'] : ['warn','Image differs — sync pending'],
+    [gAuto?'ok':'na', `Automatic sync: ${gAuto?'on':'off'}`],
+    ['na','Passwordless rule: root only, check in a terminal'],
+  ]);
+  $('#gauto').checked = gAuto;
+  $('#gautol').textContent = gAuto ? 'sincroniza ao trocar wallpaper' : 'só manual';
+  $('#glast').innerHTML = `${pad(gLast.getDate())}/${pad(gLast.getMonth()+1)} ${gLast.toTimeString().slice(0,8)} <span style="color:var(--dim)">(${ago(gLast)})</span>`;
+  $('#gnote').textContent = synced ? '' : 'a tela de login ainda mostra o wallpaper anterior';
+}
+function syncGrt(){
+  let p = 0; const W = 16;
+  clearInterval(syncGrt._t);
+  syncGrt._t = setInterval(()=>{
+    p++;
+    $('#msg').style.color = 'var(--accent)';
+    $('#msg').textContent = `syncing greeter [${'#'.repeat(p)}${'-'.repeat(W-p)}]`;
+    if(p>=W){
+      clearInterval(syncGrt._t);
+      gSent = active; gLast = new Date();
+      if(tab===7) renderGrt();
+      say('[ OK ] greeter — sent to the login screen');
+    }
+  }, 35);
+}
+function onWallApplied(){
+  if(gSent===null) gSent = active;
+  if(gAuto){ gSent = active; gLast = new Date(); }
+}
+$('#gsync').onclick = syncGrt;
+$('#gauto').onchange = e=>{ gAuto = e.target.checked; renderGrt(); };
+function grtKeys(e){
+  if(e.key==='s') syncGrt();
+  else if(e.key==='a'){ gAuto = !gAuto; renderGrt(); }
+}
+
+/* ---------- live clocks nas prévias ---------- */
+setInterval(()=>{
+  const d = new Date(), t = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  $('#lkclock').textContent = t; $('#gclock').textContent = t;
+  $('#lkdate').textContent = d.toLocaleDateString('pt-BR',{weekday:'long', day:'numeric', month:'long'});
+  if(tab===7) $('#glast span') && ($('#glast span').textContent = `(${ago(gLast)})`);
+}, 1000);
+
+const RENDER = [render, renderSc, renderProf, renderPal, renderDoc, renderBak, renderLock, renderGrt];
+const KEYS   = [wallKeys, scKeys, profKeys, palKeys, docKeys, bakKeys, lockKeys, grtKeys];
+
+/* ---------- relógio ---------- */
+function tick(){
+  const [h,m,s] = new Date().toTimeString().slice(0,8).split(':');
+  $('#clock').innerHTML = `${h}<i>:</i>${m}<i>:</i>${s}`;
+}
+tick(); setInterval(tick, 1000);
+
+/* ---------- glitch do logo ---------- */
+setInterval(()=>{
+  const l = $('#logo'); l.classList.add('glitch');
+  setTimeout(()=>l.classList.remove('glitch'), 200);
+}, 30000);
+
+/* ---------- boot ---------- */
+const BOOT = [
+  'mounting ~/.config/lw',
+  'reading profile: refined',
+  'indexing wallpapers (21)',
+  'extracting palettes',
+  'loading shortcuts',
+  'checking hyprland socket',
+  'doctor: 0 issues',
+  'starting control panel',
+];
+const sleep = ms=>new Promise(r=>setTimeout(r,ms));
+let skipped = false;
+
+async function boot(){
+  document.body.classList.add('booting');
+  const b = $('#boot'), log = $('#blog'), prog = $('#bprog');
+  const skip = ()=>{ skipped = true; };
+  addEventListener('keydown', skip, {once:true});
+  b.addEventListener('click', skip, {once:true});
+
+  if(!matchMedia('(prefers-reduced-motion: reduce)').matches){
+    await sleep(150);
+    $('#blogo').classList.add('show');
+    await sleep(560);
+    const W = 40;
+    for(let i=0; i<BOOT.length && !skipped; i++){
+      const line = document.createElement('div');
+      line.innerHTML = `<span style="color:var(--accent)">[ .. ]</span> ${BOOT[i]}`;
+      log.appendChild(line);
+      await sleep(rnd(70,180));
+      line.innerHTML = `<span class="ok">[ OK ]</span> ${BOOT[i]}`;
+      const p = Math.round((i+1)/BOOT.length*W);
+      prog.textContent = `[${'#'.repeat(p)}${'-'.repeat(W-p)}] ${String(Math.round((i+1)/BOOT.length*100)).padStart(3)}%`;
+    }
+    if(!skipped) await sleep(300);
+  }
+
+  removeEventListener('keydown', skip);
+  b.classList.add('out');
+  document.body.classList.remove('booting');
+  setTimeout(()=>b.remove(), 420);
+  setTab(0);
+  say('[ OK ] lw ready');
+}
+
+/* ---------- init ---------- */
+cur = active;
+render();
+boot();
+</script>
+</body>
+</html>

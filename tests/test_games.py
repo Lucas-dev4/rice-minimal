@@ -133,16 +133,43 @@ class Games(unittest.TestCase):
         exe = self.home/'Games/NFS/NFS11.exe'
         exe.parent.mkdir(parents=True)
         exe.write_bytes(b'x')
+        exe2 = self.home/'Games/Cuphead/Cuphead.exe'
+        exe2.parent.mkdir(parents=True)
+        exe2.write_bytes(b'x')
         # The second copy is how a Snappy-compressed .ldb block reads raw: bytes in the path.
         (db/'000008.log').write_bytes(
             b'\x00junk{"title":"Need For Speed: Hot Pursuit","shop":"steam","objectId":"47870",'
             b'"executablePath":"' + str(exe).encode() + b'","winePrefixPath":"/home/x/.wine_dodi","isDeleted":false}'
             b'{"title":"Need For Speed: Hot Pursuit","objectId":"47870",'
             b'"executablePath":"' + str(exe).replace('Games', 'Ga\x91\x01mes').encode('latin-1') + b'","isDeleted":false}'
-            b'{"title":"Sem exe","objectId":"1","isDeleted":false}')
+            b'{"title":"Sem exe","objectId":"1","isDeleted":false}'
+            # Hydra 3.x records carry nested objects around the executable.
+            b'{"title":"Cuphead","objectId":"268910","executablePath":"' + str(exe2).encode() + b'",'
+            b'"catalogueGame":{"shop":"steam","objectId":"268910"},"collectionPositions":{},"isDeleted":false}')
         found = games.scan_hydra()
-        self.assertEqual([g['title'] for g in found], ['Need For Speed: Hot Pursuit'])
+        self.assertEqual([g['title'] for g in found], ['Need For Speed: Hot Pursuit', 'Cuphead'])
         self.assertEqual(found[0]['source'], 'hydra')
+
+    def test_switch_updates_and_dlc_are_not_listed_as_games(self):
+        roms = self.home/'ROMs/switch'
+        roms.mkdir(parents=True)
+        for name in ('MHGU [0100770008DD8000][v0].nsp', 'MHGU [0100770008DD8800][v262144].nsp',
+                     'MHGU DLC [0100770008DD9001][v0].nsp', 'Celeste.nsp'):
+            (roms/name).write_bytes(b'x')
+        self.assertEqual(sorted(g['rom'].split('/')[-1] for g in games.scan_roms()),
+                         ['Celeste.nsp', 'MHGU [0100770008DD8000][v0].nsp'])
+
+    def test_a_scan_does_not_add_a_second_copy_of_an_exe_already_in_the_library(self):
+        exe = self.home/'Games/DS/DarkSoulsRemastered.exe'
+        exe.parent.mkdir(parents=True)
+        exe.write_bytes(b'MZ')
+        gid = self.cli('add', '--exe', str(exe), '--title', 'Dark Souls')[1]['added']['id']
+        db = self.home/'.config/hydralauncher/hydra-db'
+        db.mkdir(parents=True)
+        (db/'000001.log').write_bytes(b'{"title":"DARK SOULS","executablePath":"' + str(exe).encode()
+                                      + b'","catalogueGame":{"shop":"steam"},"isDeleted":false}')
+        self.cli('scan')
+        self.assertEqual([g['id'] for g in games.load()['games']], [gid])
 
     def test_running_finds_lw_launches_and_steam_games(self):
         proc = self.home/'proc'

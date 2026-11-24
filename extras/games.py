@@ -232,7 +232,9 @@ def scan_hydra():
     found = {}
     for part in sorted(db.glob('*.log')) + sorted(db.glob('*.ldb')):
         text = part.read_bytes().decode('utf-8', 'replace')
-        for m in re.finditer(r'\{[^{}]*"executablePath":"([^"]+)"[^{}]*\}', text):
+        # Newer Hydra versions nest small objects in a record ("catalogueGame":{...},
+        # "collectionPositions":{}), so one level of {...} inside is allowed.
+        for m in re.finditer(r'\{(?:[^{}]|\{[^{}]*\})*?"executablePath":"([^"]+)"(?:[^{}]|\{[^{}]*\})*\}', text):
             record = m.group(0)
             title = re.search(r'"title":"([^"]+)"', record)
             exe = m.group(1).replace('\\\\', '\\')
@@ -388,6 +390,11 @@ def scan_roms():
                 emulator, core, exts = EMU_SYSTEMS[system]
                 if ext not in exts:
                     continue
+                # Switch updates and DLC sit next to the game ([0100…800], [0100…1001]):
+                # the emulator loads them, they are not games. A base title id ends in 000.
+                tid = re.search(r'\[(0100[0-9a-fA-F]{12})\]', rom.name)
+                if system == 'switch' and tid and not tid.group(1).endswith('000'):
+                    continue
                 launch = emulator_command(emulator, core, rom, cfg)
             elif ext in cfg['emulators']:
                 launch = cfg['emulators'][ext].replace('{rom}', shlex.quote(str(rom)))
@@ -409,9 +416,12 @@ SCANNED = {'steam': scan_steam, 'hydra': scan_hydra, 'rom': scan_roms}
 REFRESH = ('title', 'launch', 'cover', 'hours_source', 'exe', 'prefix', 'workdir', 'rom', 'system', 'system_name')
 
 
-def merge(data, fresh):
+def merge(data, fresh, skip_known=False):
     """Junta o resultado do scan com a biblioteca: acrescenta novos, atualiza só campos da fonte, marca sumidos."""
     by_id = {g['id']: g for g in data['games']}
+    # An executable already in the library (added by hand, or from another source) is not
+    # added again: the Hydra copy of a game you play through LW would be a duplicate.
+    known_exes = {g.get('exe') for g in data['games'] if g.get('exe')}
     new = 0
     next_order = max([g.get('order', 0) for g in data['games']] + [0]) + 1
     for entry in fresh:
@@ -421,6 +431,8 @@ def merge(data, fresh):
                 if key in entry and entry[key] is not None and not (key == 'title' and game.get('title_edited')):
                     game[key] = entry[key]
             game['missing'] = False
+        elif skip_known and entry.get('exe') and entry['exe'] in known_exes:
+            continue
         else:
             entry['order'] = next_order
             next_order += 1
@@ -441,7 +453,7 @@ def scan():
             except Exception as exc:  # one broken source must not stop the others
                 errors[source] = str(exc)
         seen = {g['id'] for g in fresh}
-        new = merge(data, fresh)
+        new = merge(data, fresh, skip_known=True)
         for game in data['games']:
             source = game.get('source')
             if source in SCANNED and source not in errors:
