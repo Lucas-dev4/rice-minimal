@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LW · IA</title><style>
+:root{
+  --bg:#12100e; --panel:#171513; --raise:#1d1a17; --line:#2a2622; --line-2:#3a342e;
+  --fg:#c9c1b6; --dim:#6f675e; --faint:#4a443e; --accent:#e8a46b; --accent-a:rgba(232,164,107,.09);
+  --hot:#f3cfa9; --ok:#b5d97a; --warn:#e86b6b; --yel:#e8c86b; --blue:#6bc4e8; --mag:#c98ae8;
+  --font:"JetBrainsMono Nerd Font Mono","JetBrains Mono","Iosevka","Fira Code",monospace;
+  --t-fast:140ms; --t-med:240ms; --ease:cubic-bezier(.2,.7,.2,1);
+}
+@media (prefers-reduced-motion: reduce){ :root{ --t-fast:0ms; --t-med:0ms; } }
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; overflow:hidden; }
+body{ background:#0b0a09; font:12.5px/1.55 var(--font); color:var(--fg); -webkit-font-smoothing:antialiased; }
+::selection{ background:var(--accent); color:var(--bg); }
+button{ background:none; border:0; font:inherit; color:inherit; cursor:pointer; }
+#stage{ position:absolute; left:50%; top:50%; width:1220px; height:780px; transform-origin:center; }
+.win{ width:1220px; height:780px; background:var(--bg); border:1px solid var(--line);
+  display:grid; grid-template-columns:232px 1fr; grid-template-rows:1fr 34px; position:relative; overflow:hidden;
+  box-shadow:0 40px 90px -20px rgba(0,0,0,.55); }
+.win::after{ content:''; position:absolute; inset:0; pointer-events:none; z-index:20;
+  background:repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.08) 2px 3px); mix-blend-mode:multiply; }
+.corner{ position:absolute; color:var(--faint); font-size:11px; line-height:1; z-index:5; }
+.corner.tl{ top:6px; left:8px; } .corner.tr{ top:6px; right:8px; }
+
+/* sidebar */
+.side{ background:var(--panel); border-right:1px solid var(--line); padding:30px 0 18px; display:flex; flex-direction:column; grid-row:1; }
+.brand{ padding:0 22px; }
+.logo{ color:var(--accent); font-size:9.5px; line-height:1.05; white-space:pre; text-shadow:0 0 18px rgba(232,164,107,.25); }
+.logo.glitch{ animation:glitch 180ms steps(2) 1; }
+@keyframes glitch{ 0%{ transform:translate(2px,0); text-shadow:-2px 0 #6bc4e8, 2px 0 #e86b8a; }
+  50%{ transform:translate(-2px,1px); clip-path:inset(30% 0 40% 0); } 100%{ transform:none; clip-path:none; } }
+.sub{ color:var(--dim); margin-top:10px; display:flex; justify-content:space-between; }
+.sub .ver{ color:var(--faint); }
+.grp{ margin-top:18px; }
+.ghead{ padding:3px 22px; display:flex; justify-content:space-between; color:var(--faint); font-size:10.5px; letter-spacing:1.5px; cursor:pointer; }
+.ghead:hover{ color:var(--fg); }
+.ghead.open{ color:var(--fg); font-weight:700; }
+.ghead .k{ color:var(--faint); letter-spacing:0; }
+.gline{ padding:0 22px; color:var(--faint); font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gline .new{ color:var(--accent); }
+.nav{ list-style:none; position:relative; margin-top:6px; }
+.nav li{ position:relative; padding:5px 22px; cursor:pointer; color:var(--dim); display:flex; justify-content:space-between; transition:color var(--t-fast) var(--ease); }
+.nav li .k{ color:var(--faint); }
+.nav li .t{ transition:transform var(--t-fast) var(--ease); display:inline-block; }
+.nav li:hover{ color:var(--fg); } .nav li:hover .t{ transform:translateX(4px); }
+.nav li.on{ color:var(--accent); font-weight:600; } .nav li.on .k{ color:var(--accent); }
+.nav li.new .t::after{ content:' •'; color:var(--accent); }
+.nav li.ghost{ color:var(--faint); }
+.band{ position:absolute; left:0; right:0; height:29px; background:var(--accent-a); border-left:2px solid var(--accent);
+  transition:top var(--t-med) var(--ease); pointer-events:none; }
+.side-foot{ margin-top:auto; padding:0 22px; }
+.label{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; margin:0 0 8px; }
+.kv{ display:flex; justify-content:space-between; color:var(--dim); }
+.kv b{ color:var(--fg); font-weight:400; }
+
+/* main */
+.main{ display:flex; flex-direction:column; padding:22px 26px 14px; min-height:0; grid-row:1; }
+.head{ display:flex; align-items:center; gap:10px; color:var(--dim); }
+.head .title{ color:var(--accent); font-weight:800; letter-spacing:.6px; }
+.head .count{ color:var(--dim); border:1px solid var(--line); padding:0 6px; font-size:11px; }
+.head .rule{ flex:1; height:1px; background:repeating-linear-gradient(90deg,var(--line) 0 4px,transparent 4px 8px); }
+.view{ display:none; flex:1; min-height:0; flex-direction:column; }
+.view.on{ display:flex; animation:vin var(--t-med) var(--ease); }
+@keyframes vin{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+.bar2{ display:flex; gap:6px; margin:14px 0 10px; align-items:center; }
+.chip{ padding:1px 9px; border:1px solid var(--line); color:var(--dim); transition:all var(--t-fast) var(--ease); }
+.chip:hover{ color:var(--fg); border-color:var(--line-2); }
+.chip.on{ color:var(--bg); background:var(--accent); border-color:var(--accent); }
+.hint{ margin-left:auto; color:var(--faint); font-size:11px; }
+.panel{ background:var(--panel); border:1px solid var(--line); padding:12px 14px; position:relative; }
+.ttl{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; margin-bottom:8px; display:flex; justify-content:space-between; }
+.cols{ display:grid; gap:14px; flex:1; min-height:0; grid-template-rows:minmax(0,1fr); }
+.scroll{ overflow-y:auto; min-height:0; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
+.row{ display:grid; padding:5px 8px; color:var(--dim); border-left:2px solid transparent; cursor:pointer; align-items:center;
+  transition:background var(--t-fast), color var(--t-fast); }
+.row:hover{ color:var(--fg); }
+.row.sel{ background:var(--accent-a); border-left-color:var(--accent); color:var(--fg); }
+.row.hd{ color:var(--faint); font-size:10.5px; letter-spacing:1px; cursor:default; border-bottom:1px solid var(--line); }
+.row.hd:hover{ color:var(--faint); }
+.dot{ display:inline-block; width:7px; height:7px; margin-right:7px; vertical-align:1px; }
+.dot.ok{ background:var(--ok); box-shadow:0 0 8px rgba(181,217,122,.5); animation:pulse 2.4s infinite; }
+.dot.off{ background:var(--faint); } .dot.bad{ background:var(--warn); } .dot.busy{ background:var(--yel); animation:pulse .5s infinite; }
+@keyframes pulse{ 50%{ opacity:.35; } }
+.meter{ height:6px; background:var(--raise); position:relative; overflow:hidden; }
+.meter i{ position:absolute; left:0; top:0; bottom:0; background:var(--accent); transition:width var(--t-med) var(--ease); }
+.meter i::after{ content:''; position:absolute; right:0; top:0; bottom:0; width:2px; background:var(--hot); }
+.tag{ border:1px solid var(--line-2); padding:0 5px; font-size:10.5px; color:var(--dim); }
+.tag.a{ color:var(--accent); border-color:var(--accent); }
+.btn{ border:1px solid var(--accent); color:var(--accent); padding:2px 12px; transition:all var(--t-fast); }
+.btn:hover,.btn.on{ background:var(--accent); color:var(--bg); }
+.btn.mute{ border-color:var(--line-2); color:var(--dim); }
+.cmd{ margin-top:10px; border:1px dashed var(--line-2); padding:6px 10px; color:var(--dim); font-size:11.5px; white-space:pre-wrap; }
+.cmd b{ color:var(--accent); font-weight:400; }
+.caret{ color:var(--accent); animation:blink 1s steps(1) infinite; } @keyframes blink{ 50%{ opacity:0; } }
+
+/* sliders */
+.ctl{ display:grid; grid-template-columns:130px 1fr 54px; gap:10px; align-items:center; padding:5px 0; color:var(--dim); }
+.ctl.sel{ color:var(--fg); } .ctl.sel .nm::before{ content:'› '; color:var(--accent); }
+.ctl .v{ color:var(--fg); text-align:right; }
+input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:6px; background:var(--raise); outline:0; }
+input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:10px; height:14px; background:var(--accent); cursor:pointer; }
+input[type=range]::-moz-range-thumb{ width:10px; height:14px; background:var(--accent); border:0; border-radius:0; cursor:pointer; }
+.tg{ display:flex; justify-content:space-between; padding:5px 0; color:var(--dim); cursor:pointer; }
+.tg b{ font-weight:400; color:var(--faint); } .tg.on b{ color:var(--ok); }
+.tg:hover{ color:var(--fg); }
+
+/* footer */
+.foot{ grid-column:1 / -1; grid-row:2; border-top:1px solid var(--line); display:flex; align-items:center; gap:18px; padding:0 16px; color:var(--faint); font-size:11px; }
+.foot .k{ color:var(--dim); }
+.foot .sp{ flex:1; }
+.foot .st{ color:var(--dim); }
+.aic{ cursor:pointer; transition:border-color var(--t-fast), box-shadow var(--t-fast); }
+.aic.sel{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-a); }
+.toast{ position:absolute; right:18px; bottom:46px; background:var(--raise); border:1px solid var(--line-2); border-left:2px solid var(--accent);
+  padding:6px 12px; color:var(--fg); z-index:30; opacity:0; transform:translateY(8px); transition:all var(--t-med) var(--ease); pointer-events:none; }
+.toast.on{ opacity:1; transform:none; }
+.boot{ position:absolute; inset:0; background:var(--bg); z-index:40; padding:40px; color:var(--dim); white-space:pre; transition:opacity 300ms; }
+.boot b{ color:var(--ok); font-weight:400; }
+</style></head><body>
+<div id="stage"><div class="win">
+<span class="corner tl">┌</span><span class="corner tr">┐</span>
+<aside class="side"><div class="brand"><div class="logo" id="logo">██╗     ██╗    ██╗
+██║     ██║    ██║
+██║     ██║ █╗ ██║
+██║     ██║███╗██║
+███████╗╚███╔███╔╝
+╚══════╝ ╚══╝╚══╝ </div><div class="sub"><span>// control</span><span class="ver">v0.2</span></div></div>
+<div class="grp">
+<div class="ghead"><span>SISTEMA</span><span class="k">alt 1</span></div>
+<div class="gline">wallpaper: dunes.png · refined</div>
+</div>
+<div class="grp">
+<div class="ghead"><span>MÚSICA</span><span class="k">alt 2</span></div>
+<div class="gline">♪ parado</div>
+</div>
+<div class="grp">
+<div class="ghead"><span>JOGOS</span><span class="k">alt 3</span></div>
+<div class="gline">sem sessão</div>
+</div>
+<div class="grp">
+<div class="ghead open"><span>IA <span style=color:var(--accent)>•</span></span><span class="k">alt 4</span></div>
+<ul class="nav" id="nav"><div class="band" id="band"></div>
+<li data-v="v-chat"><span class="t">CHAT</span><span class="k">1</span></li>
+<li data-v="v-proc"><span class="t">PROCESSOS</span><span class="k">2</span></li>
+<li data-v="v-mod"><span class="t">MODELOS</span><span class="k">3</span></li>
+<li data-v="v-pr"><span class="t">PROMPTS</span><span class="k">4</span></li>
+</ul>
+</div>
+<div class="grp">
+<div class="ghead"><span>SERVIDOR <span style=color:var(--accent)>•</span></span><span class="k">alt 5</span></div>
+<div class="gline">homelab · 6/7 serviços</div>
+</div>
+<div class="side-foot"><div class="label">MODELO</div>
+<div class="kv"><span>ativo</span><b id="fm">qwen2.5-coder:7b</b></div>
+<div class="kv"><span>ctx</span><b>8k</b></div>
+<div class="kv"><span>tok/s</span><b id="tps">—</b></div>
+<div class="kv"><span>IAs</span><b id="busy">—</b></div>
+<div style="margin-top:8px" class="label">VRAM</div>
+<div class="meter"><i id="vram" style="width:58%"></i></div>
+<div class="kv" style="margin-top:4px"><span id="vramt">4.6 / 8.0 GB</span><b style="color:var(--ok)">ollama</b></div></div></aside>
+<main class="main">
+<div class="head"><span class="title" id="title">LW</span><span class="count" id="count">proto</span><span class="rule"></span><span style="color:var(--faint)">tab/1-9 telas · j/k · ⏎</span></div>
+
+<div class="view" id="v-chat">
+ <div class="bar2"><span style="color:var(--faint)">contexto:</span>
+  <button class="chip on" data-c="err">+ último erro do terminal</button>
+  <button class="chip" data-c="cfg">+ hyprctl configerrors</button>
+  <button class="chip" data-c="nv">+ arquivo do nvim</button>
+  <span class="hint">c contexto · n nova conversa · ⏎ enviar</span></div>
+ <div class="cols" style="grid-template-columns:1fr 250px">
+  <div class="panel" style="display:flex;flex-direction:column;min-height:0">
+   <div class="scroll" id="msgs" style="flex:1"></div>
+   <div style="display:flex;gap:8px;border-top:1px solid var(--line);padding-top:8px;margin-top:8px">
+    <span style="color:var(--accent)">❯</span><input id="q" type="text" placeholder="pergunte algo (⏎)" style="flex:1;background:none;border:0;outline:0;font:inherit;color:var(--fg)">
+   </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:14px">
+   <div class="panel"><div class="ttl"><span>CONTEXTO ANEXADO</span><span id="ctxn">1</span></div><div id="ctx" style="color:var(--dim);font-size:11.5px"></div></div>
+   <div class="panel"><div class="ttl"><span>CONVERSAS</span></div>
+    <div class="row sel" style="grid-template-columns:1fr auto"><span>waybar não sobe</span><span style="color:var(--faint)">agora</span></div>
+    <div class="row" style="grid-template-columns:1fr auto"><span>sed p/ matugen.toml</span><span style="color:var(--faint)">ontem</span></div>
+    <div class="row" style="grid-template-columns:1fr auto"><span>umu-run + gamescope</span><span style="color:var(--faint)">3d</span></div>
+   </div>
+   <div class="panel" style="font-size:11px;color:var(--faint)">roda local, nada sai da máquina.<br>a resposta pode virar comando: <span style="color:var(--accent)">y</span> copia o bloco de código.</div>
+  </div>
+ </div>
+</div>
+
+<div class="view" id="v-proc">
+ <div class="bar2"><button class="chip on" data-k="all">TODAS</button><button class="chip" data-k="busy">OCUPADAS</button><button class="chip" data-k="idle">OCIOSAS / PARADAS</button>
+  <span class="hint">j/k escolher · x cancelar última tarefa · u descarregar</span></div>
+ <div class="cols" style="grid-template-columns:1fr 360px">
+  <div class="scroll" id="aiCards" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;align-content:start;padding:3px"></div>
+  <div class="panel" style="display:flex;flex-direction:column;min-height:0">
+   <div class="ttl"><span id="pdName">—</span><span id="pdState"></span></div>
+   <div id="pdInfo" style="color:var(--dim)"></div>
+   <div class="ttl" style="margin-top:14px"><span>TAREFAS</span><span id="pdN"></span></div>
+   <div id="pdTasks" class="scroll" style="flex:1"></div>
+   <div class="cmd" id="pdCmd"></div>
+  </div>
+ </div>
+</div>
+
+<div class="view" id="v-mod">
+ <div class="bar2"><button class="chip on">INSTALADOS</button><button class="chip">BIBLIOTECA</button><span class="hint">⏎ carregar · u descarregar · p baixar · d remover</span></div>
+ <div class="panel" style="flex:1;min-height:0" id="mods">
+  <div class="row hd" style="grid-template-columns:24px 1.6fr 80px 70px 70px 1fr 110px"><span></span><span>MODELO</span><span>TAMANHO</span><span>QUANT</span><span>CTX</span><span>USO</span><span>ESTADO</span></div>
+ </div>
+ <div class="cmd" id="modcmd"></div>
+</div>
+
+<div class="view" id="v-pr">
+ <div class="bar2"><span style="color:var(--faint)">prompts salvos viram comando e atalho</span><span class="hint">⏎ testar · e editar · a novo</span></div>
+ <div class="cols" style="grid-template-columns:330px 1fr">
+  <div class="panel scroll" id="prs"></div>
+  <div class="panel" style="display:flex;flex-direction:column">
+   <div class="ttl"><span id="prname">—</span><span id="prkey" class="tag a">—</span></div>
+   <div style="color:var(--faint);font-size:10.5px;letter-spacing:1.5px">TEMPLATE</div>
+   <div id="prtpl" style="background:var(--raise);padding:8px 10px;margin:4px 0 12px;white-space:pre-wrap;color:var(--fg)"></div>
+   <div style="color:var(--faint);font-size:10.5px;letter-spacing:1.5px">ENTRADA</div>
+   <div id="prin" style="color:var(--dim);margin:4px 0 12px"></div>
+   <div style="color:var(--faint);font-size:10.5px;letter-spacing:1.5px">SAÍDA</div>
+   <div id="prout" style="color:var(--dim);margin:4px 0 12px"></div>
+   <div class="cmd" id="prcmd" style="margin-top:auto"></div>
+  </div>
+ </div>
+</div>
+
+</main>
+<div class="foot"><span><span class="k">ollama</span> localhost:11434</span><span id="fst" class="st">pronto</span><span class="sp"></span>
+<span><span class="k">tab</span> telas</span><span><span class="k">/</span> perguntar</span><span><span class="k">ctrl+j</span> esconder</span><span id="clock"></span></div>
+<div class="toast" id="toast"></div>
+<div class="boot" id="boot">LW v0.2
+
+<b>[ OK ]</b> loading palette
+<b>[ OK ]</b> ollama em localhost:11434
+<b>[ OK ]</b> 4 modelos instalados
+<b>[ OK ]</b> starting LW // IA</div>
+</div></div>
+<script>const START=0;
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+function fit(){ const s=Math.min(innerWidth/1240, innerHeight/800); $('#stage').style.transform=`translate(-50%,-50%) scale(${s})`; }
+addEventListener('resize',fit); fit();
+let toastT; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),1800); }
+const navItems=$$('#nav li:not(.ghost)'), band=$('#band');
+let cur=0;
+function show(i){
+  cur=(i+navItems.length)%navItems.length;
+  navItems.forEach((li,j)=>li.classList.toggle('on',j===cur));
+  band.style.top=navItems[cur].offsetTop+'px';
+  const v=navItems[cur].dataset.v;
+  $$('.view').forEach(x=>x.classList.toggle('on',x.id===v));
+  $('#title').textContent='LW // '+navItems[cur].querySelector('.t').textContent;
+  const lg=$('#logo'); lg.classList.remove('glitch'); void lg.offsetWidth; lg.classList.add('glitch');
+  if(window.onShow) onShow(v);
+}
+navItems.forEach((li,j)=>li.onclick=()=>show(j));
+$$('.ghead').forEach(h=>h.onclick=()=>toast('protótipo: só '+document.title.split('·')[1].trim()+' é navegável aqui'));
+// sub-abas por chips
+function chips(group, cb){ const cs=$$(group+' .chip'); cs.forEach((c,i)=>c.onclick=()=>{ cs.forEach(x=>x.classList.toggle('on',x===c)); cb(c.dataset.k,i); }); return cs; }
+// lista navegável j/k
+function list(sel, onSel){ const rows=()=>$$(sel+' .row:not(.hd)'); let i=0;
+  const set=n=>{ const r=rows(); if(!r.length) return; i=(n+r.length)%r.length; r.forEach((x,j)=>x.classList.toggle('sel',j===i)); onSel&&onSel(r[i],i); };
+  rows().forEach((r,j)=>r.onclick=()=>set(j)); set(0);
+  return { up:()=>set(i-1), down:()=>set(i+1), get:()=>rows()[i], idx:()=>i, set }; }
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT' && e.target.type==='text') { if(e.key==='Escape') e.target.blur(); else return; }
+  if(e.altKey && /[1-5]/.test(e.key)){ toast('alt '+e.key+': troca de seção'); return; }
+  if(e.key==='Tab'){ e.preventDefault(); show(cur+(e.shiftKey?-1:1)); return; }
+  const n='1234567890'.indexOf(e.key); if(n>=0 && navItems[n]){ show(n); return; }
+  if(window.onKey && onKey(e)) e.preventDefault();
+});
+// boot
+const boot=$('#boot'); if(boot){ setTimeout(()=>{ boot.style.opacity=0; setTimeout(()=>boot.remove(),300); show(START||0); },650); }
+
+
+const ANS=`O reload do Hyprland reinicia a config, mas a Waybar supervisionada só volta se o supervisor ver o processo morrer.
+No log anexado: "style.css:42: unknown property 'gap'". O GTK3 não tem gap; a Waybar sai com erro antes de desenhar.
+
+Troque por margem no módulo:
+\`\`\`
+sed -i 's/^\\(\\s*\\)gap: 6px;/\\1margin: 0 3px;/' ~/.config/waybar/style.css
+\`\`\`
+Depois: Super+Ctrl+Alt+B (reinicia a Waybar).`;
+const CTX={err:['$ waybar','[error] style.css:42:5 unknown property name \'gap\''],cfg:['$ hyprctl configerrors','(vazio)'],nv:['~/.config/waybar/style.css','linhas 30–60']};
+function renderCtx(){ const on=$$('#v-chat .chip.on').map(c=>c.dataset.c); $('#ctxn').textContent=on.length;
+  $('#ctx').innerHTML=on.map(k=>`<div style="margin-bottom:6px"><span style="color:var(--accent)">${CTX[k][0]}</span><br>${CTX[k][1]}</div>`).join('')||'<span style="color:var(--faint)">nada</span>'; }
+$$('#v-chat .chip').forEach(c=>c.onclick=()=>{ c.classList.toggle('on'); renderCtx(); }); renderCtx();
+function msg(who,txt){ const d=document.createElement('div'); d.style.margin='0 0 14px';
+  d.innerHTML=`<div style="color:${who==='eu'?'var(--accent)':'var(--blue)'};font-size:10.5px;letter-spacing:1.5px">${who==='eu'?'VOCÊ':'QWEN2.5-CODER'}</div><div class="tx" style="white-space:pre-wrap"></div>`;
+  $('#msgs').appendChild(d); const tx=d.querySelector('.tx'); if(who==='eu'){ tx.textContent=txt; return Promise.resolve(); }
+  return new Promise(res=>{ let i=0; $('#fst').textContent='gerando…'; const t0=performance.now();
+    const step=()=>{ i+=3; tx.innerHTML=fmt(txt.slice(0,i))+'<span class="caret">█</span>'; $('#msgs').scrollTop=1e9;
+      $('#tps').textContent=Math.round(38+Math.random()*6);
+      if(i<txt.length) setTimeout(step,18); else { tx.innerHTML=fmt(txt); $('#fst').textContent='pronto · '+((performance.now()-t0)/1000).toFixed(1)+' s'; res(); } };
+    step(); }); }
+function fmt(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/```\n?([\s\S]*?)(```|$)/g,'<div style="background:var(--raise);border-left:2px solid var(--accent);padding:6px 10px;margin:6px 0;color:var(--fg)">$1</div>'); }
+let started=false;
+function ask(q){ msg('eu',q).then(()=>msg('ia',q.includes('waybar')||!started?ANS:'Sem contexto suficiente nessa pergunta; anexa o erro com c que eu olho.')); started=true; }
+$('#q').addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.target.value.trim()){ ask(e.target.value.trim()); e.target.value=''; } });
+// modelos
+const MODS=[['qwen2.5-coder:7b','4.7 GB','Q4_K_M','32k',72,'load'],['llama3.2:3b','2.0 GB','Q4_K_M','128k',35,'disk'],
+ ['deepseek-r1:8b','4.9 GB','Q4_K_M','128k',18,'disk'],['nomic-embed-text','274 MB','F16','8k',5,'disk'],['gemma3:12b','8.1 GB','Q4_K_M','128k',0,'pull']];
+function renderMods(){ $$('#mods .row:not(.hd)').forEach(r=>r.remove());
+  MODS.forEach(m=>{ const st=m[5]==='load'?'<span class="dot ok"></span>carregado':m[5]==='pull'?'<span class="dot busy"></span><span class="pp">baixando 0%</span>':m[5]==='busy'?'<span class="dot busy"></span>carregando…':'<span class="dot off"></span>em disco';
+   $('#mods').insertAdjacentHTML('beforeend',`<div class="row" style="grid-template-columns:24px 1.6fr 80px 70px 70px 1fr 110px"><span style="color:var(--accent)">${m[5]==='load'?'●':''}</span><span>${m[0]}</span><span>${m[1]}</span><span>${m[2]}</span><span>${m[3]}</span><span><div class="meter" style="margin-right:20px"><i style="width:${m[4]}%"></i></div></span><span>${st}</span></div>`); });
+  ML=list('#mods',(r,i)=>{ const m=MODS[i]; $('#modcmd').innerHTML=m[5]==='pull'?`<b>$</b> ollama pull ${m[0]}`:m[5]==='load'?`<b>$</b> ollama stop ${m[0]}   <span style="color:var(--faint)"># u descarrega e libera a VRAM</span>`:`<b>$</b> ollama run ${m[0]} ""   <span style="color:var(--faint)"># ⏎ carrega sem abrir chat</span>`; }); }
+let ML; renderMods();
+let pull=0; setInterval(()=>{ if(pull>=100) return; pull+=Math.random()*3; const p=$('#mods .pp'); if(p) p.textContent=pull>=100?'pronto':'baixando '+Math.floor(pull)+'%';
+  if(pull>=100){ MODS[4][5]='disk'; const k=ML.idx(); renderMods(); ML.set(k); toast('gemma3:12b baixado'); } },400);
+function loadSel(){ const i=ML.idx(), m=MODS[i]; if(m[5]!=='disk') return; MODS.forEach(x=>{ if(x[5]==='load') x[5]='disk'; }); m[5]='busy'; renderMods(); ML.set(i);
+  $('#vram').style.width='10%'; setTimeout(()=>{ m[5]='load'; renderMods(); ML.set(i); $('#fm').textContent=m[0]; const gb=parseFloat(m[1])*(m[1].includes('MB')?.001:1)+.4;
+   $('#vram').style.width=Math.min(100,gb/8*100)+'%'; $('#vramt').textContent=gb.toFixed(1)+' / 8.0 GB'; toast(m[0]+' carregado'); },1100); }
+// prompts
+const PRS=[['explicar erro','Super+?','Explique o erro abaixo em 3 linhas e dê o comando que corrige.\n{{stdin}}','saída do último comando (fish: $history[1])','janela flutuante + copia o comando','lw ia run explicar --last'],
+ ['mensagem de commit','—','Escreva uma mensagem de commit curta (pt-BR, imperativo) para:\n{{git diff --staged}}','git diff --staged','vai pro clipboard','lw ia run commit | wl-copy'],
+ ['resumir log','—','Resuma o log, só erros e avisos, com a linha:\n{{stdin}}','journalctl -b -p warning','painel do LOG','journalctl -b -p 4 | lw ia run resumir'],
+ ['traduzir seleção','Super+T','Traduza para pt-BR mantendo termos técnicos:\n{{selection}}','wl-paste --primary','notificação','lw ia run traduzir --sel'],
+ ['revisar C (AED)','—','Aponte bugs e casos de borda SEM reescrever o código. Faça perguntas.\n{{file}}','arquivo aberto no nvim','buffer lateral no nvim',':LwIA revisar']];
+PRS.forEach(p=>$('#prs').insertAdjacentHTML('beforeend',`<div class="row" style="grid-template-columns:1fr auto"><span>${p[0]}</span><span class="tag">${p[1]}</span></div>`));
+const PL=list('#prs',(r,i)=>{ const p=PRS[i]; $('#prname').textContent=p[0].toUpperCase(); $('#prkey').textContent=p[1]; $('#prtpl').textContent=p[2]; $('#prin').textContent=p[3]; $('#prout').textContent=p[4]; $('#prcmd').innerHTML='<b>$</b> '+p[5]; });
+let L={ 'v-mod':()=>ML, 'v-pr':()=>PL };
+// processos: cada IA aberta, o que ela está fazendo agora
+const AIS=[
+ {n:'qwen2.5-coder:7b',src:'ollama',pid:4182,where:'servidor ollama',mem:'4.6 GB VRAM',cpu:'—',up:'38 min',st:'busy',tasks:[
+   {t:'chat · waybar não sobe',k:'gerando',p:-1},{t:'embed ~/Projetos/rice-minimal',k:'rodando',p:62},{t:'prompt · explicar erro',k:'na fila',p:0}]},
+ {n:'llama3.2:3b',src:'ollama',pid:4182,where:'servidor ollama',mem:'2.3 GB VRAM',cpu:'0%',up:'12 min',st:'idle',idleMsg:'carregada, sem tarefa',tasks:[]},
+ {n:'claude code',src:'terminal',pid:9120,where:'kitty #2 · ~/Projetos/pet',mem:'310 MB RAM',cpu:'0.4%',up:'1 h 05',st:'idle',idleMsg:'esperando você responder',tasks:[]},
+ {n:'deepseek-r1:8b',src:'ollama',pid:'—',where:'em disco',mem:'—',cpu:'—',up:'—',st:'off',idleMsg:'não está rodando',tasks:[]}];
+let pf='all', aiSel=0, ka=180;
+const tps=()=>Math.round(36+Math.random()*8);
+function aiVis(){ return AIS.map((a,i)=>i).filter(i=>pf==='all'||(pf==='busy'?AIS[i].st==='busy':AIS[i].st!=='busy')); }
+function taskLine(t){ return t.p<0?`<span style="color:var(--accent)">${tps()} tok/s</span>`:t.k==='na fila'?'<span style="color:var(--faint)">na fila</span>':`<div class="meter"><i style="width:${t.p}%"></i></div>`; }
+function renderAI(){ const vis=aiVis(); if(!vis.includes(aiSel)) aiSel=vis[0]??0;
+ $('#aiCards').innerHTML=vis.map(i=>{ const a=AIS[i]; const dot={busy:'busy',idle:'ok',off:'off'}[a.st];
+   const lab={busy:a.tasks.length+' tarefa'+(a.tasks.length>1?'s':''),idle:'ociosa',off:'parada'}[a.st];
+   return `<div class="panel aic${i===aiSel?' sel':''}" data-i="${i}"><div class="ttl"><span style="color:var(--fg);letter-spacing:0;font-size:12.5px">${a.n}</span><span><span class="dot ${dot}"></span>${lab}</span></div>
+   <div style="color:var(--faint);font-size:11px">${a.src} · pid ${a.pid} · ${a.where}</div>
+   <div style="margin-top:8px">${a.tasks.length?a.tasks.map(t=>`<div style="display:grid;grid-template-columns:1fr 80px;gap:8px;align-items:center;padding:2px 0;color:var(--dim)"><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">› ${t.t}</span>${taskLine(t)}</div>`).join(''):`<div style="color:var(--faint)">${a.idleMsg}</div>`}</div></div>`; }).join('');
+ $$('#aiCards .aic').forEach(c=>c.onclick=()=>{ aiSel=+c.dataset.i; renderAI(); });
+ const a=AIS[aiSel]; $('#pdName').textContent=a.n.toUpperCase();
+ $('#pdState').innerHTML={busy:'<span style="color:var(--yel)">ocupada</span>',idle:'<span style="color:var(--ok)">ociosa</span>',off:'parada'}[a.st];
+ $('#pdInfo').innerHTML=[['origem',a.src],['processo',a.pid],['onde',a.where],['memória',a.mem],['cpu',a.cpu],['ativa há',a.up]].map(x=>`<div class="kv"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');
+ $('#pdN').textContent=a.tasks.length;
+ $('#pdTasks').innerHTML=a.tasks.length?a.tasks.map(t=>`<div style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="kv"><span style="color:var(--fg)">${t.t}</span><b style="color:var(--faint)">${t.k}</b></div>${t.k==='rodando'?`<div class="meter" style="margin-top:4px"><i style="width:${t.p}%"></i></div>`:''}</div>`).join(''):`<div style="color:var(--faint);padding:6px 0">${a.idleMsg}</div>`;
+ $('#pdCmd').innerHTML=a.src==='ollama'?`<b>$</b> ollama ps   <span style="color:var(--faint)"># mostra modelos carregados; as tarefas o LW conhece porque é ele quem manda (fila própria)</span>`:`<b>$</b> ps -o pid,etime,%cpu,rss,cmd -p ${a.pid}`;
+ const b=AIS.filter(x=>x.st==='busy').length, id=AIS.filter(x=>x.st==='idle').length; $('#busy').textContent=b+' ocupada · '+id+' ociosa'+(id>1?'s':''); }
+chips('#v-proc .bar2',k=>{ pf=k; renderAI(); });
+setInterval(()=>{ const q=AIS[0]; const e=q.tasks.find(t=>t.k==='rodando');
+  if(e){ e.p=Math.min(100,e.p+2); if(e.p>=100){ q.tasks.splice(q.tasks.indexOf(e),1); toast('pronto: '+e.t); const f=q.tasks.find(t=>t.k==='na fila'); if(f) f.k='rodando'; } }
+  if(q.st==='busy'&&!q.tasks.length){ q.st='idle'; q.idleMsg='carregada, sem tarefa'; }
+  const l=AIS[1]; if(l.st==='idle'){ ka=Math.max(0,ka-1); l.idleMsg='carregada, sem tarefa · descarrega em '+Math.floor(ka/60)+':'+String(ka%60).padStart(2,'0')+' (keep_alive)'; if(!ka){ l.st='off'; l.mem='—'; l.idleMsg='descarregada (keep_alive venceu)'; } }
+  if(navItems[cur].dataset.v==='v-proc') renderAI(); else $('#busy').textContent=AIS.filter(x=>x.st==='busy').length+' ocupada · '+AIS.filter(x=>x.st==='idle').length+' ociosas'; },1000);
+renderAI();
+window.onKey=e=>{ const v=navItems[cur].dataset.v;
+  if(v==='v-proc'){ const vis=aiVis(), i=vis.indexOf(aiSel), a=AIS[aiSel];
+    if(['j','l','ArrowDown','ArrowRight'].includes(e.key)){ aiSel=vis[(i+1)%vis.length]; renderAI(); return true; }
+    if(['k','h','ArrowUp','ArrowLeft'].includes(e.key)){ aiSel=vis[(i-1+vis.length)%vis.length]; renderAI(); return true; }
+    if(e.key==='x'){ if(a.tasks.length){ const t=a.tasks.pop(); toast('cancelada: '+t.t); if(!a.tasks.length){ a.st='idle'; a.idleMsg='carregada, sem tarefa'; } renderAI(); } else toast('nada rodando nessa'); return true; }
+    if(e.key==='u'){ if(a.src==='ollama'&&a.st!=='off'){ a.st='off'; a.tasks=[]; a.mem='—'; a.idleMsg='descarregada'; toast('ollama stop '+a.n); renderAI(); } else toast('só modelos do ollama descarregam'); return true; }
+    return false; }
+  if(v==='v-chat'){ if(e.key==='/'){ $('#q').focus(); return true; } if(e.key==='c'){ const c=$$('#v-chat .chip'); const n=c.findIndex(x=>!x.classList.contains('on')); (c[n<0?0:n]).click(); return true; }
+    if(e.key==='n'){ $('#msgs').innerHTML=''; toast('nova conversa'); return true; } }
+  const l=L[v]&&L[v](); if(!l) return false;
+  if(e.key==='j'||e.key==='ArrowDown'){ l.down(); return true; } if(e.key==='k'||e.key==='ArrowUp'){ l.up(); return true; }
+  if(v==='v-mod'){ if(e.key==='Enter'){ loadSel(); return true; } if(e.key==='u'){ toast('descarregado (VRAM livre)'); $('#vram').style.width='4%'; $('#vramt').textContent='0.3 / 8.0 GB'; return true; } if(e.key==='d'){ toast('d de novo confirma a remoção'); return true; } }
+  if(v==='v-pr'&&e.key==='Enter'){ toast('rodando "'+PRS[PL.idx()][0]+'"…'); return true; }
+  return false; };
+window.onShow=v=>{ if(v==='v-chat'&&!started){ started=true; msg('eu','por que a waybar não sobe depois do reload?').then(()=>msg('ia',ANS)); } };
+setInterval(()=>$('#clock').textContent=new Date().toTimeString().slice(0,5),1000);
+</script></body></html>

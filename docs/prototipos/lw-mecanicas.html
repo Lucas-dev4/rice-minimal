@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LW · MECÂNICAS</title><style>
+:root{
+  --bg:#12100e; --panel:#171513; --raise:#1d1a17; --line:#2a2622; --line-2:#3a342e;
+  --fg:#c9c1b6; --dim:#6f675e; --faint:#4a443e; --accent:#e8a46b; --accent-a:rgba(232,164,107,.09);
+  --hot:#f3cfa9; --ok:#b5d97a; --warn:#e86b6b; --yel:#e8c86b; --blue:#6bc4e8; --mag:#c98ae8;
+  --font:"JetBrainsMono Nerd Font Mono","JetBrains Mono","Iosevka","Fira Code",monospace;
+  --t-fast:140ms; --t-med:240ms; --ease:cubic-bezier(.2,.7,.2,1);
+}
+@media (prefers-reduced-motion: reduce){ :root{ --t-fast:0ms; --t-med:0ms; } }
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; overflow:hidden; }
+body{ background:#0b0a09; font:12.5px/1.55 var(--font); color:var(--fg); -webkit-font-smoothing:antialiased; }
+::selection{ background:var(--accent); color:var(--bg); }
+button{ background:none; border:0; font:inherit; color:inherit; cursor:pointer; }
+#stage{ position:absolute; left:50%; top:50%; width:1220px; height:780px; transform-origin:center; }
+.win{ width:1220px; height:780px; background:var(--bg); border:1px solid var(--line);
+  display:grid; grid-template-columns:232px 1fr; grid-template-rows:1fr 34px; position:relative; overflow:hidden;
+  box-shadow:0 40px 90px -20px rgba(0,0,0,.55); }
+.win::after{ content:''; position:absolute; inset:0; pointer-events:none; z-index:20;
+  background:repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.08) 2px 3px); mix-blend-mode:multiply; }
+.corner{ position:absolute; color:var(--faint); font-size:11px; line-height:1; z-index:5; }
+.corner.tl{ top:6px; left:8px; } .corner.tr{ top:6px; right:8px; }
+
+/* sidebar */
+.side{ background:var(--panel); border-right:1px solid var(--line); padding:30px 0 18px; display:flex; flex-direction:column; grid-row:1; }
+.brand{ padding:0 22px; }
+.logo{ color:var(--accent); font-size:9.5px; line-height:1.05; white-space:pre; text-shadow:0 0 18px rgba(232,164,107,.25); }
+.logo.glitch{ animation:glitch 180ms steps(2) 1; }
+@keyframes glitch{ 0%{ transform:translate(2px,0); text-shadow:-2px 0 #6bc4e8, 2px 0 #e86b8a; }
+  50%{ transform:translate(-2px,1px); clip-path:inset(30% 0 40% 0); } 100%{ transform:none; clip-path:none; } }
+.sub{ color:var(--dim); margin-top:10px; display:flex; justify-content:space-between; }
+.sub .ver{ color:var(--faint); }
+.grp{ margin-top:18px; }
+.ghead{ padding:3px 22px; display:flex; justify-content:space-between; color:var(--faint); font-size:10.5px; letter-spacing:1.5px; cursor:pointer; }
+.ghead:hover{ color:var(--fg); }
+.ghead.open{ color:var(--fg); font-weight:700; }
+.ghead .k{ color:var(--faint); letter-spacing:0; }
+.gline{ padding:0 22px; color:var(--faint); font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gline .new{ color:var(--accent); }
+.nav{ list-style:none; position:relative; margin-top:6px; }
+.nav li{ position:relative; padding:5px 22px; cursor:pointer; color:var(--dim); display:flex; justify-content:space-between; transition:color var(--t-fast) var(--ease); }
+.nav li .k{ color:var(--faint); }
+.nav li .t{ transition:transform var(--t-fast) var(--ease); display:inline-block; }
+.nav li:hover{ color:var(--fg); } .nav li:hover .t{ transform:translateX(4px); }
+.nav li.on{ color:var(--accent); font-weight:600; } .nav li.on .k{ color:var(--accent); }
+.nav li.new .t::after{ content:' •'; color:var(--accent); }
+.nav li.ghost{ color:var(--faint); }
+.band{ position:absolute; left:0; right:0; height:29px; background:var(--accent-a); border-left:2px solid var(--accent);
+  transition:top var(--t-med) var(--ease); pointer-events:none; }
+.side-foot{ margin-top:auto; padding:0 22px; }
+.label{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; margin:0 0 8px; }
+.kv{ display:flex; justify-content:space-between; color:var(--dim); }
+.kv b{ color:var(--fg); font-weight:400; }
+
+/* main */
+.main{ display:flex; flex-direction:column; padding:22px 26px 14px; min-height:0; grid-row:1; }
+.head{ display:flex; align-items:center; gap:10px; color:var(--dim); }
+.head .title{ color:var(--accent); font-weight:800; letter-spacing:.6px; }
+.head .count{ color:var(--dim); border:1px solid var(--line); padding:0 6px; font-size:11px; }
+.head .rule{ flex:1; height:1px; background:repeating-linear-gradient(90deg,var(--line) 0 4px,transparent 4px 8px); }
+.view{ display:none; flex:1; min-height:0; flex-direction:column; }
+.view.on{ display:flex; animation:vin var(--t-med) var(--ease); }
+@keyframes vin{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+.bar2{ display:flex; gap:6px; margin:14px 0 10px; align-items:center; }
+.chip{ padding:1px 9px; border:1px solid var(--line); color:var(--dim); transition:all var(--t-fast) var(--ease); }
+.chip:hover{ color:var(--fg); border-color:var(--line-2); }
+.chip.on{ color:var(--bg); background:var(--accent); border-color:var(--accent); }
+.hint{ margin-left:auto; color:var(--faint); font-size:11px; }
+.panel{ background:var(--panel); border:1px solid var(--line); padding:12px 14px; position:relative; }
+.ttl{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; margin-bottom:8px; display:flex; justify-content:space-between; }
+.cols{ display:grid; gap:14px; flex:1; min-height:0; grid-template-rows:minmax(0,1fr); }
+.scroll{ overflow-y:auto; min-height:0; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
+.row{ display:grid; padding:5px 8px; color:var(--dim); border-left:2px solid transparent; cursor:pointer; align-items:center;
+  transition:background var(--t-fast), color var(--t-fast); }
+.row:hover{ color:var(--fg); }
+.row.sel{ background:var(--accent-a); border-left-color:var(--accent); color:var(--fg); }
+.row.hd{ color:var(--faint); font-size:10.5px; letter-spacing:1px; cursor:default; border-bottom:1px solid var(--line); }
+.row.hd:hover{ color:var(--faint); }
+.dot{ display:inline-block; width:7px; height:7px; margin-right:7px; vertical-align:1px; }
+.dot.ok{ background:var(--ok); box-shadow:0 0 8px rgba(181,217,122,.5); animation:pulse 2.4s infinite; }
+.dot.off{ background:var(--faint); } .dot.bad{ background:var(--warn); } .dot.busy{ background:var(--yel); animation:pulse .5s infinite; }
+@keyframes pulse{ 50%{ opacity:.35; } }
+.meter{ height:6px; background:var(--raise); position:relative; overflow:hidden; }
+.meter i{ position:absolute; left:0; top:0; bottom:0; background:var(--accent); transition:width var(--t-med) var(--ease); }
+.meter i::after{ content:''; position:absolute; right:0; top:0; bottom:0; width:2px; background:var(--hot); }
+.tag{ border:1px solid var(--line-2); padding:0 5px; font-size:10.5px; color:var(--dim); }
+.tag.a{ color:var(--accent); border-color:var(--accent); }
+.btn{ border:1px solid var(--accent); color:var(--accent); padding:2px 12px; transition:all var(--t-fast); }
+.btn:hover,.btn.on{ background:var(--accent); color:var(--bg); }
+.btn.mute{ border-color:var(--line-2); color:var(--dim); }
+.cmd{ margin-top:10px; border:1px dashed var(--line-2); padding:6px 10px; color:var(--dim); font-size:11.5px; white-space:pre-wrap; }
+.cmd b{ color:var(--accent); font-weight:400; }
+.caret{ color:var(--accent); animation:blink 1s steps(1) infinite; } @keyframes blink{ 50%{ opacity:0; } }
+
+/* sliders */
+.ctl{ display:grid; grid-template-columns:130px 1fr 54px; gap:10px; align-items:center; padding:5px 0; color:var(--dim); }
+.ctl.sel{ color:var(--fg); } .ctl.sel .nm::before{ content:'› '; color:var(--accent); }
+.ctl .v{ color:var(--fg); text-align:right; }
+input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:6px; background:var(--raise); outline:0; }
+input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:10px; height:14px; background:var(--accent); cursor:pointer; }
+input[type=range]::-moz-range-thumb{ width:10px; height:14px; background:var(--accent); border:0; border-radius:0; cursor:pointer; }
+.tg{ display:flex; justify-content:space-between; padding:5px 0; color:var(--dim); cursor:pointer; }
+.tg b{ font-weight:400; color:var(--faint); } .tg.on b{ color:var(--ok); }
+.tg:hover{ color:var(--fg); }
+
+/* footer */
+.foot{ grid-column:1 / -1; grid-row:2; border-top:1px solid var(--line); display:flex; align-items:center; gap:18px; padding:0 16px; color:var(--faint); font-size:11px; }
+.foot .k{ color:var(--dim); }
+.foot .sp{ flex:1; }
+.foot .st{ color:var(--dim); }
+.aic{ cursor:pointer; transition:border-color var(--t-fast), box-shadow var(--t-fast); }
+.aic.sel{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-a); }
+.toast{ position:absolute; right:18px; bottom:46px; background:var(--raise); border:1px solid var(--line-2); border-left:2px solid var(--accent);
+  padding:6px 12px; color:var(--fg); z-index:30; opacity:0; transform:translateY(8px); transition:all var(--t-med) var(--ease); pointer-events:none; }
+.toast.on{ opacity:1; transform:none; }
+.boot{ position:absolute; inset:0; background:var(--bg); z-index:40; padding:40px; color:var(--dim); white-space:pre; transition:opacity 300ms; }
+.boot b{ color:var(--ok); font-weight:400; }
+</style></head><body>
+<div id="stage"><div class="win">
+<span class="corner tl">┌</span><span class="corner tr">┐</span>
+<aside class="side"><div class="brand"><div class="logo" id="logo">██╗     ██╗    ██╗
+██║     ██║    ██║
+██║     ██║ █╗ ██║
+██║     ██║███╗██║
+███████╗╚███╔███╔╝
+╚══════╝ ╚══╝╚══╝ </div><div class="sub"><span>// control</span><span class="ver">v0.2</span></div></div>
+<div class="grp">
+<div class="ghead open"><span>SISTEMA</span><span class="k">alt 1</span></div>
+<ul class="nav" id="nav"><div class="band" id="band"></div>
+<li class="ghost" style="font-size:10.5px;flex-direction:column"><span>wallpapers · shortcuts · profiles</span><span>palette · doctor · backups · lock · greeter</span></li>
+<li class="new" data-v="v-mec"><span class="t">MECÂNICAS</span><span class="k">9</span></li>
+</ul>
+</div>
+<div class="grp">
+<div class="ghead"><span>MÚSICA</span><span class="k">alt 2</span></div>
+<div class="gline">♪ parado</div>
+</div>
+<div class="grp">
+<div class="ghead"><span>JOGOS</span><span class="k">alt 3</span></div>
+<div class="gline">sem sessão</div>
+</div>
+<div class="grp">
+<div class="ghead"><span>IA <span style=color:var(--accent)>•</span></span><span class="k">alt 4</span></div>
+<div class="gline">qwen2.5-coder:7b carregado</div>
+</div>
+<div class="grp">
+<div class="ghead"><span>SERVIDOR <span style=color:var(--accent)>•</span></span><span class="k">alt 5</span></div>
+<div class="gline">homelab · 6/7 serviços</div>
+</div>
+<div class="side-foot"><div class="label">HARDWARE</div>
+<div class="kv"><span>dispositivos</span><b>6</b></div>
+<div class="kv"><span>bluetooth</span><b style="color:var(--ok)">on · 1</b></div>
+<div class="kv"><span>impressora</span><b>pronta</b></div>
+<div class="kv"><span>último teste</span><b>—</b></div></div></aside>
+<main class="main">
+<div class="head"><span class="title" id="title">LW</span><span class="count" id="count">proto</span><span class="rule"></span><span style="color:var(--faint)">tab/1-9 telas · j/k · ⏎</span></div>
+
+<div class="view" id="v-mec">
+ <div class="bar2" id="mtab"><button class="chip on" data-k="dev">DISPOSITIVOS</button><button class="chip" data-k="bt">BLUETOOTH</button><button class="chip" data-k="hw">HARDWARE</button>
+  <span class="hint">[ ] aba · j/k · ⏎ ação</span></div>
+
+ <div class="cols mt" data-k="dev" style="grid-template-columns:380px 1fr">
+  <div class="panel scroll" id="devl"></div>
+  <div class="panel" style="display:flex;flex-direction:column"><div class="ttl"><span id="dvn">—</span><span id="dvs"></span></div>
+   <div id="dvi"></div><div id="dva" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"></div><div id="dvx" style="margin-top:16px;flex:1"></div><div class="cmd" id="dvc"></div></div>
+ </div>
+
+ <div class="cols mt" data-k="bt" style="grid-template-columns:380px 1fr;display:none">
+  <div class="panel" id="btp" style="display:flex;flex-direction:column"><div class="tg on" id="bton"><span>bluetooth <span style="color:var(--faint)">(b)</span></span><b>[ on ]</b></div>
+   <div class="ttl" style="margin-top:10px"><span>PAREADOS</span><span id="btscan"></span></div><div id="btl"></div>
+   <div class="ttl" style="margin-top:12px"><span>POR PERTO</span><span>s procurar</span></div><div id="btn"></div></div>
+  <div class="panel" style="display:flex;flex-direction:column"><div class="ttl"><span id="bdn">—</span><span id="bds"></span></div><div id="bdi"></div>
+   <div id="bda" style="display:flex;gap:8px;margin-top:14px"></div><div style="flex:1"></div><div class="cmd" id="bdc"></div></div>
+ </div>
+
+ <div class="cols mt" data-k="hw" style="grid-template-columns:380px 1fr;display:none">
+  <div class="panel scroll" id="hwl"></div>
+  <div class="panel" style="display:flex;flex-direction:column"><div class="ttl"><span id="hwn">—</span><span id="hws">⏎ testar</span></div><div id="hwi"></div>
+   <div class="ttl" style="margin-top:14px"><span>TESTE RÁPIDO</span></div>
+   <div id="hwr" style="flex:1"></div><div class="cmd" id="hwc"></div></div>
+ </div>
+</div>
+
+</main>
+<div class="foot"><span><span class="k">udev</span> ok</span><span id="fst" class="st">6 dispositivos</span><span class="sp"></span>
+<span><span class="k">tab</span> telas</span><span><span class="k">[ ]</span> aba</span><span><span class="k">⏎</span> ação</span><span id="clock"></span></div>
+<div class="toast" id="toast"></div>
+<div class="boot" id="boot">LW v0.2
+
+<b>[ OK ]</b> loading palette
+<b>[ OK ]</b> lsusb · pactl · lpstat · bluetoothctl
+<b>[ OK ]</b> starting LW // MECÂNICAS</div>
+</div></div>
+<script>const START=0;
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+function fit(){ const s=Math.min(innerWidth/1240, innerHeight/800); $('#stage').style.transform=`translate(-50%,-50%) scale(${s})`; }
+addEventListener('resize',fit); fit();
+let toastT; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),1800); }
+const navItems=$$('#nav li:not(.ghost)'), band=$('#band');
+let cur=0;
+function show(i){
+  cur=(i+navItems.length)%navItems.length;
+  navItems.forEach((li,j)=>li.classList.toggle('on',j===cur));
+  band.style.top=navItems[cur].offsetTop+'px';
+  const v=navItems[cur].dataset.v;
+  $$('.view').forEach(x=>x.classList.toggle('on',x.id===v));
+  $('#title').textContent='LW // '+navItems[cur].querySelector('.t').textContent;
+  const lg=$('#logo'); lg.classList.remove('glitch'); void lg.offsetWidth; lg.classList.add('glitch');
+  if(window.onShow) onShow(v);
+}
+navItems.forEach((li,j)=>li.onclick=()=>show(j));
+$$('.ghead').forEach(h=>h.onclick=()=>toast('protótipo: só '+document.title.split('·')[1].trim()+' é navegável aqui'));
+// sub-abas por chips
+function chips(group, cb){ const cs=$$(group+' .chip'); cs.forEach((c,i)=>c.onclick=()=>{ cs.forEach(x=>x.classList.toggle('on',x===c)); cb(c.dataset.k,i); }); return cs; }
+// lista navegável j/k
+function list(sel, onSel){ const rows=()=>$$(sel+' .row:not(.hd)'); let i=0;
+  const set=n=>{ const r=rows(); if(!r.length) return; i=(n+r.length)%r.length; r.forEach((x,j)=>x.classList.toggle('sel',j===i)); onSel&&onSel(r[i],i); };
+  rows().forEach((r,j)=>r.onclick=()=>set(j)); set(0);
+  return { up:()=>set(i-1), down:()=>set(i+1), get:()=>rows()[i], idx:()=>i, set }; }
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT' && e.target.type==='text') { if(e.key==='Escape') e.target.blur(); else return; }
+  if(e.altKey && /[1-5]/.test(e.key)){ toast('alt '+e.key+': troca de seção'); return; }
+  if(e.key==='Tab'){ e.preventDefault(); show(cur+(e.shiftKey?-1:1)); return; }
+  const n='1234567890'.indexOf(e.key); if(n>=0 && navItems[n]){ show(n); return; }
+  if(window.onKey && onKey(e)) e.preventDefault();
+});
+// boot
+const boot=$('#boot'); if(boot){ setTimeout(()=>{ boot.style.opacity=0; setTimeout(()=>boot.remove(),300); show(START||0); },650); }
+
+
+// ---- dispositivos
+const DEV=[
+ {n:'Impressora HP DeskJet 2700',t:'impressora',bus:'USB · CUPS',st:'pronta',info:[['fila','0 trabalhos'],['tinta','preto 40% · cor 65%'],['driver','hplip']],acts:['IMPRIMIR TESTE','VER FILA','CANCELAR TUDO'],cmd:'lp -d DeskJet_2700 /usr/share/cups/data/testprint'},
+ {n:'Caixa de som (P2)',t:'áudio',bus:'saída analógica · PipeWire',st:'saída padrão',info:[['volume','62%'],['formato','48 kHz']],acts:['TESTAR ESQ/DIR','DEFINIR PADRÃO'],cmd:'speaker-test -c 2 -t wav -l 1'},
+ {n:'Headset USB',t:'áudio',bus:'USB · PipeWire',st:'conectado',info:[['saída','48 kHz'],['microfone','ativo']],acts:['TESTAR MIC','DEFINIR PADRÃO'],cmd:'pactl set-default-sink alsa_output.usb-headset'},
+ {n:'Monitor 2 (HDMI-A-1)',t:'vídeo',bus:'1920x1080 @ 75 Hz',st:'ativo',info:[['posição','à direita'],['escala','1.0']],acts:['IDENTIFICAR','DESLIGAR'],cmd:'hyprctl monitors'},
+ {n:'Controle (USB)',t:'controle',bus:'HID · SDL',st:'conectado',info:[['mapeado','sim (controllers.txt)']],acts:['TESTAR BOTÕES'],cmd:'lw emu pad-watch event21'},
+ {n:'Pendrive 32 GB',t:'armazenamento',bus:'USB 3.0 · /run/media/lucas/PEN',st:'montado',info:[['livre','21.4 GB'],['sistema','exFAT']],acts:['ABRIR','EJETAR'],cmd:'udisksctl unmount -b /dev/sdc1 && udisksctl power-off -b /dev/sdc'}];
+DEV.forEach(d=>$('#devl').insertAdjacentHTML('beforeend',`<div class="row" style="grid-template-columns:1fr auto"><span><span class="dot ok"></span>${d.n}</span><span class="tag">${d.t}</span></div>`));
+let micT; const DL=list('#devl',(r,i)=>{ const d=DEV[i]; clearInterval(micT); $('#dvn').textContent=d.n.toUpperCase(); $('#dvs').textContent=d.st;
+ $('#dvi').innerHTML=[['conexão',d.bus],...d.info].map(x=>`<div class="kv"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');
+ $('#dva').innerHTML=d.acts.map((a,j)=>`<button class="btn${j?' mute':''}">${a}${j?'':' ⏎'}</button>`).join('');
+ $('#dvx').innerHTML=''; $('#dvc').innerHTML='<b>$</b> '+d.cmd; $$('#dva .btn').forEach((b,j)=>b.onclick=()=>devAct(d,j)); });
+function devAct(d,j){ const a=d.acts[j]; clearInterval(micT);
+ if(a==='TESTAR ESQ/DIR'){ $('#dvx').innerHTML='<div style="display:flex;gap:60px;justify-content:center;font-size:28px"><span id="spL">◀ E</span><span id="spR">D ▶</span></div>'; $('#spL').style.color='var(--accent)'; setTimeout(()=>{ $('#spL').style.color=''; $('#spR').style.color='var(--accent)'; },900); setTimeout(()=>$('#spR').style.color='',1800); return toast('tocando: esquerda, depois direita'); }
+ if(a==='TESTAR MIC'){ $('#dvx').innerHTML='<div class="label">FALE ALGO · NÍVEL DO MIC</div><div class="meter" style="height:12px"><i id="mic"></i></div>'; micT=setInterval(()=>$('#mic').style.width=(8+Math.random()*70)+'%',120); return; }
+ if(a==='IMPRIMIR TESTE'){ $('#dvx').innerHTML='<div class="label">FILA</div><div class="kv"><span>testprint</span><b id="pj">enviando…</b></div>'; setTimeout(()=>$('#pj').textContent='imprimindo',800); setTimeout(()=>{ $('#pj').textContent='concluído'; toast('página de teste impressa'); },2600); return; }
+ if(a==='TESTAR BOTÕES'){ $('#dvx').innerHTML='<div class="label">APERTE OS BOTÕES</div><div id="pad" style="display:flex;gap:6px">'+['A','B','X','Y','LB','RB','↑','↓'].map(b=>`<span class="tag" data-b="${b}">${b}</span>`).join('')+'</div>'; micT=setInterval(()=>{ const t=$$('#pad .tag'); t.forEach(x=>x.classList.remove('a')); t[Math.floor(Math.random()*t.length)].classList.add('a'); },400); return; }
+ if(a==='EJETAR') return toast('pode tirar o pendrive');
+ toast(a.toLowerCase()+'…'); }
+// ---- bluetooth
+const BT=[{n:'Fone WH-CH520',mac:'AC:80:0A:1F:22:9B',ic:'fone',con:1,bat:70},{n:'Controle 8BitDo',mac:'E4:17:D8:3C:01:7A',ic:'controle',con:0,bat:null},{n:'Celular do Lucas',mac:'5C:E9:1E:88:40:12',ic:'celular',con:0,bat:null}];
+let BTN=[], bon=1, BL;
+function renderBT(){ const k=BL?BL.idx():0;
+ $('#btl').innerHTML=BT.map(b=>`<div class="row" style="grid-template-columns:1fr auto"><span><span class="dot ${b.busy?'busy':b.con?'ok':'off'}"></span>${b.n}</span><span style="color:var(--faint)">${b.busy?'…':b.con?(b.bat!=null?'▮ '+b.bat+'%':'conectado'):'pareado'}</span></div>`).join('')||'<div style="color:var(--faint);padding:4px 8px">nenhum</div>';
+ $('#btn').innerHTML=BTN.map(b=>`<div class="row" style="grid-template-columns:1fr auto"><span>${b.n}</span><span style="color:var(--faint)">${b.rssi} dBm</span></div>`).join('')||`<div style="color:var(--faint);padding:4px 8px">${bon?'nada ainda; s procura':'bluetooth desligado'}</div>`;
+ BL=list('#btp',(r,i)=>{ const all=[...BT,...BTN], b=all[i], pa=i<BT.length;
+  $('#bdn').textContent=b.n.toUpperCase(); $('#bds').textContent=pa?(b.con?'conectado':'pareado'):'não pareado';
+  $('#bdi').innerHTML=[['endereço',b.mac],['tipo',b.ic],...(b.bat!=null&&b.con?[['bateria',b.bat+'%']]:[])].map(x=>`<div class="kv"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');
+  $('#bda').innerHTML=pa?`<button class="btn">${b.con?'DESCONECTAR':'CONECTAR'} ⏎</button><button class="btn mute">ESQUECER</button>`:'<button class="btn">PAREAR ⏎</button>';
+  $('#bdc').innerHTML='<b>$</b> bluetoothctl '+(pa?(b.con?'disconnect ':'connect '):'pair ')+b.mac+'   <span style="color:var(--faint)"># o rice já tem extras/bluetooth.py</span>';
+  $$('#bda .btn').forEach((x,j)=>x.onclick=()=>btAct(j)); });
+ const tot=BT.length+BTN.length; if(tot) BL.set(Math.min(k,tot-1)); }
+function btAct(j){ if(!bon) return toast('bluetooth desligado (b liga)'); const all=[...BT,...BTN], i=BL.idx(), b=all[i]; if(!b) return;
+ if(i>=BT.length){ toast('pareando '+b.n+'… confirme no aparelho'); setTimeout(()=>{ BTN.splice(BTN.indexOf(b),1); b.con=1; b.bat=b.ic==='caixa'?90:null; BT.push(b); renderBT(); toast(b.n+' pareado e conectado'); },1800); return; }
+ if(j===1){ BT.splice(i,1); renderBT(); toast('esquecido: '+b.n); return; }
+ b.busy=1; renderBT(); setTimeout(()=>{ b.busy=0; b.con=1-b.con; if(b.con&&b.ic==='controle') b.bat=55; renderBT(); toast(b.n+(b.con?' conectado':' desconectado')); },1100); }
+function btScan(){ if(!bon) return toast('bluetooth desligado (b liga)'); $('#btscan').innerHTML='<span class="dot busy"></span>procurando'; BTN=[]; renderBT();
+ [{n:'JBL Go 3',mac:'B8:F6:53:0D:77:E1',ic:'caixa',rssi:-48},{n:'TV da sala',mac:'00:1A:7D:DA:71:13',ic:'tv',rssi:-71},{n:'Mi Band 8',mac:'C8:47:8C:12:5A:FE',ic:'relógio',rssi:-80}]
+  .forEach((f,k)=>setTimeout(()=>{ BTN.push(f); renderBT(); },700*(k+1))); setTimeout(()=>$('#btscan').textContent='',2600); }
+$('#bton').onclick=()=>{ bon=1-bon; $('#bton').classList.toggle('on',!!bon); $('#bton b').textContent=bon?'[ on ]':'[ off ]'; if(!bon){ BT.forEach(b=>b.con=0); BTN=[]; } renderBT(); toast('bluetoothctl power '+(bon?'on':'off')); };
+renderBT();
+// ---- hardware + teste rápido
+const HW=[
+ {n:'CPU',m:'Ryzen 5 5600 · 6c/12t',info:[['clock','3.5 / 4.4 GHz'],['temp','46°C'],['uso','8%']],test:'sysbench cpu --threads=$(nproc) --time=5 run',unit:'eventos/s',res:17800,ref:[['teu último',17650],['outra CPU (ex.)',19800],['outra CPU (ex.)',13900]]},
+ {n:'GPU',m:'RX 6600 · 8 GB',info:[['driver','mesa (radv)'],['temp','41°C'],['vram','1.1 / 8 GB']],test:'vkmark',unit:'pontos',res:9100,ref:[['teu último',9050],['outra GPU (ex.)',6200]]},
+ {n:'RAM',m:'16 GB DDR4 3200 · dual channel',info:[['uso','5.1 GB'],['swap','zram 0%']],test:'sysbench memory --memory-total-size=10G run',unit:'MiB/s',res:11800,ref:[['teu último',11750],['single channel (ex.)',6400]]},
+ {n:'SSD',m:'NVMe 1 TB · PCIe 3.0',info:[['livre','620 GB'],['saúde','98% (smartctl)'],['temp','38°C']],test:'fio --name=seq --rw=read --bs=1M --size=1G --direct=1',unit:'MB/s',res:3300,ref:[['teu último',3280],['SSD SATA (ex.)',540],['HD 7200 rpm (ex.)',160]]},
+ {n:'Rede',m:'Ethernet 1 Gb/s',info:[['ip','192.168.0.10']],test:'iperf3 -c homelab -t 5',unit:'Mb/s',res:938,ref:[['limite do cabo',940]]}];
+HW.forEach(h=>$('#hwl').insertAdjacentHTML('beforeend',`<div class="row" style="grid-template-columns:50px 1fr"><span style="color:var(--accent)">${h.n}</span><span>${h.m}</span></div>`));
+let hwRun=0; const HL=list('#hwl',(r,i)=>{ if(hwRun) return; const h=HW[i]; $('#hwn').textContent=h.n+' · '+h.m; $('#hwi').innerHTML=h.info.map(x=>`<div class="kv"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');
+ $('#hwc').innerHTML='<b>$</b> '+h.test; $('#hwr').innerHTML=`<div style="color:var(--faint);margin-top:6px">roda ~5 s e compara com o teu último resultado.</div><button class="btn" style="margin-top:10px" onclick="hwTest()">TESTAR ⏎</button>`; });
+function hwTest(){ if(hwRun) return; hwRun=1; const h=HW[HL.idx()]; let p=0; $('#hws').innerHTML='<span class="dot busy"></span>rodando';
+ $('#hwr').innerHTML='<div class="meter" style="height:10px;margin-top:8px"><i id="hwp" style="width:0"></i></div><div id="hwlive" style="color:var(--dim);margin-top:6px"></div>';
+ const t=setInterval(()=>{ p+=4; $('#hwp').style.width=p+'%'; $('#hwlive').textContent=Math.round(h.res*(.6+Math.random()*.45)).toLocaleString('pt-BR')+' '+h.unit+' · temp '+(46+Math.round(p/6))+'°C';
+  if(p<100) return; clearInterval(t); hwRun=0; $('#hws').textContent='⏎ testar'; const r=Math.round(h.res*(.97+Math.random()*.05)); const all=[['agora',r],...h.ref]; const mx=Math.max(...all.map(x=>x[1]));
+  $('#hwr').innerHTML=`<div style="font-size:22px;color:var(--accent);margin:8px 0">${r.toLocaleString('pt-BR')} <span style="font-size:12px;color:var(--dim)">${h.unit}</span></div>`+all.map((x,k)=>`<div style="display:grid;grid-template-columns:150px 1fr 80px;gap:10px;align-items:center;padding:3px 0;color:${k?'var(--dim)':'var(--fg)'}"><span>${x[0]}</span><div class="meter"><i style="width:${x[1]/mx*100}%;${k?'background:var(--line-2)':''}"></i></div><span style="text-align:right">${x[1].toLocaleString('pt-BR')}</span></div>`).join('');
+  toast(h.n+': '+r.toLocaleString('pt-BR')+' '+h.unit); },200); }
+// abas e teclado
+let tab='dev'; const tabs=chips('#mtab',k=>{ tab=k; $$('.mt').forEach(m=>m.style.display=m.dataset.k===k?'grid':'none'); sel=0; hl(); });
+let sel=0; const box=()=>({anim:'#actl',jan:'#jctl',inp:'#ictl'})[tab]; function hl(){ $$(box()+' .ctl').forEach((c,i)=>c.classList.toggle('sel',i===sel)); }
+window.onKey=e=>{ const cs=$$(box()+' .ctl');
+  if(e.key===']'||e.key==='['){ const i=tabs.findIndex(c=>c.classList.contains('on')); tabs[(i+(e.key===']'?1:tabs.length-1))%tabs.length].click(); return true; }
+  if(['dev','bt','hw'].includes(tab)){ const L={dev:DL,bt:BL,hw:HL}[tab];
+    if(e.key==='j'||e.key==='ArrowDown'){ L.down(); return true; } if(e.key==='k'||e.key==='ArrowUp'){ L.up(); return true; }
+    if(e.key==='Enter'){ if(tab==='hw') hwTest(); else if(tab==='bt') btAct(0); else devAct(DEV[DL.idx()],0); return true; }
+    if(tab==='bt'&&e.key==='s'){ btScan(); return true; } if(tab==='bt'&&e.key==='b'){ $('#bton').click(); return true; }
+    return false; }
+  if(e.key==='j'||e.key==='ArrowDown'){ sel=(sel+1)%cs.length; hl(); return true; } if(e.key==='k'||e.key==='ArrowUp'){ sel=(sel-1+cs.length)%cs.length; hl(); return true; }
+  if('hlArrowLeftArrowRight'.includes(e.key)&&e.key.length<=10){ const c=cs[sel]; const d=(e.key==='l'||e.key==='ArrowRight')?1:-1; const r=$('input',c);
+    if(r){ r.value=+r.value+d*r.step; r.oninput(); } else if($('[data-o]',c)){ const t=$$('[data-o]',c); const i=t.findIndex(x=>x.classList.contains('a')); t[(i+d+t.length)%t.length].click(); } else c.click(); return true; }
+  if(e.key===' '||e.key==='Enter'){ cs[sel].click(); return true; }
+  if(e.key==='w'){ if(!changes.length){ toast('nada pra gravar'); return true; } toast('gravado em config/hypr/rice-appearance.lua (backup feito)'); changes=[]; $('#dirty').textContent=0; $('#fst').textContent='gravado'; return true; }
+  if(e.key==='u'){ toast('desfeito: hyprctl reload'); changes=[]; $('#dirty').textContent=0; $('#fst').textContent='sem mudanças'; return true; }
+  return false; };
+window.onShow=()=>{ hl(); };
+setInterval(()=>$('#clock').textContent=new Date().toTimeString().slice(0,5),1000);
+</script></body></html>

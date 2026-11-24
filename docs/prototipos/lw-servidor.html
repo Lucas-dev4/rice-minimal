@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LW · SERVIDOR</title><style>
+:root{
+  --bg:#12100e; --panel:#171513; --raise:#1d1a17; --line:#2a2622; --line-2:#3a342e;
+  --fg:#c9c1b6; --dim:#6f675e; --faint:#4a443e; --accent:#e8a46b; --accent-a:rgba(232,164,107,.09);
+  --hot:#f3cfa9; --ok:#b5d97a; --warn:#e86b6b; --yel:#e8c86b; --blue:#6bc4e8; --mag:#c98ae8;
+  --font:"JetBrainsMono Nerd Font Mono","JetBrains Mono","Iosevka","Fira Code",monospace;
+  --t-fast:140ms; --t-med:240ms; --ease:cubic-bezier(.2,.7,.2,1);
+}
+@media (prefers-reduced-motion: reduce){ :root{ --t-fast:0ms; --t-med:0ms; } }
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; overflow:hidden; }
+body{ background:#0b0a09; font:12.5px/1.55 var(--font); color:var(--fg); -webkit-font-smoothing:antialiased; }
+::selection{ background:var(--accent); color:var(--bg); }
+button{ background:none; border:0; font:inherit; color:inherit; cursor:pointer; }
+#stage{ position:absolute; left:50%; top:50%; width:1220px; height:780px; transform-origin:center; }
+.win{ width:1220px; height:780px; background:var(--bg); border:1px solid var(--line);
+  display:grid; grid-template-columns:232px 1fr; grid-template-rows:1fr 34px; position:relative; overflow:hidden;
+  box-shadow:0 40px 90px -20px rgba(0,0,0,.55); }
+.win::after{ content:''; position:absolute; inset:0; pointer-events:none; z-index:20;
+  background:repeating-linear-gradient(transparent 0 2px, rgba(0,0,0,.08) 2px 3px); mix-blend-mode:multiply; }
+.corner{ position:absolute; color:var(--faint); font-size:11px; line-height:1; z-index:5; }
+.corner.tl{ top:6px; left:8px; } .corner.tr{ top:6px; right:8px; }
+
+/* sidebar */
+.side{ background:var(--panel); border-right:1px solid var(--line); padding:30px 0 18px; display:flex; flex-direction:column; grid-row:1; }
+.brand{ padding:0 22px; }
+.logo{ color:var(--accent); font-size:9.5px; line-height:1.05; white-space:pre; text-shadow:0 0 18px rgba(232,164,107,.25); }
+.logo.glitch{ animation:glitch 180ms steps(2) 1; }
+@keyframes glitch{ 0%{ transform:translate(2px,0); text-shadow:-2px 0 #6bc4e8, 2px 0 #e86b8a; }
+  50%{ transform:translate(-2px,1px); clip-path:inset(30% 0 40% 0); } 100%{ transform:none; clip-path:none; } }
+.sub{ color:var(--dim); margin-top:10px; display:flex; justify-content:space-between; }
+.sub .ver{ color:var(--faint); }
+.grp{ margin-top:18px; }
+.ghead{ padding:3px 22px; display:flex; justify-content:space-between; color:var(--faint); font-size:10.5px; letter-spacing:1.5px; cursor:pointer; }
+.ghead:hover{ color:var(--fg); }
+.ghead.open{ color:var(--fg); font-weight:700; }
+.ghead .k{ color:var(--faint); letter-spacing:0; }
+.gline{ padding:0 22px; color:var(--faint); font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.gline .new{ color:var(--accent); }
+.nav{ list-style:none; position:relative; margin-top:6px; }
+.nav li{ position:relative; padding:5px 22px; cursor:pointer; color:var(--dim); display:flex; justify-content:space-between; transition:color var(--t-fast) var(--ease); }
+.nav li .k{ color:var(--faint); }
+.nav li .t{ transition:transform var(--t-fast) var(--ease); display:inline-block; }
+.nav li:hover{ color:var(--fg); } .nav li:hover .t{ transform:translateX(4px); }
+.nav li.on{ color:var(--accent); font-weight:600; } .nav li.on .k{ color:var(--accent); }
+.nav li.new .t::after{ content:' •'; color:var(--accent); }
+.nav li.ghost{ color:var(--faint); }
+.band{ position:absolute; left:0; right:0; height:29px; background:var(--accent-a); border-left:2px solid var(--accent);
+  transition:top var(--t-med) var(--ease); pointer-events:none; }
+.side-foot{ margin-top:auto; padding:0 22px; }
+.label{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; margin:0 0 8px; }
+.kv{ display:flex; justify-content:space-between; color:var(--dim); }
+.kv b{ color:var(--fg); font-weight:400; }
+
+/* main */
+.main{ display:flex; flex-direction:column; padding:22px 26px 14px; min-height:0; grid-row:1; }
+.head{ display:flex; align-items:center; gap:10px; color:var(--dim); }
+.head .title{ color:var(--accent); font-weight:800; letter-spacing:.6px; }
+.head .count{ color:var(--dim); border:1px solid var(--line); padding:0 6px; font-size:11px; }
+.head .rule{ flex:1; height:1px; background:repeating-linear-gradient(90deg,var(--line) 0 4px,transparent 4px 8px); }
+.view{ display:none; flex:1; min-height:0; flex-direction:column; }
+.view.on{ display:flex; animation:vin var(--t-med) var(--ease); }
+@keyframes vin{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+.bar2{ display:flex; gap:6px; margin:14px 0 10px; align-items:center; }
+.chip{ padding:1px 9px; border:1px solid var(--line); color:var(--dim); transition:all var(--t-fast) var(--ease); }
+.chip:hover{ color:var(--fg); border-color:var(--line-2); }
+.chip.on{ color:var(--bg); background:var(--accent); border-color:var(--accent); }
+.hint{ margin-left:auto; color:var(--faint); font-size:11px; }
+.panel{ background:var(--panel); border:1px solid var(--line); padding:12px 14px; position:relative; }
+.ttl{ color:var(--faint); font-size:10.5px; letter-spacing:1.5px; margin-bottom:8px; display:flex; justify-content:space-between; }
+.cols{ display:grid; gap:14px; flex:1; min-height:0; grid-template-rows:minmax(0,1fr); }
+.scroll{ overflow-y:auto; min-height:0; scrollbar-width:thin; scrollbar-color:var(--line-2) transparent; }
+.row{ display:grid; padding:5px 8px; color:var(--dim); border-left:2px solid transparent; cursor:pointer; align-items:center;
+  transition:background var(--t-fast), color var(--t-fast); }
+.row:hover{ color:var(--fg); }
+.row.sel{ background:var(--accent-a); border-left-color:var(--accent); color:var(--fg); }
+.row.hd{ color:var(--faint); font-size:10.5px; letter-spacing:1px; cursor:default; border-bottom:1px solid var(--line); }
+.row.hd:hover{ color:var(--faint); }
+.dot{ display:inline-block; width:7px; height:7px; margin-right:7px; vertical-align:1px; }
+.dot.ok{ background:var(--ok); box-shadow:0 0 8px rgba(181,217,122,.5); animation:pulse 2.4s infinite; }
+.dot.off{ background:var(--faint); } .dot.bad{ background:var(--warn); } .dot.busy{ background:var(--yel); animation:pulse .5s infinite; }
+@keyframes pulse{ 50%{ opacity:.35; } }
+.meter{ height:6px; background:var(--raise); position:relative; overflow:hidden; }
+.meter i{ position:absolute; left:0; top:0; bottom:0; background:var(--accent); transition:width var(--t-med) var(--ease); }
+.meter i::after{ content:''; position:absolute; right:0; top:0; bottom:0; width:2px; background:var(--hot); }
+.tag{ border:1px solid var(--line-2); padding:0 5px; font-size:10.5px; color:var(--dim); }
+.tag.a{ color:var(--accent); border-color:var(--accent); }
+.btn{ border:1px solid var(--accent); color:var(--accent); padding:2px 12px; transition:all var(--t-fast); }
+.btn:hover,.btn.on{ background:var(--accent); color:var(--bg); }
+.btn.mute{ border-color:var(--line-2); color:var(--dim); }
+.cmd{ margin-top:10px; border:1px dashed var(--line-2); padding:6px 10px; color:var(--dim); font-size:11.5px; white-space:pre-wrap; }
+.cmd b{ color:var(--accent); font-weight:400; }
+.caret{ color:var(--accent); animation:blink 1s steps(1) infinite; } @keyframes blink{ 50%{ opacity:0; } }
+
+/* sliders */
+.ctl{ display:grid; grid-template-columns:130px 1fr 54px; gap:10px; align-items:center; padding:5px 0; color:var(--dim); }
+.ctl.sel{ color:var(--fg); } .ctl.sel .nm::before{ content:'› '; color:var(--accent); }
+.ctl .v{ color:var(--fg); text-align:right; }
+input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:6px; background:var(--raise); outline:0; }
+input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:10px; height:14px; background:var(--accent); cursor:pointer; }
+input[type=range]::-moz-range-thumb{ width:10px; height:14px; background:var(--accent); border:0; border-radius:0; cursor:pointer; }
+.tg{ display:flex; justify-content:space-between; padding:5px 0; color:var(--dim); cursor:pointer; }
+.tg b{ font-weight:400; color:var(--faint); } .tg.on b{ color:var(--ok); }
+.tg:hover{ color:var(--fg); }
+
+/* footer */
+.foot{ grid-column:1 / -1; grid-row:2; border-top:1px solid var(--line); display:flex; align-items:center; gap:18px; padding:0 16px; color:var(--faint); font-size:11px; }
+.foot .k{ color:var(--dim); }
+.foot .sp{ flex:1; }
+.foot .st{ color:var(--dim); }
+.aic{ cursor:pointer; transition:border-color var(--t-fast), box-shadow var(--t-fast); }
+.aic.sel{ border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-a); }
+.toast{ position:absolute; right:18px; bottom:46px; background:var(--raise); border:1px solid var(--line-2); border-left:2px solid var(--accent);
+  padding:6px 12px; color:var(--fg); z-index:30; opacity:0; transform:translateY(8px); transition:all var(--t-med) var(--ease); pointer-events:none; }
+.toast.on{ opacity:1; transform:none; }
+.boot{ position:absolute; inset:0; background:var(--bg); z-index:40; padding:40px; color:var(--dim); white-space:pre; transition:opacity 300ms; }
+.boot b{ color:var(--ok); font-weight:400; }
+</style></head><body>
+<div id="stage"><div class="win">
+<span class="corner tl">┌</span><span class="corner tr">┐</span>
+<aside class="side"><div class="brand"><div class="logo" id="logo">██╗     ██╗    ██╗
+██║     ██║    ██║
+██║     ██║ █╗ ██║
+██║     ██║███╗██║
+███████╗╚███╔███╔╝
+╚══════╝ ╚══╝╚══╝ </div><div class="sub"><span>// control</span><span class="ver">v0.2</span></div></div>
+<div class="grp">
+<div class="ghead"><span>SISTEMA</span><span class="k">alt 1</span></div>
+<div class="gline">wallpaper: dunes.png · refined</div>
+</div>
+<div class="grp">
+<div class="ghead"><span>MÚSICA</span><span class="k">alt 2</span></div>
+<div class="gline">♪ parado</div>
+</div>
+<div class="grp">
+<div class="ghead"><span>JOGOS</span><span class="k">alt 3</span></div>
+<div class="gline">sem sessão</div>
+</div>
+<div class="grp">
+<div class="ghead"><span>IA <span style=color:var(--accent)>•</span></span><span class="k">alt 4</span></div>
+<div class="gline">qwen2.5-coder:7b carregado</div>
+</div>
+<div class="grp">
+<div class="ghead open"><span>SERVIDOR <span style=color:var(--accent)>•</span></span><span class="k">alt 5</span></div>
+<ul class="nav" id="nav"><div class="band" id="band"></div>
+<li data-v="v-ov"><span class="t">VISÃO GERAL</span><span class="k">1</span></li>
+<li data-v="v-send"><span class="t">ENVIAR</span><span class="k">2</span></li>
+<li data-v="v-net"><span class="t">CONECTADOS</span><span class="k">3</span></li>
+<li data-v="v-svc"><span class="t">SERVIÇOS</span><span class="k">4</span></li>
+<li data-v="v-log"><span class="t">LOGS</span><span class="k">5</span></li>
+</ul>
+</div>
+<div class="side-foot"><div class="label">HOST</div>
+<div class="kv"><span>nome</span><b>homelab</b></div>
+<div class="kv"><span>uptime</span><b id="up">12d 04:17</b></div>
+<div class="kv"><span>ping</span><b id="ping">3 ms</b></div>
+<div class="kv"><span>serviços</span><b id="svcn">6/7</b></div>
+<div style="margin-top:8px" class="label">DISCO /srv</div>
+<div class="meter"><i style="width:71%"></i></div>
+<div class="kv" style="margin-top:4px"><span>1.42 / 2.0 TB</span><b style="color:var(--yel)">71%</b></div></div></aside>
+<main class="main">
+<div class="head"><span class="title" id="title">LW</span><span class="count" id="count">proto</span><span class="rule"></span><span style="color:var(--faint)">tab/1-9 telas · j/k · ⏎</span></div>
+
+<div class="view" id="v-ov">
+ <div class="cols" style="grid-template-columns:repeat(4,1fr);grid-template-rows:130px 1fr;flex:1;margin-top:14px">
+  <div class="panel"><div class="ttl"><span>CPU</span><span id="cpuv" style="color:var(--fg)">—</span></div><svg class="spark" id="sp-cpu" viewBox="0 0 200 70" preserveAspectRatio="none" width="100%" height="76"></svg></div>
+  <div class="panel"><div class="ttl"><span>RAM</span><span id="ramv" style="color:var(--fg)">—</span></div><svg class="spark" id="sp-ram" viewBox="0 0 200 70" preserveAspectRatio="none" width="100%" height="76"></svg></div>
+  <div class="panel"><div class="ttl"><span>REDE ↓↑</span><span id="netv" style="color:var(--fg)">—</span></div><svg class="spark" id="sp-net" viewBox="0 0 200 70" preserveAspectRatio="none" width="100%" height="76"></svg></div>
+  <div class="panel"><div class="ttl"><span>TEMP</span><span id="tmpv" style="color:var(--fg)">—</span></div><svg class="spark" id="sp-tmp" viewBox="0 0 200 70" preserveAspectRatio="none" width="100%" height="76"></svg></div>
+  <div class="panel" style="grid-column:span 2"><div class="ttl"><span>SERVIÇOS</span><span id="ovn">—</span></div><div id="ovsvc"></div></div>
+  <div class="panel" style="grid-column:span 2"><div class="ttl"><span>DISCOS</span><span>smart ok</span></div>
+   <div class="kv" style="margin:6px 0 3px"><span>/ nvme0n1</span><b>38%</b></div><div class="meter"><i style="width:38%"></i></div>
+   <div class="kv" style="margin:12px 0 3px"><span>/srv sda (mídia)</span><b>71%</b></div><div class="meter"><i style="width:71%"></i></div>
+   <div class="kv" style="margin:12px 0 3px"><span>/backup sdb</span><b>22%</b></div><div class="meter"><i style="width:22%"></i></div>
+   <div class="cmd">último backup: <b>ontem 03:00</b> (restic, 41 GB) · próximo em 8 h</div></div>
+ </div>
+</div>
+
+<div class="view" id="v-svc">
+ <div class="bar2"><button class="chip on" data-k="all">TODOS</button><button class="chip" data-k="docker">DOCKER</button><button class="chip" data-k="systemd">SYSTEMD</button>
+  <span class="hint">s liga/desliga · r reiniciar · l logs · o abrir no navegador</span></div>
+ <div class="panel" style="flex:1;min-height:0" id="svcs"></div>
+ <div class="cmd" id="svccmd"></div>
+</div>
+
+<div class="view" id="v-log">
+ <div class="bar2" id="lgch"><button class="chip on" data-k="">TUDO</button><button class="chip" data-k="jellyfin">jellyfin</button><button class="chip" data-k="nginx">nginx</button><button class="chip" data-k="sshd">sshd</button>
+  <span class="hint">espaço pausa · w só avisos · g fim</span></div>
+ <div class="panel scroll" id="logs" style="flex:1;font-size:11.5px"></div>
+</div>
+
+<div class="view" id="v-send">
+ <div class="cols" style="grid-template-columns:1fr 340px;margin-top:14px">
+  <div style="display:flex;flex-direction:column;gap:14px;min-height:0">
+   <label id="drop" class="panel" style="height:160px;display:grid;place-items:center;border:1px dashed var(--line-2);cursor:pointer;text-align:center;transition:all var(--t-fast)">
+    <input type="file" id="fpick" multiple style="display:none">
+    <div><div style="font-size:26px;color:var(--accent);line-height:1">⇪</div><div style="margin-top:6px">arraste qualquer arquivo aqui</div><div style="color:var(--faint);font-size:11px">ou ⏎ / clique pra escolher · foto, vídeo, zip, iso, pasta…</div></div>
+   </label>
+   <div class="panel" style="flex:1;min-height:0;display:flex;flex-direction:column"><div class="ttl"><span>TRANSFERÊNCIAS</span><span id="xfn"></span></div><div class="scroll" id="xfers" style="flex:1"></div></div>
+  </div>
+  <div class="panel" style="display:flex;flex-direction:column"><div class="ttl"><span>PARA ONDE</span><span>j/k</span></div><div id="dests"></div>
+   <div class="ttl" style="margin-top:14px"><span>RECEBER</span></div>
+   <div class="tg on" id="recv"><span>aceitar dos aparelhos da casa</span><b>[ on ]</b></div>
+   <div style="color:var(--faint);font-size:11px">chega em ~/Downloads/Recebidos</div>
+   <div style="flex:1"></div><div class="cmd" id="sendcmd"></div></div>
+ </div>
+</div>
+
+<div class="view" id="v-net">
+ <div class="bar2"><span style="color:var(--faint)">quem está usando o servidor agora</span><span class="hint">j/k · x derrubar sessão · b bloquear aparelho</span></div>
+ <div class="cols" style="grid-template-columns:1.5fr 1fr">
+  <div class="panel scroll" id="who"></div>
+  <div style="display:flex;flex-direction:column;gap:14px;min-height:0">
+   <div class="panel"><div class="ttl"><span>PORTAS ABERTAS</span><span>ss -tlnp</span></div>
+    <div class="kv"><span>22 sshd</span><b style="color:var(--yel)">LAN</b></div>
+    <div class="kv"><span>80/443 nginx</span><b style="color:var(--warn)">internet</b></div>
+    <div class="kv"><span>8096 jellyfin</span><b style="color:var(--ok)">só via nginx</b></div>
+    <div class="kv"><span>445 smbd</span><b style="color:var(--yel)">LAN</b></div></div>
+   <div class="panel"><div class="ttl"><span>SSH</span><span>hoje</span></div>
+    <div class="kv" style="color:var(--warn)"><span>falhas de senha</span><b style="color:var(--warn)">37</b></div>
+    <div class="cmd">só chave: <b>PasswordAuthentication no</b> ainda não está no sshd_config<br><span style="color:var(--faint)">aviso, não muda nada sozinho</span></div>
+    <div style="margin-top:12px;display:flex;gap:8px"><button class="btn" onclick="toast('kitty abrindo ssh homelab')">ABRIR TERMINAL</button><button class="btn mute" onclick="toast('copiado: ssh lucas@homelab')">COPIAR SSH</button></div></div>
+  </div>
+ </div>
+</div>
+
+</main>
+<div class="foot"><span><span class="k">ssh</span> lucas@homelab</span><span id="fst" class="st">conectado</span><span class="sp"></span>
+<span><span class="k">tab</span> telas</span><span><span class="k">j/k</span> mover</span><span><span class="k">ctrl+j</span> esconder</span><span id="clock"></span></div>
+<div class="toast" id="toast"></div>
+<div class="boot" id="boot">LW v0.2
+
+<b>[ OK ]</b> loading palette
+<b>[ OK ]</b> ssh homelab (chave)
+<b>[ OK ]</b> docker ps · systemctl
+<b>[ OK ]</b> starting LW // SERVIDOR</div>
+</div></div>
+<script>const START=0;
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+function fit(){ const s=Math.min(innerWidth/1240, innerHeight/800); $('#stage').style.transform=`translate(-50%,-50%) scale(${s})`; }
+addEventListener('resize',fit); fit();
+let toastT; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('on'),1800); }
+const navItems=$$('#nav li:not(.ghost)'), band=$('#band');
+let cur=0;
+function show(i){
+  cur=(i+navItems.length)%navItems.length;
+  navItems.forEach((li,j)=>li.classList.toggle('on',j===cur));
+  band.style.top=navItems[cur].offsetTop+'px';
+  const v=navItems[cur].dataset.v;
+  $$('.view').forEach(x=>x.classList.toggle('on',x.id===v));
+  $('#title').textContent='LW // '+navItems[cur].querySelector('.t').textContent;
+  const lg=$('#logo'); lg.classList.remove('glitch'); void lg.offsetWidth; lg.classList.add('glitch');
+  if(window.onShow) onShow(v);
+}
+navItems.forEach((li,j)=>li.onclick=()=>show(j));
+$$('.ghead').forEach(h=>h.onclick=()=>toast('protótipo: só '+document.title.split('·')[1].trim()+' é navegável aqui'));
+// sub-abas por chips
+function chips(group, cb){ const cs=$$(group+' .chip'); cs.forEach((c,i)=>c.onclick=()=>{ cs.forEach(x=>x.classList.toggle('on',x===c)); cb(c.dataset.k,i); }); return cs; }
+// lista navegável j/k
+function list(sel, onSel){ const rows=()=>$$(sel+' .row:not(.hd)'); let i=0;
+  const set=n=>{ const r=rows(); if(!r.length) return; i=(n+r.length)%r.length; r.forEach((x,j)=>x.classList.toggle('sel',j===i)); onSel&&onSel(r[i],i); };
+  rows().forEach((r,j)=>r.onclick=()=>set(j)); set(0);
+  return { up:()=>set(i-1), down:()=>set(i+1), get:()=>rows()[i], idx:()=>i, set }; }
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT' && e.target.type==='text') { if(e.key==='Escape') e.target.blur(); else return; }
+  if(e.altKey && /[1-5]/.test(e.key)){ toast('alt '+e.key+': troca de seção'); return; }
+  if(e.key==='Tab'){ e.preventDefault(); show(cur+(e.shiftKey?-1:1)); return; }
+  const n='1234567890'.indexOf(e.key); if(n>=0 && navItems[n]){ show(n); return; }
+  if(window.onKey && onKey(e)) e.preventDefault();
+});
+// boot
+const boot=$('#boot'); if(boot){ setTimeout(()=>{ boot.style.opacity=0; setTimeout(()=>boot.remove(),300); show(START||0); },650); }
+
+
+const S={cpu:[],ram:[],net:[],tmp:[]}; for(let i=0;i<40;i++){ S.cpu.push(20+Math.random()*15); S.ram.push(55+Math.random()*4); S.net.push(Math.random()*40); S.tmp.push(48+Math.random()*4); }
+function draw(id,a,max,col){ const s=$('#sp-'+id); const pts=a.map((v,i)=>[i*200/(a.length-1),70-v/max*66]);
+  const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  s.innerHTML=`<path d="${d} L200 70 L0 70Z" fill="${col}" opacity=".12"/><path d="${d}" fill="none" stroke="${col}" stroke-width="1.5" vector-effect="non-scaling-stroke"/><circle cx="200" cy="${pts.at(-1)[1]}" r="2.5" fill="var(--hot)"/>`; }
+function tick(){ const push=(k,v)=>{ S[k].push(v); S[k].shift(); };
+  push('cpu',Math.max(3,Math.min(97,S.cpu.at(-1)+(Math.random()-.5)*14+(transc?6:0)))); push('ram',Math.max(40,Math.min(90,S.ram.at(-1)+(Math.random()-.5)*2)));
+  push('net',Math.max(0,Math.min(100,(transc?55:8)+Math.random()*30))); push('tmp',Math.max(40,Math.min(80,S.tmp.at(-1)+(Math.random()-.5)*1.5)));
+  draw('cpu',S.cpu,100,'var(--accent)'); draw('ram',S.ram,100,'var(--blue)'); draw('net',S.net,100,'var(--ok)'); draw('tmp',S.tmp,90,'var(--yel)');
+  $('#cpuv').textContent=Math.round(S.cpu.at(-1))+'%'; $('#ramv').textContent=(S.ram.at(-1)/100*16).toFixed(1)+' / 16 GB';
+  $('#netv').textContent=(S.net.at(-1)*.9).toFixed(1)+' MB/s'; $('#tmpv').textContent=Math.round(S.tmp.at(-1))+'°C';
+  $('#ping').textContent=(2+Math.floor(Math.random()*3))+' ms'; }
+let transc=false; setInterval(tick,700); tick();
+// ---- enviar: arrastar qualquer arquivo e escolher o destino
+const DEST=[['homelab · /srv/inbox','servidor · rsync via ssh',f=>`rsync -aP ${f} homelab:/srv/inbox/`,110e6],
+ ['Celular do Lucas','KDE Connect',f=>`kdeconnect-cli -n "Celular do Lucas" --share ${f}`,20e6],
+ ['Pasta pública (samba)','todo mundo da casa vê',f=>`cp -r ${f} /mnt/homelab/publico/`,90e6],
+ ['Link pra baixar','vence em 24 h · quem tiver o link',f=>`lw share link ${f} --ttl 24h   <span style="color:var(--faint)"># proposta: nginx serve /srv/share</span>`,110e6]];
+function kind(n){ const e=n.split('.').pop().toLowerCase(); return ({pdf:'PDF',zip:'ZIP',rar:'ZIP','7z':'ZIP',gz:'ZIP',mp4:'VÍDEO',mkv:'VÍDEO',webm:'VÍDEO',mp3:'ÁUDIO',flac:'ÁUDIO',ogg:'ÁUDIO',jpg:'IMG',jpeg:'IMG',png:'IMG',gif:'IMG',webp:'IMG',iso:'ISO',exe:'EXE',txt:'TXT',md:'TXT',c:'CÓD',py:'CÓD',lua:'CÓD'})[e]||'ARQ'; }
+function hs(b){ return b>=1e9?(b/1e9).toFixed(1)+' GB':b>=1e6?(b/1e6).toFixed(1)+' MB':Math.max(1,Math.round(b/1e3))+' KB'; }
+const XF=[{n:'fotos-viagem.zip',s:2.4e9,d:0,p:35,dir:'↑'},{n:'relatorio-AED.pdf',s:2.1e6,d:1,p:100,dir:'↑'}];
+function renderX(){ $('#xfers').innerHTML=XF.map(x=>`<div style="display:grid;grid-template-columns:16px 56px 1fr 130px 110px;gap:10px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line)"><span style="color:${x.dir==='↓'?'var(--ok)':'var(--accent)'}">${x.dir}</span><span class="tag" style="justify-self:start">${kind(x.n)}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${x.n} <span style="color:var(--faint)">${hs(x.s)} ${x.dir==='↓'?'de '+x.from:'→ '+DEST[x.d][0]}</span></span><div class="meter"><i style="width:${x.p}%;${x.p>=100?'background:var(--ok)':''}"></i></div><span style="text-align:right;color:${x.p>=100?'var(--ok)':'var(--dim)'}">${x.p>=100?'pronto':Math.floor(x.p)+'% · '+hs(DEST[x.d][3])+'/s'}</span></div>`).join('');
+ $('#xfn').textContent=XF.filter(x=>x.p<100).length+' em andamento'; }
+setInterval(()=>{ let ch=0; XF.forEach(x=>{ if(x.p<100){ x.p=Math.min(100,x.p+DEST[x.d][3]/x.s*100*.25); ch=1; if(x.p>=100) toast(x.n+(x.dir==='↓'?' recebido':' enviado')); } }); if(ch) renderX(); },250);
+function updCmd(r,i){ const d=DEST[i??SL2.idx()]; const f=XF.find(x=>x.dir==='↑'); $('#sendcmd').innerHTML='<b>$</b> '+d[2]((f?f.n:'arquivo').replace(/ /g,'\\ ')); }
+function addFiles(fs){ if(!fs.length) return; const d=SL2.idx(); [...fs].forEach(f=>XF.unshift({n:f.name,s:Math.max(f.size,2e5),d,p:0,dir:'↑'})); renderX(); updCmd(); toast(fs.length+' arquivo(s) → '+DEST[d][0]); }
+const drop=$('#drop'); drop.ondragover=e=>{ e.preventDefault(); drop.style.borderColor='var(--accent)'; drop.style.background='var(--accent-a)'; };
+drop.ondragleave=()=>{ drop.style.borderColor=''; drop.style.background=''; }; drop.ondrop=e=>{ e.preventDefault(); drop.ondragleave(); addFiles(e.dataTransfer.files); };
+$('#fpick').onchange=e=>addFiles(e.target.files);
+DEST.forEach(d=>$('#dests').insertAdjacentHTML('beforeend',`<div class="row" style="grid-template-columns:1fr"><span>${d[0]}<br><span style="color:var(--faint);font-size:11px">${d[1]}</span></span></div>`));
+const SL2=list('#dests',updCmd); renderX();
+$('#recv').onclick=()=>{ const r=$('#recv'); r.classList.toggle('on'); $('b',r).textContent=r.classList.contains('on')?'[ on ]':'[ off ]'; };
+setTimeout(()=>{ if($('#recv').classList.contains('on')){ XF.unshift({n:'IMG_2041.jpg',s:4.2e6,d:1,p:0,dir:'↓',from:'Celular do Lucas'}); renderX(); toast('Celular do Lucas mandou IMG_2041.jpg'); } },7000);
+// ---- conectados
+const WHO=[['Desktop do Lucas','você','ssh · samba (/srv/media)','192.168.0.10','2 h',1],['Celular do Lucas','lucas','syncthing · jellyfin pausado','192.168.0.23','40 min',0],
+ ['TV da sala','—','jellyfin · assistindo um filme · 1080p (transcodificando)','192.168.0.31','1 h 12',0],['Notebook do Pedro','pedro','samba · /srv/media/publico (só leitura)','192.168.0.40','15 min',0],
+ ['Desconhecido','—','tentou ssh como root (bloqueado pelo fail2ban)','45.x.x.x','agora',0]];
+let WL; function renderWho(){ $('#who').innerHTML=`<div class="row hd" style="grid-template-columns:1.1fr 70px 1.8fr 110px 60px"><span>APARELHO</span><span>USUÁRIO</span><span>FAZENDO</span><span>IP</span><span>DESDE</span></div>`+
+ WHO.map(w=>`<div class="row" style="grid-template-columns:1.1fr 70px 1.8fr 110px 60px"><span style="color:${w[0]==='Desconhecido'?'var(--warn)':'var(--fg)'}"><span class="dot ${w[0]==='Desconhecido'?'bad':'ok'}"></span>${w[0]}${w[5]?' <span class=tag>você</span>':''}</span><span>${w[1]}</span><span style="color:var(--faint)">${w[2]}</span><span>${w[3]}</span><span>${w[4]}</span></div>`).join('');
+ WL=list('#who'); }
+renderWho();
+const SV=[['jellyfin','docker','ok','12%','1.1 GB','8096','mídia (transcodificando 1 stream)'],['nginx','systemd','ok','0.3%','24 MB','80/443','proxy reverso + certificados'],
+ ['samba','systemd','ok','0.1%','40 MB','445','compartilha /srv/media na LAN'],['syncthing','docker','ok','1.2%','90 MB','8384','sincroniza ~/Músicas e ~/ROMs'],
+ ['pihole','docker','ok','0.4%','60 MB','53','DNS e bloqueio de anúncios'],['restic-backup','systemd','ok','0%','—','—','timer diário 03:00'],['minecraft','docker','off','—','—','25565','servidor do pessoal (parado)']];
+let filt='all';
+function renderSvc(){ const box=$('#svcs'); box.innerHTML=`<div class="row hd" style="grid-template-columns:1.2fr 90px 110px 70px 80px 80px 1.6fr"><span>SERVIÇO</span><span>TIPO</span><span>ESTADO</span><span>CPU</span><span>MEM</span><span>PORTA</span><span>NOTA</span></div>`;
+  SV.forEach((s,i)=>{ if(filt!=='all'&&s[1]!==filt) return; const st={ok:'<span class="dot ok"></span>rodando',off:'<span class="dot off"></span>parado',busy:'<span class="dot busy"></span>reiniciando…'}[s[2]];
+   box.insertAdjacentHTML('beforeend',`<div class="row" data-i="${i}" style="grid-template-columns:1.2fr 90px 110px 70px 80px 80px 1.6fr"><span style="color:var(--fg)">${s[0]}</span><span class="tag" style="justify-self:start">${s[1]}</span><span>${st}</span><span>${s[3]}</span><span>${s[4]}</span><span>${s[5]}</span><span style="color:var(--faint)">${s[6]}</span></div>`); });
+  SL=list('#svcs',r=>{ const s=SV[r.dataset.i]; $('#svccmd').innerHTML=s[1]==='docker'?`<b>$</b> ssh homelab docker restart ${s[0]}`:`<b>$</b> ssh homelab sudo systemctl restart ${s[0]}`; });
+  $('#ovsvc').innerHTML=SV.map(s=>`<div class="kv" style="padding:2px 0"><span><span class="dot ${s[2]}"></span>${s[0]}</span><b style="color:var(--faint)">${s[3]}</b></div>`).join('');
+  const n=SV.filter(s=>s[2]==='ok').length; $('#svcn').textContent=n+'/'+SV.length; $('#ovn').textContent=n+' rodando'; }
+let SL; renderSvc();
+chips('#v-svc .bar2',k=>{ filt=k; renderSvc(); });
+function act(kind){ const r=SL.get(); if(!r) return; const i=+r.dataset.i, s=SV[i];
+  if(kind==='s'){ s[2]=s[2]==='off'?'busy':'off'; if(s[2]==='busy') setTimeout(()=>{ s[2]='ok'; s[3]='2%'; s[4]='1.8 GB'; renderSvc(); SL.set(SL.idx()); toast(s[0]+' rodando'); },1400); else { s[3]=s[4]='—'; toast(s[0]+' parado'); } }
+  if(kind==='r'&&s[2]==='ok'){ s[2]='busy'; setTimeout(()=>{ s[2]='ok'; renderSvc(); SL.set(SL.idx()); toast(s[0]+' reiniciado'); addLog(s[0],'INFO','started'); },1200); }
+  const k=SL.idx(); renderSvc(); SL.set(k); }
+// logs
+const LG=[['jellyfin','INFO','Transcoding h264 → h264 1080p para "TV da sala"'],['nginx','INFO','GET /jellyfin/Videos 206'],['sshd','WARN','Failed password for root from 45.x.x.x'],
+ ['pihole','INFO','blocked ads.doubleclick.net'],['syncthing','INFO','Completed sync of folder "Músicas"'],['nginx','WARN','upstream timed out (minecraft:25565)'],['jellyfin','ERR','ffmpeg exited with code 1 (legenda .ass)']];
+let paused=false, warnOnly=false, lf='';
+function addLog(sv,lv,tx){ if(paused) return; if(lf&&sv!==lf) return; if(warnOnly&&lv==='INFO') return; const c={INFO:'var(--dim)',WARN:'var(--yel)',ERR:'var(--warn)'}[lv];
+  const t=new Date().toTimeString().slice(0,8); const d=document.createElement('div'); d.style.animation='vin 200ms';
+  d.innerHTML=`<span style="color:var(--faint)">${t}</span>  <span style="color:var(--accent)">${sv.padEnd(10,' ').replace(/ /g,'&nbsp;')}</span> <span style="color:${c}">${lv.padEnd(4)}</span> ${tx}`;
+  const b=$('#logs'); b.appendChild(d); if(b.children.length>200) b.firstChild.remove(); b.scrollTop=1e9; }
+setInterval(()=>{ const l=LG[Math.floor(Math.random()*LG.length)]; addLog(...l); },900);
+for(let i=0;i<14;i++) addLog(...LG[i%LG.length]);
+chips('#lgch',k=>{ lf=k; $('#logs').innerHTML=''; });
+window.onKey=e=>{ const v=navItems[cur].dataset.v;
+  if(v==='v-send'){ if(e.key==='j'||e.key==='ArrowDown'){ SL2.down(); return true; } if(e.key==='k'||e.key==='ArrowUp'){ SL2.up(); return true; } if(e.key==='Enter'){ $('#fpick').click(); return true; } return false; }
+  if(v==='v-net'){ if(e.key==='j'||e.key==='ArrowDown'){ WL.down(); return true; } if(e.key==='k'||e.key==='ArrowUp'){ WL.up(); return true; }
+    const w=WHO[WL.idx()]; if(e.key==='x'){ if(w[5]) toast('essa é a sua sessão'); else { WHO.splice(WL.idx(),1); renderWho(); toast('sessão derrubada: '+w[0]); } return true; }
+    if(e.key==='b'){ toast(w[5]?'não dá pra bloquear você mesmo':'bloqueado: '+w[0]+' (nft, desfaz em CONECTADOS)'); return true; } return false; }
+  if(v==='v-svc'){ if(e.key==='j'||e.key==='ArrowDown'){ SL.down(); return true; } if(e.key==='k'||e.key==='ArrowUp'){ SL.up(); return true; }
+    if('sr'.includes(e.key)){ act(e.key); return true; } if(e.key==='l'){ const s=SV[SL.get().dataset.i]; show(4); setTimeout(()=>{ const c=$$('#lgch .chip').find(c=>c.dataset.k===s[0]); c? c.click():toast('sem filtro p/ '+s[0]); },10); return true; }
+    if(e.key==='o'){ toast('abrindo http://homelab:'+SV[SL.get().dataset.i][5]); return true; } }
+  if(v==='v-log'){ if(e.key===' '){ paused=!paused; $('#fst').textContent=paused?'logs pausados':'conectado'; return true; } if(e.key==='w'){ warnOnly=!warnOnly; toast(warnOnly?'só WARN/ERR':'tudo'); return true; } }
+  return false; };
+setInterval(()=>{ transc=!transc; },6000);
+setInterval(()=>$('#clock').textContent=new Date().toTimeString().slice(0,5),1000);
+</script></body></html>
