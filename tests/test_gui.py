@@ -282,5 +282,27 @@ class OnlineSearch(Window):
         self.assertEqual((self.search()['searching'], self.search()['error']), (False, ''))
 
 
+class Sections(Window):
+    """Trocar de seção não procura a tela da nova na lista da antiga."""
+    def test_no_screen_is_looked_up_in_the_old_list(self):
+        self.save_session()
+        self.open('system')
+        modules = json.loads(subprocess.run([sys.executable, str(ROOT/'extras/rice.py'), 'modules', 'list', '--json'],
+                                            env=self.env, capture_output=True, text=True).stdout)['data']
+        self.until(lambda: self.state().get('online') is not None)
+        # A última tela de cada seção: a posição de uma não existe na outra.
+        for m in modules:
+            self.ipc('go', m['id'])
+            self.ipc('open', str(len(m['screens'])-1))
+        for a in modules:
+            for b in modules:
+                for m in (a, b):
+                    self.ipc('go', m['id'])
+                    state = self.state()
+                    self.assertEqual((state['section'], state['screen']), (m['id'], m['screens'][-1]['name']))
+        # Só o shell.qml: os avisos do EmulatorsView são de JOGOS (docs/pendencias.md).
+        self.assertEqual([l for l in (self.home/'log').read_text().splitlines() if 'shell.qml[' in l], [])
+
+
 if __name__ == '__main__':
     unittest.main()

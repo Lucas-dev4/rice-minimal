@@ -32,6 +32,13 @@ FloatingWindow {
     property var lastScreen: ({})
     readonly property int current: lastScreen[groupKey] || 0
     readonly property var screens: groups[group].screens
+    // A tela aberta (folder, name e file). Uma conta só: `screens` e `current` não mudam juntos na
+    // troca de seção, e a posição de uma seção não vale na lista da outra.
+    readonly property var shown: {
+        const g = groups.find(g => g.id === groupKey) || groups[0];
+        const s = g.screens[Math.min(lastScreen[groupKey] || 0, g.screens.length - 1)];
+        return { folder: g.folder, name: s.name, file: s.file };
+    }
     // What each module puts on the window outside its screens (components/LwModule.qml), by id.
     property var hooks: ({})
     readonly property LwModule hook: hookOf(groupKey)
@@ -143,7 +150,7 @@ FloatingWindow {
         // Scriptable state and actions (scripts/music-check.sh, tests): the hooks add theirs.
         function state(): string {
             return JSON.stringify(Object.assign({
-                section: window.groupKey, view: window.current, screen: window.screens[window.current].name
+                section: window.groupKey, view: window.current, screen: window.shown.name
             }, ...window.allHooks().map(h => h.state()), {
                 games: Games.games.length, scanning: Games.scanning, session: Games.session, message: Status.message
             }));
@@ -468,9 +475,9 @@ FloatingWindow {
                 anchors.bottom: parent.bottom
                 width: parent.width
                 visible: window.hook.ready
-                source: window.groups[window.group].folder + "/" + window.screens[window.current].file
+                source: window.shown.folder + "/" + window.shown.file
                 onLoaded: {
-                    if (item.title !== undefined) item.title = window.screens[window.current].name;
+                    if (item.title !== undefined) item.title = window.shown.name;
                     if (item.keyTarget !== undefined) item.keyTarget = keys;
                     window.hookOf(window.groupKey).screenLoaded(item);
                     // Each screen enters with a short fade.
@@ -606,7 +613,7 @@ FloatingWindow {
                 !window.inGames && window.hook.bootStep ? window.hook.bootStep :
                 { label: window.inGames ? "reading games.json: " + Games.games.length + " games" : "reading profile: " + (Theme.profile || "?"),
                   done: window.inGames ? Games.loaded : Theme.profile !== "" },
-                { label: "loading " + window.screens[window.current].name.toLowerCase(), done: screen.status === Loader.Ready },
+                { label: "loading " + window.shown.name.toLowerCase(), done: screen.status === Loader.Ready },
                 { label: "starting LW", done: true }
             ]
             onFinished: keys.forceActiveFocus()

@@ -111,7 +111,7 @@
   "gui/screens/ShortcutsScreen.qml": "4ed6cf1a9bd96efd34b83f91c8075c372b3a608a8553465247a932573ccd7496",
   "gui/screens/SystemModule.qml": "515f0c500158b6a701b779bb352cdc408afde94e7d767c4f3f832059286fcf17",
   "gui/screens/WallpaperScreen.qml": "e60ebac17cab854c0b7346d1167a7f6c3d4554a22e77e00e8c2325b031d2d1c9",
-  "gui/shell.qml": "87beb137dddc0e9ea8e7484a735eacfba5a9f562e3b6a6e56c3ec8ed09db7396",
+  "gui/shell.qml": "3ba53fd791666650291d467d78d13d1716c7bd447b56bd3b26db6a09c9968c8e",
   "modules/games/module.toml": "81089538bb499585146368e8ceea9cad1fb6c41160d328fab73b4fa8a806fbf0",
   "modules/music/module.toml": "594918f63e339a6858131a449c517f91fb4ac3714afebc8b0fe7ea4571cd94f2",
   "modules/system/module.toml": "34440f6e13ba7ed503bb3f69093d68341020a4af2e4d937ad57cb5dcb8d70be1",

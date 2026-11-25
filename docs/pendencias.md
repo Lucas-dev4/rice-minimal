@@ -12,7 +12,6 @@ Decisões tomadas sem confirmar, sempre pela opção mais conservadora (manter o
 
 ### Achado e não mexido
 
-- **O `ffmpeg` que o `yt-dlp` lança** não recebe o aviso do kernel: se o LW fechar no meio de uma conversão, ela termina sozinha em segundos. O `yt-dlp` já morre junto com o `lw`.
-- **`TypeError: Value is undefined` no log ao trocar de seção:** por um instante a tela da seção nova é procurada com a lista antiga (`screens[current]`, no `shell.qml`). Não aparece na tela; já existia.
+- **O `ffmpeg` que o `yt-dlp` lança** não recebe o aviso do kernel: se o LW fechar no meio de uma conversão, ela pode seguir até acabar (não testado). O `yt-dlp` já morre junto com o `lw`.
 - **Avisos do `EmulatorsView.qml`** no log ao abrir EMULADORES; é de JOGOS (sessão 5).
 - **`Downloads.dest`** não é usado por nenhuma tela; só passou a seguir `music.dir`.
