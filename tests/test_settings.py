@@ -43,7 +43,7 @@ class Config(unittest.TestCase):
         self.assertEqual(settings.get('music', 'dir'), h + '/Músicas')
         self.assertEqual(games.config(), {
             'rom_dirs': [h + '/ROMs', h + '/Jogos/ROMs'], 'ready_dirs': [h + '/Downloads/hydra_Jogos'],
-            'emulator_dirs': [h + '/Jogos/Emuladores'], 'download_dirs': [h + '/Downloads'],
+            'emulator_dirs': [h + '/Jogos/Emuladores'], 'download_dirs': [h + '/Downloads'], 'prefix_dir': h + '/Games',
             'retroarch': 'retroarch', 'cores_dir': '/usr/lib/libretro', 'emulators': {},
             'compat_list': 'extras/games-list.json'})
         self.assertEqual(settings.problems(), [])

@@ -111,11 +111,19 @@ class Contract(unittest.TestCase):
                                 'config': {k: v['default'] for k, v in system.get('config', {}).items()}})
 
     def test_the_open_command_leads_to_its_module(self):
-        self.assertEqual(modules.openers(), {'music': 'music'})
+        self.assertEqual(modules.openers(), {'music': 'music', 'games': 'games'})
 
-    def test_the_window_does_not_know_music(self):
+    def test_the_window_does_not_know_any_module(self):
+        # O shell.qml inteiro (comentários também) não cita o que é de um módulo: nem os singletons, nem os
+        # tipos das pastas, nem o nome da seção. Do módulo ele só tem o import da pasta.
         shell = (ROOT/'gui/shell.qml').read_text()
-        self.assertEqual(re.findall(r'\b(?:Music|Spectrum|Downloads|inMusic)\b', shell), [])
+        owned = {'Music', 'Games', 'Spectrum', 'Downloads', 'inMusic', 'inGames'} | {m['name'] for m in self.found.values()}
+        for m in self.found.values():
+            owned |= {p.stem for p in (ROOT/'gui'/m['gui']['folder']).glob('*.qml')}
+        self.assertEqual(sorted(w for w in owned if re.search(rf'\b{re.escape(w)}\b', shell)), [])
+        # No código, nem os ids.
+        code = re.sub(r'(?m)//.*$', '', shell)
+        self.assertEqual(re.findall(r'["\'](?:%s)["\']' % '|'.join(self.found), code), [])
 
     def test_the_music_screens_have_no_logic_of_their_own(self):
         # Nada chama os scripts direto nem escreve a pasta das músicas fixa.
@@ -124,6 +132,17 @@ class Contract(unittest.TestCase):
             self.assertNotRegex(text, r'extras/(library|organize|radio|ytdl)\.py', path.name)
             self.assertNotIn('"yt-dlp", "', text, path.name)
             self.assertNotIn('Músicas', text, path.name)
+
+    def test_the_games_screens_have_no_logic_of_their_own(self):
+        # Nada chama os scripts direto, nem um shell, nem escreve as pastas da config fixas.
+        for path in [ROOT/'gui/Games.qml', *(ROOT/'gui/arcade').glob('*.qml')]:
+            text = path.read_text()
+            self.assertNotRegex(text, r'(games|emulators|compat|rice)\.py', path.name)
+            self.assertNotRegex(text, r'\[\s*"(ba|z|fi)?sh"', path.name)
+            self.assertNotRegex(text, r'~/Games|/Games/|~/ROMs|Jogos/|in Downloads|em Downloads', path.name)
+            # Fora do lw, só o diálogo (zenity) e o fluxo do controle, que é lw também.
+            for call in re.findall(r'(?m)^\s*(?:\w+\.)?command(?:: | = )(?!"")(.*)', text):
+                self.assertRegex(call, r'^(\["zenity"|Theme\.lw\.concat\(\["emu", "pad-watch")', path.name)
 
     def test_every_hook_field_is_documented_and_exists(self):
         base = (ROOT/'gui/components/LwModule.qml').read_text()

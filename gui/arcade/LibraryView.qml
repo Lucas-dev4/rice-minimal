@@ -41,16 +41,24 @@ Item {
             onStreamFinished: {
                 root.pickedExe = text.trim();
                 if (!root.pickedExe) return;
-                if (/\.exe$/i.test(root.pickedExe)) pickPrefix.running = true;
+                if (/\.exe$/i.test(root.pickedExe)) prefixes.call(["game", "prefixes", "--json"]);
                 else { root.pickedPrefix = ""; pickName.running = true; }
             }
         }
     }
-    // Wine prefixes that exist here, plus a fresh default.
+    // Wine prefixes that exist here.
+    RiceCommand {
+        id: prefixes
+        program: Theme.lw
+        onSucceeded: data => {
+            pickPrefix.command = ["zenity", "--list", "--title=LW — prefixo do Wine", "--text=Em qual prefixo do Wine o jogo está instalado?",
+                                  "--column=prefixo"].concat(data.prefixes);
+            pickPrefix.running = true;
+        }
+        onFailed: message => Games.failed(message)
+    }
     Process {
         id: pickPrefix
-        command: ["bash", "-c", 'opts=(); for p in "$HOME"/.wine*/ "$HOME"/Games/*/pfx/; do [ -f "$p/system.reg" ] && opts+=("${p%/}"); done; ' +
-                  'zenity --list --title="LW — prefixo do Wine" --text="Em qual prefixo do Wine o jogo está instalado?" --column=prefixo "${opts[@]}"']
         stdout: StdioCollector {
             onStreamFinished: {
                 root.pickedPrefix = text.trim();
@@ -345,7 +353,7 @@ Item {
             wrapMode: Text.Wrap
             color: Theme.faint
             font.pixelSize: Theme.small
-            text: "O scan procura a Steam (todas as bibliotecas), o Hydra Launcher e ROMs em ~/ROMs. "
+            text: "O scan procura a Steam (todas as bibliotecas), o Hydra Launcher e ROMs em " + Games.romDirs + ". "
                 + "Jogos do Wine (repacks, .exe) entram por + JOGO: escolha o executável já instalado e o prefixo."
         }
         AccentButton { anchors.horizontalCenter: parent.horizontalCenter; label: "+ ADICIONAR .exe (a)"; onClicked: root.addGame() }

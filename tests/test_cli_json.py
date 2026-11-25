@@ -10,12 +10,13 @@ import tempfile
 import time
 import unittest
 from unittest.mock import patch
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'extras'))
 import cli
+import cmd_games
 import cmd_music
 import cmd_system
 from theme import theme
@@ -718,6 +719,118 @@ class Music(unittest.TestCase):
         with patch.object(cli,'gui',return_value=0) as gui:
             self.assertEqual(cli.main(['music']),0)
         gui.assert_called_once_with('music')
+
+
+class Games(unittest.TestCase):
+    """game, compat e emu: a lógica do games.py, compat.py e emulators.py no envelope do lw."""
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.home = Path(temp.name)
+        env = patch.dict(os.environ,{'HOME':str(self.home),'XDG_CONFIG_HOME':str(self.home/'.config'),'XDG_STATE_HOME':str(self.home/'state'),
+                                     'XDG_CACHE_HOME':str(self.home/'cache'),'XDG_DATA_HOME':str(self.home/'data')})
+        env.start()
+        self.addCleanup(env.stop)
+        self.exe = self.home/'jogo.sh'
+        self.exe.write_text('#!/bin/sh\n')
+
+    def run_cli(self, *argv):
+        out = StringIO()
+        with redirect_stdout(out):
+            code = cli.main([*argv,'--json'])
+        return code, json.loads(out.getvalue())
+
+    def data(self, *argv):
+        code, result = self.run_cli(*argv)
+        self.assertEqual((code,result['ok'],result['action'],result['warnings']),(0,True,' '.join(argv[:2]),[]),result)
+        return result['data']
+
+    def refused(self, *argv):
+        code, result = self.run_cli(*argv)
+        self.assertEqual((code,result['ok'],result['error']['code']),(1,False,'invalid'))
+        return result['error']['message']
+
+    def test_the_library_goes_through_the_envelope(self):
+        self.assertEqual(self.data('game','list'),{'games':[]})
+        gid = self.data('game','add','--exe',str(self.exe),'--title','Um','--args=-x')['added']['id']
+        self.assertEqual(self.data('game','scan')['total'],1)
+        self.assertEqual(self.data('game','set',gid,'notes=--json não é opção','status=playing')['game']['notes'],'--json não é opção')
+        self.assertEqual(self.data('game','arrange','done',gid),{'status':'done','ids':[gid]})
+        self.assertEqual(self.data('game','arrange','want'),{'status':'want','ids':[]})
+        self.assertEqual(self.data('game','running'),{'running':cmd_games.games.running()})
+        self.assertEqual(self.data('game','recover'),{'session':None})
+        self.assertEqual(self.data('game','stop',gid),{'signalled':0})
+        self.assertEqual(self.data('game','installers'),{'installers':[],'ready':[]})
+        self.assertEqual(sorted(self.data('game','tools')),['gamemode','gamescope','mangohud','proton'])
+        self.assertEqual(self.data('game','prefixes'),{'prefixes':[]})
+        self.assertEqual(self.data('game','rec-hide','7'),{'hidden':1})
+        self.assertEqual(self.data('game','rec-hide','--clear'),{'hidden':0})
+        self.assertEqual(self.data('game','remove',gid),{'removed':gid})
+
+    def test_the_same_data_as_the_script(self):
+        self.data('game','add','--exe',str(self.exe))
+        for name in ('list','installers','running','recover'):
+            out = StringIO()
+            with redirect_stdout(out):
+                cmd_games.games.main([name])
+            plain = json.loads(out.getvalue())
+            self.assertIs(plain.pop('ok'),True)
+            self.assertEqual(self.data('game',name),plain)
+
+    def test_refusals_keep_their_message(self):
+        self.assertEqual(self.refused('game','launch','x'),'jogo não encontrado: x')
+        self.assertEqual(self.refused('game','remove','x'),'jogo não encontrado: x')
+        self.assertEqual(self.refused('game','set','x','status=done'),'jogo não encontrado: x')
+        self.assertEqual(self.refused('game','arrange','nada'),'status inválido: nada')
+        self.assertEqual(self.refused('game','add','--exe','/nada'),'executável não encontrado: /nada')
+        self.assertEqual(self.refused('game','install','/nada'),'instalador não encontrado: /nada')
+        self.assertEqual(self.refused('game','install-add','/nada','/x'),'instalação não registrada: /nada')
+        self.assertEqual(self.refused('game','install-forget','/nada'),'instalação não registrada: /nada')
+        self.assertEqual(self.refused('game','played-add','7'),'sugestão não encontrada: 7')
+        self.assertEqual(self.refused('emu','set','nada','res','1'),'emulador desconhecido: nada')
+
+    def test_the_rest_passes_its_arguments(self):
+        with patch.object(cmd_games.games,'meta',return_value={'matched':[],'missed':[]}) as meta:
+            self.data('game','meta','a','b')
+            self.data('game','meta','--all')
+        self.assertEqual([c.args for c in meta.call_args_list],[(['a','b'],False),([],True)])
+        with patch.object(cmd_games.games,'install',return_value={}) as install, patch.object(cmd_games.games,'add_ready',return_value={}) as ready:
+            self.data('game','install','/s','--name','N')
+            self.data('game','add-ready','/e','--name','N')
+        install.assert_called_once_with('/s','N')
+        ready.assert_called_once_with('/e','N')
+        with patch.object(cmd_games.compat,'check',return_value={'games':[]}), patch.object(cmd_games.compat,'scan',return_value={'cpu':'x'}):
+            self.assertEqual((self.data('compat','check'),self.data('compat','scan')),({'games':[]},{'cpu':'x'}))
+        with patch.object(cmd_games.emulators,'pads',return_value={'pads':[]}), patch.object(cmd_games.emulators,'apply_pad',return_value={'applied':'x'}), \
+             patch.object(cmd_games.emulators,'pad_save',return_value={'saved':'n'}) as save:
+            self.assertEqual((self.data('emu','pads'),self.data('emu','apply-pad','pcsx2')),({'pads':[]},{'applied':'x'}))
+            self.data('emu','pad-save','g','n','a=b0','b=b1')
+        save.assert_called_once_with('g','n',['a=b0','b=b1'])
+        self.assertIn('pcsx2',[e['id'] for e in self.data('emu','list')['emulators']])
+
+    def test_the_watchers_are_not_commands(self):
+        # O vigia da sessão e o da instalação rodam direto: desligar JOGOS não pode pará-los.
+        for name in ('watch','install-run'):
+            with redirect_stderr(StringIO()), self.assertRaises(SystemExit):
+                cli.main(['game',name,'x'])
+
+    def test_pad_watch_streams_without_envelope(self):
+        with patch.object(cmd_games.emulators,'watch',side_effect=lambda event: print('{"ready": true}')) as watch:
+            out = StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(cli.main(['emu','pad-watch','event3']),0)
+        watch.assert_called_once_with('event3')
+        self.assertEqual(out.getvalue(),'{"ready": true}\n')
+        for error, code in ((KeyboardInterrupt(),0),(BrokenPipeError(),0),(OSError('sumiu'),1)):
+            out = StringIO()
+            with redirect_stdout(out), patch.object(cmd_games.emulators,'watch',side_effect=error):
+                self.assertEqual(cli.main(['emu','pad-watch','event3']),code)
+            self.assertEqual(out.getvalue(),'{"error": "sumiu"}\n' if code else '')
+
+    def test_lw_games_opens_the_window_on_games(self):
+        with patch.object(cli,'gui',return_value=0) as gui:
+            self.assertEqual(cli.main(['games']),0)
+        gui.assert_called_once_with('games')
 
 
 class CliampSync(unittest.TestCase):

@@ -2,7 +2,6 @@ import QtQuick
 
 // LwModule.qml — o gancho base: o que um módulo põe na janela fora das telas dele (docs/modulos.md).
 // Nenhum campo é obrigatório: todos têm um padrão neutro, e o módulo preenche só o que usa.
-// O shell.qml já lê tudo, menos started(), que entra com JOGOS (sessão 5).
 Item {
     visible: false
 
@@ -11,6 +10,7 @@ Item {
     property int current: 0                  // a tela dele, pela ordem do manifesto
     property bool parked: false              // janela escondida (Ctrl+J)
     property Item keyTarget: null            // quem recebe o foco do teclado depois de um clique
+    property int footerHeight: 0             // altura do rodapé (o que sobe por cima da janela para nele)
 
     // ---- barra lateral e tela
     property string summary: ""              // linha da seção fechada
@@ -30,6 +30,8 @@ Item {
 
     // Pede uma tela da própria seção (só vale com ela aberta).
     signal openScreen(int index)
+    // Pede a própria seção, de qualquer outra.
+    signal openSection()
 
     // Clique na ponta direita do rodapé.
     function contextClicked() {}

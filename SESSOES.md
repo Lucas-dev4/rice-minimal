@@ -30,7 +30,7 @@ Extraia SISTEMA como módulo segundo docs/modulos.md (manifesto, telas, subcoman
 Mesmo que a sessão 3, para MÚSICA (cliamp, rádio, online, biblioteca). Comportamento igual, README do módulo, testes, commit.
 ```
 
-## [ ] 5 — Módulo JOGOS
+## [x] 5 — Módulo JOGOS
 ```
 Mesmo que a sessão 3, para JOGOS (biblioteca, backlog, desempenho, emuladores, instalar). Comportamento igual, README do módulo, testes, commit.
 ```

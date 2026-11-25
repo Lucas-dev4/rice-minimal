@@ -7,7 +7,7 @@ import qs.arcade
 
 // LW // GAMES backlog: four columns by status, top of a column = highest priority.
 // Drag a card to another column or place; or keys: h/l j/k select, H/L change column,
-// J/K change priority, ⏎ opens the sheet. Every change is one `games.py arrange`.
+// J/K change priority, ⏎ opens the sheet. Every change is one `lw game arrange`.
 Item {
     id: root
 

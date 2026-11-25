@@ -1,15 +1,13 @@
 // GameSheet.qml — a ficha do jogo (abre por cima da lista): status, progresso, horas, notas,
 // e como o jogo roda (proton-ge, gamescope/fsr, mangohud, gamemode). Cada mudança vira Games.set().
 import QtQuick
-import Quickshell
-import Quickshell.Io
 import qs
 import qs.components
 import qs.arcade
 
 // The sheet that rises from the bottom for one game: cover, hours, the estimate and the
 // progress (editable), status, gamemoderun / mangohud, notes, PLAY. Every edit goes to
-// games.py at once (text fields after a short pause). Esc or a click outside closes it.
+// `lw game set` at once (text fields after a short pause). Esc or a click outside closes it.
 Item {
     id: root
 
@@ -56,15 +54,13 @@ Item {
     property bool hasGamescope: false
     // Proton applies to Windows games outside Steam; Steam keeps its own launch options.
     readonly property bool windowsGame: !!game && game.source !== "steam" && /\.exe$/i.test(game.exe || "")
-    Process {
-        running: true
-        command: ["bash", "-c", "command -v gamemoderun >/dev/null && echo gamemode; command -v mangohud >/dev/null && echo mangohud; command -v umu-run >/dev/null && echo umu; command -v gamescope >/dev/null && echo gamescope; true"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                root.hasGamemode = /gamemode/.test(text); root.hasMangohud = /mangohud/.test(text);
-                root.hasUmu = /umu/.test(text); root.hasGamescope = /gamescope/.test(text);
-            }
+    RiceCommand {
+        program: Theme.lw
+        onSucceeded: data => {
+            root.hasGamemode = data.gamemode; root.hasMangohud = data.mangohud;
+            root.hasUmu = data.proton; root.hasGamescope = data.gamescope;
         }
+        Component.onCompleted: call(["game", "tools", "--json"])
     }
 
     visible: scrim.opacity > 0

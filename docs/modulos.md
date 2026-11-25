@@ -122,7 +122,7 @@ dir = "~/Áudio"
 - Arquivo quebrado ou tipo errado: vale o padrão e o `lw doctor` mostra FAIL. O LW sempre abre.
 - `lw modules enable|disable` muda só a linha do módulo em `[modules]`: backup, temp + rename, e o resultado precisa passar no `tomllib` antes de substituir.
 - **Segredo não entra aqui** (a config é entregue ao QML por variável de ambiente). `~/.config/lw/igdb.json` continua à parte.
-- JOGOS já aceita `~/.local/share/lw/games-config.json`. Ordem: `config.toml`, depois esse arquivo, depois o padrão.
+- JOGOS já aceita `~/.local/share/lw/games-config.json`. Ordem: `config.toml`, depois esse arquivo, depois o padrão. Os textos da janela só veem o `config.toml` e o padrão.
 
 ### Atalhos
 
@@ -155,6 +155,7 @@ Preenchidos pelo `shell.qml`; o módulo só lê, nunca escreve:
 | `current` | a tela dele, pela ordem do manifesto (cada seção lembra a sua) |
 | `parked` | janela escondida (`Ctrl+J`) |
 | `keyTarget` | quem recebe o foco do teclado depois de um clique |
+| `footerHeight` | altura do rodapé: o que sobe por cima da janela para nele |
 
 Opcionais, com o padrão neutro:
 
@@ -173,7 +174,8 @@ Opcionais, com o padrão neutro:
 | `hints` | dicas padrão da seção | `[]`: as dicas da janela | |
 | `bootStep` | linha do boot, `{ label, done }` | `null`: "reading profile" | `done` precisa virar `true` |
 | `openScreen(index)` (sinal) | o módulo pede uma tela da própria seção | ninguém emite | só vale com a seção aberta |
-| `started()` | janela abriu | não faz nada | o shell passa a chamar na sessão 5 |
+| `openSection()` (sinal) | o módulo pede a própria seção | ninguém emite | |
+| `started()` | o gancho carregou com a janela (antes de `entered`) | não faz nada | |
 | `entered()`, `exited()` | entrou/saiu da seção | não fazem nada | |
 | `closing(active)` | janela fechando (`active`: nesta seção) | não faz nada | |
 | `screenLoaded(item)` | tela do módulo pronta | não faz nada | |
@@ -182,15 +184,15 @@ Opcionais, com o padrão neutro:
 | `backgroundKey(event)` | tecla quando ninguém mais usou | `false` | |
 | `state()`, `act(op, arg)` | IPC dos testes | `{}`, `false`: não conhece a ação | |
 
-Quem recebe o quê: `overlayKey`, `backgroundKey`, `closing`, `state` e `act` vão a **todos** os ganchos, na ordem da barra lateral (o primeiro que responde `true` encerra); `key`, `screenLoaded`, `entered` e `exited`, só ao da seção. O gancho que carrega depois da janela recebe `entered` e `screenLoaded` ao chegar. `exited` não se chama `left` porque esse nome já é uma âncora do `Item` e a chamada falha.
+Quem recebe o quê: `overlayKey`, `backgroundKey`, `closing`, `state` e `act` vão a **todos** os ganchos, na ordem da barra lateral (o primeiro que responde `true` encerra). Só `overlayKey` vai na ordem inversa, porque o último da barra é desenhado por cima; `key`, `screenLoaded`, `entered` e `exited`, só ao da seção. O gancho que carrega depois da janela recebe `entered` e `screenLoaded` ao chegar. `exited` não se chama `left` porque esse nome já é uma âncora do `Item` e a chamada falha.
 
 O gancho não enxerga o `shell.qml`. O que os dois precisam ver passa pelo `Status.qml`: `logOpen` (painel LOG aberto) e `logLine` (última linha do log), `wallpaper` e `profile` (do `lw status`, que o shell chama porque o boot e as cores do terminal dependem dele) e `error`, uma falha que fica no rodapé, acima de qualquer mensagem, até a ação rodar de novo (SYNC ALL).
 
 O gancho nasce com a janela e vive até ela fechar; `sidebar` e `footerLeft` também, só alternando `visible`. O `bootStep` neutro é "reading profile".
 
-Ordem das teclas, igual à de hoje: `Ctrl+J` → boot → `overlayKey` → `Alt+n` → tela → `key` → `1…n`, `q`/`Esc`, `↑↓` → `backgroundKey`. Os nomes do IPC não mudam; `state` continua um objeto plano (soma dos módulos), para o `music-check.sh` seguir funcionando.
+Ordem das teclas, igual à de hoje: `Ctrl+J` → boot → `overlayKey` → `Alt+n` → tela → `key` → `1…n`, `q`/`Esc`, `↑↓` → `backgroundKey`. Os nomes do IPC não mudam (`openSheet` e `installer` só repassam para o `act` do gancho que os conhece); `state` continua um objeto plano (soma dos módulos), para o `music-check.sh` seguir funcionando.
 
-Regra: **depois da sessão 5, `shell.qml` não cita `Music`, `Games`, `Spectrum` nem `Downloads`**, e um teste confere isso.
+Regra: **o `shell.qml` não conhece nenhum módulo**. Não cita `Music`, `Games`, `Spectrum`, `Downloads`, os tipos das pastas dos módulos nem o nome ou o id das seções; um teste confere isso.
 
 ## Como o `lw doctor` lê as dependências
 
@@ -235,12 +237,12 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 
 - `order = 30`.
 - **Telas** (`gui/arcade`): BIBLIOTECA, BACKLOG, DESEMPENHO, EMULADORES.
-- **Comandos** (`cmd_games`): `compat`, `emu` (já existem) e `game` (hoje `games.py` direto): `scan`, `list`, `add`, `set`, `launch`, `stop`, `arrange`, `meta`, `installers`, `install`…; `open = "games"`.
-- **Gancho**: `summary`, `sidebar`, `overlay` (fichas e tela de lançamento), `context`, `bootStep`, `started`, `entered`, `exited`, `overlayKey`, `screenLoaded`, `act`.
+- **Comandos** (`cmd_games`): `compat scan|check`, `emu …` e `game …` (a biblioteca, as sessões, os instaladores e o IGDB; lista no README do módulo); `open = "games"`. `games.py watch` e `install-run` rodam direto.
+- **Gancho**: `summary`, `sidebar`, `overlay` (fichas e tela de lançamento), `context`, `bootStep`, `started`, `entered`, `exited`, `overlayKey`, `screenLoaded`, `state`, `act`, `openSection`.
 - **Singleton**: `Games`.
 - **Obrigatórias**: nenhuma; a lista abre vazia.
 - **Opcionais**: `wine` · `umu-run` umu-launcher (Proton) · `gamemoderun` gamemode · `mangohud` · `gamescope` · `steam` · `retroarch` · `dolphin-emu` · `ppsspp` · `ryujinx` · `lspci` pciutils · `zenity`.
-- **Config**: `rom_dirs`, `ready_dirs`, `emulator_dirs`, `download_dirs`, `retroarch`, `cores_dir`, `emulators`, `compat_list` (caminho do JSON com a lista de jogos; lista longa não vai dentro do `config.toml`; caminho relativo conta a partir do repositório).
+- **Config**: `rom_dirs`, `ready_dirs`, `emulator_dirs`, `download_dirs`, `prefix_dir`, `retroarch`, `cores_dir`, `emulators`, `compat_list` (caminho do JSON com a lista de jogos; lista longa não vai dentro do `config.toml`; caminho relativo conta a partir do repositório).
 - **Atalhos**: `SUPER + G` (`lw games`).
 
 ## Módulo novo, passo a passo
@@ -273,5 +275,7 @@ O código de hoje não cumpre a regra ao pé da letra. O contrato aceita só est
 - **Diálogo e área de transferência**: `zenity`, `wl-copy`.
 - **Gravar atalho**: o submapa do `hyprctl` em SHORTCUTS.
 - **Preferências só visuais** em `~/.local/state/rice-minimal/gui/`.
+- **Ler ao vivo** o `~/.local/share/lw/games.json` (`FileView` em `Games.qml`): o vigia da sessão grava nele com o LW fechado ou aberto, e a tela acompanha. Só leitura; toda mudança é `lw game`.
+- **Provisória: contas sobre esse `games.json`**, em `Games.qml` (totais, ritmo, aviso de desempenho), `StatsView.qml` (semanas e recomendações, com os pesos) e `InstallSheet.qml` (nome e pasta de um instalador escolhido à mão). Devem ir para o Python (`docs/pendencias.md`); até lá, nenhuma conta nova no QML.
 
 Módulo novo não acrescenta exceção sem antes mudar esta lista.

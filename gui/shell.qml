@@ -10,14 +10,13 @@ import qs.player
 import qs.arcade
 
 // shell.qml — a janela principal do LW (Quickshell). Barra lateral com as seções, que são os
-// módulos ativos (Modules.qml; hoje SISTEMA, MÚSICA, JOGOS), a área da tela escolhida, o rodapé
-// de status e o painel LOG. O que é só de um módulo fica no gancho dele (components/LwModule.qml).
-// Cada tela fica num arquivo: screens/ (SISTEMA), player/ (MÚSICA) e arcade/ (JOGOS).
+// módulos ativos (Modules.qml), a área da tela escolhida, o rodapé de status e o painel LOG.
+// Esta janela não conhece nenhum módulo: o que é só de um fica no gancho dele
+// (components/LwModule.qml), e cada tela num arquivo da pasta dele.
 // Os atalhos do Hyprland chegam aqui pelo IPC "lw" (bloco IpcHandler abaixo).
 //
-// LW — one window for the whole system: SISTEMA (wallpapers, shortcuts, profiles…),
-// MÚSICA (cliamp) and JOGOS (library, backlog, play sessions). Opened by `lw gui`,
-// `lw music` and `lw games` (Super+BackSpace / Super+M / Super+G) on that section.
+// LW — one window for the whole system. Opened by `lw gui` and by each module's `open`
+// command (modules/<id>/module.toml) on that section.
 // Look and behaviour follow docs/lw-prototype.html; all tokens live in Theme.qml.
 FloatingWindow {
     id: window
@@ -46,7 +45,6 @@ FloatingWindow {
     function hookOf(id) { return hooks[id] || neutral; }
     // Os ganchos carregados, na ordem da barra lateral.
     function allHooks() { return groups.map(g => hooks[g.id]).filter(h => h); }
-    readonly property bool inGames: groupKey === "games"
 
     property var status: ({})
     property bool statusLoaded: false
@@ -58,19 +56,19 @@ FloatingWindow {
     implicitHeight: 780
     color: "transparent"
     // See-through like the terminal (RICE_GUI_OPACITY overrides; 1 = solid).
-    Component.onCompleted: { Theme.alpha = Number(Quickshell.env("RICE_GUI_OPACITY") || 0.85); Games.recover(); enterGroup(); }
+    Component.onCompleted: { Theme.alpha = Number(Quickshell.env("RICE_GUI_OPACITY") || 0.85); enterGroup(); }
     onVisibleChanged: if (!visible && !parked) quit()
-    // Ctrl+J hides the window without closing it (music keeps playing, a game session keeps
-    // counting); the same Super shortcut brings it back (`lw` asks `hidden` first).
+    // Ctrl+J hides the window without closing it: the modules keep running. The same Super
+    // shortcut brings it back (`lw` asks `hidden` first).
     property bool parked: false
-    // Ctrl+J: esconde a janela sem parar nada (música e jogo continuam).
+    // Ctrl+J: esconde a janela sem parar nada.
     function park() { parked = true; visible = false; }
     // Mostra de novo a janela escondida.
     function unpark() { visible = true; parked = false; keys.forceActiveFocus(); }
     // True se a tecla é Ctrl+J.
     function isPark(event) { return event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier); }
 
-    // Each module decides what closing does to it (MÚSICA: stop the music or only save the session).
+    // Each module decides what closing does to it.
     function quit() {
         for (const id in hooks) if (hooks[id]) hooks[id].closing(id === groupKey);
         Qt.quit();
@@ -85,26 +83,23 @@ FloatingWindow {
     // Troca de seção pela posição na barra lateral (Alt+1/2/3).
     function selectGroup(index) {
         if (index < 0 || index >= groups.length || index === group) return;
-        sheet.close();
-        installSheet.close();
+        // O foco sai da tela antiga antes de ela sumir: sem isso, um campo levaria o teclado junto.
+        keys.forceActiveFocus();
         groupKey = groups[index].id;
         enterGroup();
     }
     // The section the hooks were last told about (its hook may still be loading).
     property string enteredKey: ""
-    // JOGOS scans the libraries once per window.
-    property bool scanned: false
-    // Avisa os ganchos da troca de seção; JOGOS faz o scan de jogos.
+    // Avisa os ganchos da troca de seção.
     function enterGroup() {
         if (enteredKey !== groupKey) {
             hookOf(enteredKey).exited();
             enteredKey = groupKey;
             hookOf(groupKey).entered();
         }
-        if (inGames && !scanned) { scanned = true; Games.scan(true); }
     }
-    // Fecha a ficha e inicia o jogo.
-    function launchGame(id) { sheet.close(); Games.launch(id); }
+    // Uma ação pelo nome: o primeiro gancho que a conhece responde.
+    function act(op, arg) { return allHooks().some(h => h.act(op, arg)) ? "ok" : "unknown " + op; }
 
     IpcHandler {
         target: "lw"
@@ -113,9 +108,9 @@ FloatingWindow {
         function hidden(): string { return window.parked ? "yes" : "no"; }
         // IPC: mostra a janela escondida.
         function reveal(): void { window.unpark(); }
-        // The section shown now: system, music or games.
+        // The id of the section shown now.
         function section(): string { return window.groupKey; }
-        // IPC: vai para uma seção pelo nome (usado pelos atalhos Super+BackSpace/M/G).
+        // IPC: vai para uma seção pelo nome (usado pelos atalhos do Hyprland).
         function go(name: string): void { window.selectGroup(window.groups.findIndex(g => g.id === name)); }
         // IPC: abre uma tela da seção atual.
         function open(index: int): void { window.select(index); }
@@ -143,22 +138,19 @@ FloatingWindow {
             screen.item.query(text);
             return "ok";
         }
-        // IPC: abre a ficha de um jogo (vazio fecha).
-        function openSheet(id: string): string { if (id) sheet.openGame(id); else sheet.close(); return "ok"; }
-        // IPC: abre a tela INSTALAR de JOGOS.
-        function installer(): void { window.selectGroup(window.groups.findIndex(g => g.id === "games")); installSheet.openSheet(); }
+        // Nomes antigos de duas ações: abrir uma ficha (vazio fecha) e a tela de instalar.
+        function openSheet(id: string): string { return window.act("openSheet", id); }
+        function installer(): void { window.act("installer", ""); }
         // Scriptable state and actions (scripts/music-check.sh, tests): the hooks add theirs.
         function state(): string {
             return JSON.stringify(Object.assign({
-                section: window.groupKey, view: window.current, screen: window.shown.name
-            }, ...window.allHooks().map(h => h.state()), {
-                games: Games.games.length, scanning: Games.scanning, session: Games.session, message: Status.message
-            }));
+                section: window.groupKey, view: window.current, screen: window.shown.name, typing: !keys.focus
+            }, ...window.allHooks().map(h => h.state()), { message: Status.message }));
         }
-        // IPC: executa uma ação pelo nome (testes); o primeiro gancho que a conhece responde.
+        // IPC: executa uma ação pelo nome (testes).
         function act(op: string, arg: string): string {
-            if (op === "quit") window.quit();
-            else if (!window.allHooks().some(h => h.act(op, arg))) return "unknown " + op;
+            if (op !== "quit") return window.act(op, arg);
+            window.quit();
             return "ok";
         }
     }
@@ -185,7 +177,9 @@ FloatingWindow {
         item.active = Qt.binding(() => window.groupKey === id);
         item.current = Qt.binding(() => window.lastScreen[id] || 0);
         item.parked = Qt.binding(() => window.parked);
+        item.footerHeight = Qt.binding(() => footer.height);
         hooks = Object.assign({}, hooks, { [id]: item });
+        item.started();
         if (enteredKey === id) item.entered();
         if (groupKey === id && screen.status === Loader.Ready) item.screenLoaded(screen.item);
     }
@@ -202,6 +196,7 @@ FloatingWindow {
                 target: item
                 ignoreUnknownSignals: true
                 function onOpenScreen(index) { if (window.groupKey === modelData.id) window.select(index); }
+                function onOpenSection() { window.selectGroup(window.groups.findIndex(g => g.id === modelData.id)); }
             }
         }
     }
@@ -228,14 +223,6 @@ FloatingWindow {
         function onDarkChanged() { statusCommand.call(["status", "--json"]); }
     }
 
-    // Short status-bar messages for what the games do.
-    Connections {
-        target: Games
-        function onFailed(message) { Status.say("[ !! ] " + message, Theme.red); }
-        function onChanged(message) { Status.say(message, Theme.ok); }
-        function onSessionEnded(title, hours) { Status.say(Games.hoursText(hours) + " em " + title, Theme.ok); }
-    }
-
     Item {
         id: keys
         anchors.fill: parent
@@ -250,10 +237,8 @@ FloatingWindow {
         // Not while SHORTCUTS records a combination: Ctrl+J is a combination too.
         if (isPark(event) && !(screen.item && screen.item.recording)) { park(); event.accepted = true; return; }
         if (boot.visible) { boot.finish(); event.accepted = true; return; }
-        if (launchScreen.shown) { launchScreen.handleKey(event); event.accepted = true; return; }
-        if (installSheet.shown) { installSheet.handleKey(event); event.accepted = true; return; }
-        if (sheet.shown) { if (sheet.handleKey(event)) event.accepted = true; return; }
-        if (allHooks().some(h => h.overlayKey(event))) { event.accepted = true; return; }
+        // O gancho desenhado por cima (o último da barra lateral) recebe antes.
+        if (allHooks().reverse().some(h => h.overlayKey(event))) { event.accepted = true; return; }
         const digit = parseInt(event.text);
         // Alt+1/2/3: the sections, by position. Checked before the screen so no screen eats it.
         if ((event.modifiers & Qt.AltModifier) && event.key >= Qt.Key_1 && event.key < Qt.Key_1 + Math.min(9, groups.length)) {
@@ -271,11 +256,6 @@ FloatingWindow {
         event.accepted = true;
     }
 
-    // Segundos → "m:ss" ou "h:mm:ss".
-    function elapsed(t) {
-        return (t >= 3600 ? Math.floor(t / 3600) + ":" + String(Math.floor(t % 3600 / 60)).padStart(2, "0") : Math.floor(t / 60)) + ":" + String(t % 60).padStart(2, "0");
-    }
-
     Item {
         id: content
         anchors.fill: parent
@@ -291,8 +271,6 @@ FloatingWindow {
             Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
 
             Logo { id: logo; x: 22; y: 30 }
-
-            component Label: RiceText { x: 22; color: Theme.faint; font.pixelSize: Theme.small; font.letterSpacing: 1.5 }
 
             // The sections; the open one lists its screens, the others say what they hold.
             Column {
@@ -349,9 +327,7 @@ FloatingWindow {
                             font.pixelSize: Theme.small
                             color: Theme.dim
                             bottomPadding: 8
-                            text: section.modelData.id === "games"
-                                ? (Games.session ? "<font color='" + Theme.ok + "'>● " + window.elapsed(Games.sessionSeconds) + "</font> " + (Games.sessionGame ? Games.sessionGame.title : "") : "")
-                                : window.hookOf(section.modelData.id).summary
+                            text: window.hookOf(section.modelData.id).summary
                         }
 
                         // Open: its screens, with the active band.
@@ -388,7 +364,7 @@ FloatingWindow {
             }
 
             // ---- bottom block: what the open section is about ---------------------
-            // From the module's hook; JOGOS is still drawn below.
+            // From the module's hook.
             Repeater {
                 model: ScriptModel { values: window.groups; objectProp: "id" }
                 Loader {
@@ -399,51 +375,6 @@ FloatingWindow {
                     x: 22
                     width: parent.width - 44
                     sourceComponent: window.hookOf(modelData.id).sidebar
-                }
-            }
-
-            // JOGOS: where the games come from and the session.
-            Column {
-                visible: window.inGames
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 18
-                x: 22
-                width: parent.width - 44
-                spacing: 2
-                Label { x: 0; text: "SOURCES"; bottomPadding: 4 }
-                Repeater {
-                    model: [["steam", "steam"], ["wine / .exe", "wine"], ["hydra", "hydra"], ["roms", "rom"]]
-                    Item {
-                        required property var modelData
-                        readonly property int count: Games.games.filter(g => g.source === modelData[1] && !g.missing).length
-                        width: parent.width
-                        height: gameSrc.implicitHeight + 2
-                        RiceText {
-                            id: gameSrc
-                            textFormat: Text.StyledText
-                            text: (parent.count ? "<font color='" + Theme.ok + "'>●</font> " : "<font color='" + Theme.faint + "'>○</font> ") + parent.modelData[0]
-                            color: parent.count ? Theme.fg : Theme.dim
-                        }
-                        RiceText { anchors.right: parent.right; text: parent.count; color: Theme.faint }
-                    }
-                }
-                Item { width: 1; height: 14 }
-                // SESSÃO: ● game mm:ss while it runs (the watcher keeps counting with LW closed).
-                Label { x: 0; text: "SESSÃO"; bottomPadding: 2 }
-                RiceText {
-                    width: parent.width
-                    elide: Text.ElideRight
-                    textFormat: Text.StyledText
-                    text: Games.session ? "<font color='" + Theme.ok + "'>● " + window.elapsed(Games.sessionSeconds) + "</font>  " + (Games.sessionGame ? Games.sessionGame.title : "") : "nenhum jogo rodando"
-                    color: Games.session ? Theme.fg : Theme.dim
-                    font.pixelSize: Games.session ? Theme.fontSize : Theme.small
-                }
-                RiceText {
-                    visible: !!Games.session
-                    text: "■ PARAR"
-                    color: stopMouse.containsMouse ? Theme.fg : Theme.red
-                    font.pixelSize: Theme.small
-                    MouseArea { id: stopMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Games.stop(Games.session.id) }
                 }
             }
         }
@@ -485,16 +416,9 @@ FloatingWindow {
                     enter.restart();
                 }
                 NumberAnimation { id: enter; target: screen.item; property: "opacity"; to: 1; duration: Theme.tMed; easing.type: Theme.ease }
-                Connections {
-                    target: screen.item
-                    ignoreUnknownSignals: true
-                    function onOpen(id) { sheet.openGame(id); }
-                    function onLaunch(id) { window.launchGame(id); }
-                    function onInstaller() { installSheet.openSheet(); }
-                }
             }
 
-            // What the module shows while its screens cannot work (MÚSICA with cliamp off).
+            // What the module shows while its screens cannot work.
             Loader {
                 anchors.centerIn: screen
                 visible: !window.hook.ready
@@ -546,14 +470,13 @@ FloatingWindow {
                 textFormat: Text.StyledText
                 label: window.hints.map(h => "<font color='" + Theme.dim + "'>" + h[0] + "</font> " + h[1]).join("&nbsp;&nbsp;&nbsp;")
             }
-            // The section's own end of the bar: the log, the audio format, the last scan.
+            // The section's own end of the bar.
             StatusBlock {
                 id: contextBlock
                 anchors.right: parent.right
                 separator: false
                 clickable: window.hook.contextClickable
-                label: window.inGames ? (Games.scanning ? "scan…" : Games.lastScan ? "scan: " + Games.lastScan.total + " · " + Games.lastScan.new + " novos" : "—")
-                     : window.hook.context
+                label: window.hook.context
                 onClicked: window.hook.contextClicked()
             }
         }
@@ -567,7 +490,7 @@ FloatingWindow {
             z: 20
         }
 
-        // The modules' layers over the window (MÚSICA: dropping files).
+        // The modules' layers over the window.
         Repeater {
             model: ScriptModel { values: window.groups; objectProp: "id" }
             Loader {
@@ -576,27 +499,6 @@ FloatingWindow {
                 z: 40
                 sourceComponent: window.hookOf(modelData.id).overlay
             }
-        }
-
-        GameSheet {
-            id: sheet
-            anchors.fill: parent
-            z: 30
-            keyTarget: keys
-            bottomInset: footer.height
-            onLaunch: id => window.launchGame(id)
-        }
-        InstallSheet {
-            id: installSheet
-            anchors.fill: parent
-            z: 30
-            keyTarget: keys
-            bottomInset: footer.height
-        }
-        LaunchScreen {
-            id: launchScreen
-            anchors.fill: parent
-            z: 40
         }
 
         // Corners, as in a terminal frame.
@@ -610,9 +512,7 @@ FloatingWindow {
             steps: [
                 { label: "loading palette " + (window.status.generation || ""), done: Object.keys(Theme.dark).length > 0 && window.statusLoaded },
                 { label: "reading action log", done: log.loaded },
-                !window.inGames && window.hook.bootStep ? window.hook.bootStep :
-                { label: window.inGames ? "reading games.json: " + Games.games.length + " games" : "reading profile: " + (Theme.profile || "?"),
-                  done: window.inGames ? Games.loaded : Theme.profile !== "" },
+                window.hook.bootStep || { label: "reading profile: " + (Theme.profile || "?"), done: Theme.profile !== "" },
                 { label: "loading " + window.shown.name.toLowerCase(), done: screen.status === Loader.Ready },
                 { label: "starting LW", done: true }
             ]

@@ -19,8 +19,8 @@ import settings
 HANDLERS = modules.handlers()
 # Comando → módulo em que ele abre a janela (lw music).
 OPENERS = modules.openers()
-# Do núcleo: gui e modules. JOGOS ainda não tem handler (docs/modulos.md, sessão 5).
-COMMANDS = {'gui','modules','games','compat','emu',*OPENERS,*HANDLERS}
+# Do núcleo: gui e modules.
+COMMANDS = {'gui','modules',*OPENERS,*HANDLERS}
 
 
 def modules_list():
@@ -111,11 +111,6 @@ def kill_instances(pids):
             pass
 
 
-def games():
-    """lw games = abrir o LW em JOGOS."""
-    return gui('games')
-
-
 def failure(action,exc):
     """Monta o JSON de erro (código not_found/invalid/busy/failed + mensagem)."""
     return {'ok':False,'action':action,'error':{
@@ -134,45 +129,15 @@ def main(argv):
     actions.add_parser('gui')
     for name in OPENERS:
         actions.add_parser(name)
-    actions.add_parser('games')
     actions.add_parser('modules').add_subparsers(dest='operation',required=True).add_parser('list',parents=[common])
-    # Jogos x hardware desta máquina (extras/compat.py).
-    compat_cmd=actions.add_parser('compat').add_subparsers(dest='operation',required=True)
-    for operation in ('scan','check'):
-        compat_cmd.add_parser(operation,parents=[common])
-    # Emuladores e controle (extras/emulators.py).
-    emu=actions.add_parser('emu').add_subparsers(dest='operation',required=True)
-    emu.add_parser('list',parents=[common])
-    emu.add_parser('pads',parents=[common])
-    change_emu=emu.add_parser('set',parents=[common])
-    for name in ('emulator','key','value'):
-        change_emu.add_argument(name)
-    emu.add_parser('apply-pad',parents=[common]).add_argument('emulator')
-    emu.add_parser('pad-watch').add_argument('event')
-    save_pad=emu.add_parser('pad-save',parents=[common])
-    save_pad.add_argument('guid')
-    save_pad.add_argument('name')
-    save_pad.add_argument('pairs',nargs='+')
     # Só o handler dono do comando pedido é importado.
     if argv and argv[0] in HANDLERS:
         importlib.import_module(HANDLERS[argv[0]]).register(actions,common)
     args=parser.parse_args(argv)
-    if args.action == 'emu' and args.operation == 'pad-watch':
-        import emulators
-        try:
-            emulators.watch(args.event)
-        except (KeyboardInterrupt,BrokenPipeError):
-            pass
-        except (OSError,ValueError) as exc:
-            print(json.dumps({'error':str(exc)},ensure_ascii=False),flush=True)
-            return 1
-        return 0
     if args.action == 'gui':
         return gui()
     if args.action in OPENERS:
         return gui(OPENERS[args.action])
-    if args.action == 'games':
-        return games()
     if getattr(args,'stream',False):
         return args.run(args) or 0
     name=args.action+(' '+args.operation if hasattr(args,'operation') else '')
@@ -181,20 +146,7 @@ def main(argv):
         if hasattr(args,'run'):
             data=args.run(args)
             if isinstance(data,tuple): data,warnings=data
-        elif name == 'modules list': data=modules_list()
-        elif name == 'compat scan':
-            import compat
-            data=compat.scan()
-        elif name == 'compat check':
-            import compat
-            data=compat.check()
-        else:
-            import emulators
-            if name == 'emu list': data=emulators.listing()
-            elif name == 'emu pads': data=emulators.pads()
-            elif name == 'emu set': data=emulators.set_value(args.emulator,args.key,args.value)
-            elif name == 'emu apply-pad': data=emulators.apply_pad(args.emulator)
-            else: data=emulators.pad_save(args.guid,args.name,args.pairs)
+        else: data=modules_list()
         result={'ok':True,'action':name,'data':data,'warnings':warnings}
     except Exception as exc:
         result=failure(name,exc)

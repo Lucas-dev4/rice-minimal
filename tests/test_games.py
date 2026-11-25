@@ -230,6 +230,25 @@ class Games(unittest.TestCase):
         self.assertEqual(games.clean_name('Dark.Souls.Remastered.SteamGG.net'), 'Dark Souls Remastered')
         self.assertEqual(games.clean_name('Elden Ring v1.10 - FitGirl Repack'), 'Elden Ring')
 
+    def test_the_prefix_folder_comes_from_the_config(self):
+        conf = self.home/'.config/lw/config.toml'
+        conf.parent.mkdir(parents=True)
+        conf.write_text('[games]\nprefix_dir = "~/Prefixos"\n')
+        exe = self.home/'jogo/Jogo.exe'
+        exe.parent.mkdir()
+        exe.write_text('x')
+        with patch('shutil.which', return_value='/usr/bin/wine'), patch.object(games.subprocess, 'Popen'):
+            self.assertEqual(games.install(str(exe), 'Meu Jogo')['install']['prefix'], str(self.home/'Prefixos/meu-jogo'))
+            self.assertEqual(games.add_ready(str(exe), 'Pronto')['added']['prefix'], str(self.home/'Prefixos/pronto'))
+
+    def test_prefixes_are_the_real_ones(self):
+        for name in ('.wine', '.wine-x', '.wineold', 'Games/b/pfx', 'Games/A/pfx', 'Games/nada/pfx', 'Games/.oculto/pfx', 'Games/sem'):
+            (self.home/name).mkdir(parents=True)
+            if name not in ('.wineold', 'Games/nada/pfx'):
+                (self.home/name/'system.reg').write_text('')
+        (self.home/'.winerc').write_text('')
+        self.assertEqual(games.prefixes()['prefixes'], [str(self.home/p) for p in ('.wine', '.wine-x', 'Games/A/pfx', 'Games/b/pfx')])
+
     def test_installers_one_per_folder_without_redistributables(self):
         down = self.home/'Downloads'
         game = down/'hydra/Jogo Bom - [Repack]'

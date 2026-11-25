@@ -2,17 +2,96 @@
 # Os padrões daqui valem quando ~/.config/lw/config.toml não diz outra coisa.
 id = "games"
 name = "JOGOS"
+description = "Biblioteca, backlog e tempo de jogo: Steam, Wine/Proton, Hydra e emuladores."
 order = 30
 default = true
 
 [gui]
 folder = "arcade"
+hook = "GamesModule.qml"
 screens = [
     { name = "BIBLIOTECA", file = "LibraryView.qml" },
     { name = "BACKLOG",    file = "BacklogView.qml" },
     { name = "DESEMPENHO", file = "StatsView.qml" },
     { name = "EMULADORES", file = "EmulatorsView.qml" },
 ]
+
+[commands]
+handler = "cmd_games"
+names = ["game", "compat", "emu"]
+open = "games"
+
+[[dependency]]
+command = "wine"
+package = "wine"
+optional = true
+why = "instalar jogos de Windows e rodar os que não usam Proton"
+
+[[dependency]]
+command = "umu-run"
+package = "umu-launcher"
+optional = true
+why = "rodar jogos de Windows com o Proton-GE"
+
+[[dependency]]
+command = "steam"
+package = "steam"
+optional = true
+why = "os jogos da Steam"
+
+[[dependency]]
+command = "gamemoderun"
+package = "gamemode"
+optional = true
+why = "a opção gamemode da ficha"
+
+[[dependency]]
+command = "mangohud"
+package = "mangohud"
+optional = true
+why = "a opção mangohud da ficha"
+
+[[dependency]]
+command = "gamescope"
+package = "gamescope"
+optional = true
+why = "as opções gamescope e fsr da ficha"
+
+[[dependency]]
+command = "retroarch"
+package = "retroarch"
+optional = true
+why = "as ROMs de NES, SNES, Mega Drive, Game Boy, N64, DS e PS1"
+
+[[dependency]]
+command = "dolphin-emu"
+package = "dolphin-emu"
+optional = true
+why = "as ROMs de GameCube e Wii"
+
+[[dependency]]
+command = ["ppsspp", "PPSSPPSDL"]
+package = "ppsspp"
+optional = true
+why = "as ROMs de PSP"
+
+[[dependency]]
+command = "ryujinx"
+package = "ryujinx"
+optional = true
+why = "as ROMs de Switch"
+
+[[dependency]]
+command = "lspci"
+package = "pciutils"
+optional = true
+why = "a placa de vídeo no lw compat"
+
+[[dependency]]
+command = "zenity"
+package = "zenity"
+optional = true
+why = "escolher executáveis, prefixos e instaladores"
 
 [config.rom_dirs]
 default = ["~/ROMs", "~/Jogos/ROMs"]
@@ -30,6 +109,10 @@ description = "Pastas com emuladores em AppImage"
 default = ["~/Downloads"]
 description = "Pastas onde procurar instaladores de Windows"
 
+[config.prefix_dir]
+default = "~/Games"
+description = "Pasta dos prefixos do Wine que o LW cria, um por jogo"
+
 [config.retroarch]
 default = "retroarch"
 description = "Comando do RetroArch"
@@ -45,3 +128,8 @@ description = "Comando por extensão de ROM, com {rom} no lugar do arquivo (ex.:
 [config.compat_list]
 default = "extras/games-list.json"
 description = "JSON com a lista de jogos (já jogados e mistério); caminho relativo conta a partir do repositório"
+
+[[shortcut]]
+keys = "SUPER + G"
+command = "lw games"
+description = "LW em JOGOS"

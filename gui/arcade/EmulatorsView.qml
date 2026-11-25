@@ -24,20 +24,32 @@ Item {
 
     // ---- comandos ------------------------------------------------------------------
     function load() {
-        Games.run(["emu", "list", "--json"], (ok, data) => { if (ok) root.emus = data.data.emulators; else Games.failed(data.error ? data.error.message || data.error : "emu list falhou"); }, Games.lw);
+        listCommand.call(["emu", "list", "--json"]);
         loadPads();
     }
-    function loadPads() { Games.run(["emu", "pads", "--json"], (ok, data) => { if (ok) root.pads = data.data.pads; }, Games.lw); }
-    function errorOf(data) { return data.error ? (data.error.message || data.error) : "falhou"; }
+    function loadPads() { padsCommand.call(["emu", "pads", "--json"]); }
+    // As leituras morrem com a tela; o que grava vai pelo Games.run, termina sozinho e pode responder
+    // depois de a tela sumir (root null).
+    RiceCommand {
+        id: listCommand
+        program: Theme.lw
+        onSucceeded: data => root.emus = data.emulators
+        onFailed: message => Games.failed(message)
+    }
+    RiceCommand {
+        id: padsCommand
+        program: Theme.lw
+        onSucceeded: data => root.pads = data.pads
+    }
     // Muda um ajuste e troca o emulador na lista pelo que voltou do arquivo.
     function setValue(e, key, value) {
-        Games.run(["emu", "set", e.id, key, String(value), "--json"], (ok, data) => {
-            if (!ok) { Games.failed(errorOf(data)); return; }
-            const fresh = data.data.emulator;
-            root.emus = root.emus.map(x => x.id === fresh.id ? fresh : x);
+        Games.run(["emu", "set", e.id, key, String(value)], (ok, data, error) => {
+            if (!ok) { Games.failed(error); return; }
+            const fresh = data.emulator;
+            if (root) root.emus = root.emus.map(x => x.id === fresh.id ? fresh : x);
             const s = fresh.settings.find(x => x.key === key);
             Games.changed(fresh.name + ": " + s.label + " → " + (s.kind === "bool" ? (s.value ? "on" : "off") : s.choices.find(c => c.v === s.value).label));
-        }, Games.lw);
+        });
     }
     function setting(e, key) { return e ? e.settings.find(s => s.key === key) || null : null; }
     function toggle(key) {
@@ -55,7 +67,7 @@ Item {
     }
     function applyPad(e) {
         if (!e || e.pad !== "apply") { if (e) Games.changed(e.name + ": " + e.pad_note); return; }
-        Games.run(["emu", "apply-pad", e.id, "--json"], (ok, data) => ok ? Games.changed("🎮 controle no " + data.data.applied) : Games.failed(errorOf(data)), Games.lw);
+        Games.run(["emu", "apply-pad", e.id], (ok, data, error) => ok ? Games.changed("🎮 controle no " + data.applied) : Games.failed(error));
     }
 
     // ---- teste e mapeamento ao vivo -------------------------------------------------
@@ -89,10 +101,11 @@ Item {
         if (step + 1 < targets.length) { step++; return; }
         mode = "";
         if (!binds.length) { Games.failed("nenhum botão mapeado"); return; }
-        Games.run(["emu", "pad-save", pad.guid, pad.name].concat(binds).concat(["--json"]), (ok, data) => {
-            if (ok) { Games.changed("🎮 mapeamento salvo: " + data.data.saved + " (vale no próximo jogo)"); loadPads(); }
-            else Games.failed(errorOf(data));
-        }, Games.lw);
+        Games.run(["emu", "pad-save", pad.guid, pad.name].concat(binds), (ok, data, error) => {
+            if (!ok) { Games.failed(error); return; }
+            Games.changed("🎮 mapeamento salvo: " + data.saved + " (vale no próximo jogo)");
+            if (root) root.loadPads();
+        });
     }
     // Um evento do controle: atualiza o teste e, no mapeamento, decide se é a resposta do passo.
     function onPadEvent(ev) {
@@ -112,7 +125,7 @@ Item {
     }
     Process {
         running: root.mode !== "" && !!root.pad && !!root.pad.event
-        command: Games.lw.concat(["emu", "pad-watch", root.pad ? root.pad.event : ""])
+        command: Theme.lw.concat(["emu", "pad-watch", root.pad ? root.pad.event : ""])
         stdout: SplitParser { onRead: line => { try { root.onPadEvent(JSON.parse(line)); } catch (e) {} } }
     }
 

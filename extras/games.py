@@ -22,13 +22,13 @@
   games.py installers           Windows installers in the download folders (setup.exe, *.msi)
                                 and what LW already did with each
   games.py install SETUP [--name TEXT]
-                                runs the installer in a new Wine prefix (~/Games/<name>); a
+                                runs the installer in a new Wine prefix (games.prefix_dir/<name>); a
                                 detached worker waits for it and lists the new .exe files
   games.py install-add SETUP EXE   puts the chosen .exe in the library (with that prefix)
   games.py install-forget SETUP    drops LW's record of that installer (the prefix stays)
   games.py add-ready EXE --name TEXT
                                 a game that came ready (a Hydra download): library entry with
-                                its own prefix in ~/Games/<name> and Proton on when umu exists
+                                its own prefix in games.prefix_dir/<name> and Proton on when umu exists
   games.py meta [--all] [ID...]  IGDB data for games that have none yet (or these ids, or all):
                                 cover and est_hours only where empty; genres, year, the three
                                 times to beat and similar games kept in the game's `igdb`
@@ -859,6 +859,18 @@ def download_dirs():
     return [Path(d).expanduser() for d in config()['download_dirs']]
 
 
+def prefix_dir():
+    """Pasta dos prefixos que o LW cria, um por jogo (padrão: ~/Games)."""
+    return Path(config()['prefix_dir']).expanduser()
+
+
+def prefixes():
+    """Prefixos do Wine que existem aqui: ~/.wine* e os de prefix_dir que já rodaram com Proton (pfx)."""
+    found = sorted(home().glob('.wine*'), key=lambda p: p.name.lower())
+    found += sorted((p for p in prefix_dir().glob('*/pfx') if not p.parent.name.startswith('.')), key=lambda p: p.parent.name.lower())
+    return {'prefixes': [str(p) for p in found if (p/'system.reg').is_file()]}
+
+
 def clean_name(text):
     """'Need For Speed Hot Pursuit - [DODI Repack]' → 'Need For Speed Hot Pursuit'."""
     text = re.sub(r'[\[({][^\])}]*[\])}]', ' ', text)
@@ -984,9 +996,9 @@ def worker_alive(setup):
 
 
 def add_ready(exe, name):
-    """Adiciona um jogo "pronto para jogar" com prefixo próprio em ~/Games e Proton ligado."""
+    """Adiciona um jogo "pronto para jogar" com prefixo próprio em prefix_dir e Proton ligado."""
     from shutil import which
-    added = add(exe, home()/'Games'/slug(name), name)['added']
+    added = add(exe, prefix_dir()/slug(name), name)['added']
     if which('umu-run'):
         set_fields(added['id'], ['proton=true'])
         added['proton'] = True
@@ -1026,7 +1038,7 @@ def install(setup, name=None):
     if not which('wine'):
         raise ValueError('wine não encontrado')
     name = name or clean_name(Path(setup).parent.name)
-    prefix = home()/'Games'/slug(name)
+    prefix = prefix_dir()/slug(name)
     def start(d):
         """Registra a instalação como "rodando" (recusa se já estiver instalando)."""
         live = d.setdefault('installs', {}).get(setup)

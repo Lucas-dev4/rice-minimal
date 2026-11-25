@@ -5,8 +5,8 @@ import Quickshell.Io
 import qs
 import qs.components
 
-// INSTALAR: Windows installers found in the download folders (games.py installers). ⏎ runs
-// one in a new Wine prefix (~/Games/<name>); its own window does the rest. When it ends, LW
+// INSTALAR: Windows installers found in the download folders (lw game installers). ⏎ runs
+// one in a new Wine prefix (prefix_dir/<name>); its own window does the rest. When it ends, LW
 // lists the new .exe files: ⏎ again, pick the game, and it joins the library.
 Item {
     id: root
@@ -155,7 +155,7 @@ Item {
                     anchors.baseline: head.baseline
                     text: Games.findingInstallers ? "procurando…"
                         : [Games.readyGames.length ? Games.readyGames.length + " pronto(s) para jogar" : "",
-                           root.rows.length - Games.readyGames.length ? (root.rows.length - Games.readyGames.length) + " instalador(es)" : ""].filter(x => x).join(" · ") || "nada novo em Downloads"
+                           root.rows.length - Games.readyGames.length ? (root.rows.length - Games.readyGames.length) + " instalador(es)" : ""].filter(x => x).join(" · ") || "nada novo em " + Games.downloadDirs
                     color: Theme.dim
                 }
             }
@@ -228,7 +228,7 @@ Item {
                     RiceText {
                         anchors.centerIn: parent
                         visible: root.rows.length === 0
-                        text: Games.findingInstallers ? "[ .. ] procurando instaladores" : "nada novo em Downloads — o: escolher um instalador"
+                        text: Games.findingInstallers ? "[ .. ] procurando instaladores" : "nada novo em " + Games.downloadDirs + " — o: escolher um instalador"
                         color: Theme.faint
                     }
                 }
@@ -242,11 +242,11 @@ Item {
                 color: Theme.dim
                 font.pixelSize: Theme.small
                 readonly property var r: root.record
-                readonly property string home: "~/Games/" + (root.selected ? root.selected.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "")
+                readonly property string home: Games.prefixDir + "/" + (root.selected ? root.selected.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "")
                 text: !root.selected ? ""
                     : root.isReady ? (root.picking ? "↑↓ escolha o executável do jogo · ⏎ adiciona à biblioteca · esc volta"
                                      : "Já vem pronto (download do Hydra). ⏎ escolhe o executável; o jogo entra com prefixo próprio em <font color='" + Theme.fg + "'>" + home + "</font> e proton-ge ligado.")
-                    : !r ? "⏎ instala em <font color='" + Theme.fg + "'>~/Games/" + root.selected.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "</font> (um prefixo Wine só dele). O instalador abre na própria janela: siga os passos; o LW espera ele terminar, mesmo com esta janela fechada."
+                    : !r ? "⏎ instala em <font color='" + Theme.fg + "'>" + Games.prefixDir + "/" + root.selected.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "</font> (um prefixo Wine só dele). O instalador abre na própria janela: siga os passos; o LW espera ele terminar, mesmo com esta janela fechada."
                     : r.state === "running" ? "O instalador está aberto numa janela do Wine. Quando ele terminar, os executáveis novos aparecem aqui."
                     : r.state === "failed" ? "<font color='" + Theme.red + "'>" + (r.error || "falhou") + "</font> · ⏎ tenta de novo · log em " + r.prefix.replace(/^\/home\/[^/]+/, "~") + "/lw-install.log"
                     : r.state === "added" ? "Já está na biblioteca. d apaga este registro (o jogo e o prefixo ficam)."

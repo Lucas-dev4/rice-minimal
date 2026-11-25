@@ -2,6 +2,7 @@
 # XDG_RUNTIME_DIR temporários, com um cliamp falso. Não encosta na sessão, no som nem no cliamp real.
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -144,6 +145,15 @@ class Window(unittest.TestCase):
             return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[0] != 'Z'
         except OSError:
             return False
+
+    def lw(self, *args):
+        """Um comando lw no HOME de teste (com --json)."""
+        return subprocess.run([sys.executable, str(ROOT/'extras/rice.py'), *args, '--json'], env=self.env,
+                              capture_output=True, text=True).stdout
+
+    def warnings(self):
+        """Os avisos do shell e de JOGOS no log (o de MÚSICA está em docs/pendencias.md)."""
+        return [l for l in (self.home/'log').read_text().splitlines() if re.search(r'@(shell|Games|arcade/\w+)\.qml\[', l)]
 
     def stop_daemon(self):
         if (self.home/'daemon.pid').exists() and self.alive(int((self.home/'daemon.pid').read_text())):
@@ -317,6 +327,113 @@ class OnlineSearch(Window):
         self.assertEqual((self.search()['searching'], self.search()['error']), (False, ''))
 
 
+class GamesSection(Window):
+    """JOGOS na janela, com jogos falsos: nenhum jogo, Steam, Wine ou emulador real é chamado."""
+    def setUp(self):
+        super().setUp()
+        for name in ('steam', 'wine', 'wineserver', 'umu-run', 'ryujinx', 'gamemoderun', 'mangohud', 'gamescope', 'zenity', 'hyprctl'):
+            self.program(name, '#!/bin/sh\nexit 1\n')
+        self.program('jogo', '#!/bin/sh\nexec sleep 6\n')
+        self.db = self.home/'.local/share/lw/games.json'
+        self.addCleanup(self.kill_games)
+
+    def kill_games(self):
+        """Nada do HOME de teste fica vivo."""
+        mark = b'HOME=' + str(self.home).encode()
+        for entry in Path('/proc').iterdir():
+            try:
+                if entry.name.isdigit() and mark in (entry/'environ').read_bytes().split(b'\0'):
+                    os.kill(int(entry.name), signal.SIGKILL)
+            except OSError:
+                pass
+
+    def doc(self):
+        return json.loads(self.db.read_text())
+
+    def game(self, name='jogo'):
+        """Põe um programa falso na biblioteca; devolve o id."""
+        return json.loads(self.lw('game', 'add', '--exe', str(self.bin/name)))['data']['added']['id']
+
+    def enter(self):
+        self.open('games')
+        self.until(lambda: self.db.exists() and self.doc().get('scanned_at') and self.state().get('scanning') is False)
+
+    def play(self, gid):
+        """Abre a ficha e joga, como o Enter faz; espera a sessão abrir."""
+        self.ipc('openSheet', gid)
+        self.ipc('key', 'Return')
+        self.until(lambda: (self.state().get('session') or {}).get('id') == gid)
+
+    def sessions(self, gid):
+        return next(g['sessions'] for g in self.doc()['games'] if g['id'] == gid)
+
+    def test_the_scan_runs_once_per_window(self):
+        self.open('system')
+        time.sleep(1)
+        self.assertFalse(self.db.exists())      # só ao entrar em JOGOS
+        self.ipc('go', 'games')
+        self.until(lambda: self.db.exists() and self.state().get('scanning') is False)
+        before = self.db.stat().st_mtime_ns
+        self.ipc('go', 'system')
+        self.ipc('go', 'games')
+        time.sleep(1.5)
+        self.assertEqual(self.db.stat().st_mtime_ns, before)
+
+    def test_the_sheets_take_the_keys_and_close_when_the_section_changes(self):
+        gid = self.game()
+        self.enter()
+        for opens in (('openSheet', gid), ('installer',)):
+            with self.subTest(opens=opens[0]):
+                self.ipc(*opens)
+                self.ipc('key', '2')
+                self.assertEqual(self.state()['view'], 0)      # a ficha é modal
+                self.ipc('go', 'system')
+                self.ipc('go', 'games')
+                self.ipc('key', '2')
+                self.assertEqual(self.state()['view'], 1)
+                self.ipc('open', '0')
+
+    def test_the_installer_opens_on_its_own_section(self):
+        self.open('system')
+        self.until(lambda: 'games' in self.state())
+        self.ipc('installer')
+        self.assertEqual(self.state()['section'], 'games')
+
+    def test_emulators_leaves_no_warning_when_left_early(self):
+        self.enter()
+        for _ in range(4):
+            self.ipc('open', '3')
+            self.ipc('open', '0')
+        self.ipc('open', '3')
+        self.ipc('go', 'system')
+        time.sleep(1.5)
+        self.assertEqual(self.warnings(), [])
+
+    def test_the_session_counts_by_game_id_even_with_lw_closed(self):
+        gid = self.game()
+        self.enter()
+        self.play(gid)
+        self.assertEqual(self.doc()['open_session']['id'], gid)
+        self.quit()
+        self.until(lambda: self.sessions(gid), 20)
+        session = self.sessions(gid)[0]
+        self.assertTrue(4 <= session['end'] - session['start'] <= 8, session)
+        self.assertNotIn('open_session', self.doc())
+
+    def test_a_steam_game_counts_by_its_app_id(self):
+        # Uma Steam falsa, já aberta: só entrega o jogo, com o SteamAppId no ambiente.
+        self.program('steam', '#!/bin/sh\nunset LW_GAME_ID\nSteamAppId=620 setsid sleep 6 &\n')
+        self.db.parent.mkdir(parents=True)
+        self.db.write_text(json.dumps({'games': [{'id': 'steam:620', 'title': 'Portal 2', 'source': 'steam',
+                                                  'launch': 'steam steam://rungameid/620', 'status': 'want', 'hours': 0, 'sessions': []}]}))
+        self.open('system')
+        self.lw('game', 'launch', 'steam:620')
+        self.until(lambda: (self.state().get('session') or {}).get('id') == 'steam:620')
+        self.until(lambda: self.sessions('steam:620'), 20)
+        session = self.sessions('steam:620')[0]
+        self.assertTrue(4 <= session['end'] - session['start'] <= 8, session)
+
+
 class Sections(Window):
     """Trocar de seção não procura a tela da nova na lista da antiga."""
     def test_no_screen_is_looked_up_in_the_old_list(self):
@@ -335,8 +452,30 @@ class Sections(Window):
                     self.ipc('go', m['id'])
                     state = self.state()
                     self.assertEqual((state['section'], state['screen']), (m['id'], m['screens'][-1]['name']))
-        # Só o shell.qml: os avisos do EmulatorsView são de JOGOS (docs/pendencias.md).
-        self.assertEqual([l for l in (self.home/'log').read_text().splitlines() if 'shell.qml[' in l], [])
+        self.assertEqual(self.warnings(), [])
+
+    def test_the_keyboard_leaves_the_field_of_the_old_section(self):
+        self.open('system')
+        self.until(lambda: self.state().get('scanning') is False and 'online' in self.state())
+        for old, new in (('system', 'music'), ('games', 'system')):
+            with self.subTest(old=old):
+                self.ipc('go', old)
+                self.ipc('key', 'Slash')
+                self.assertIs(self.state()['typing'], True)
+                self.ipc('go', new)
+                self.assertIs(self.state()['typing'], False)
+
+    def test_a_window_with_only_the_system_does_not_wake_the_others(self):
+        data = json.loads(self.lw('modules', 'list'))['data']
+        self.env['LW_MODULES'] = json.dumps([m for m in data if m['id'] == 'system'])
+        self.open('system')
+        time.sleep(1)
+        self.assertEqual(sorted(self.state()), ['message', 'screen', 'section', 'typing', 'view'])
+        self.ipc('go', 'games')
+        self.assertEqual(self.ipc('openSheet', 'x').strip(), 'unknown openSheet')
+        self.ipc('installer')
+        self.assertEqual(self.state()['section'], 'system')
+        self.assertEqual(self.warnings(), [])
 
 
 if __name__ == '__main__':

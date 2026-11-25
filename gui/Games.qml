@@ -1,26 +1,29 @@
 // Games.qml — singleton com a biblioteca de jogos para todas as telas de JOGOS.
-// Lê ~/.local/share/lw/games.json e chama extras/games.py para qualquer mudança (nunca escreve o JSON direto).
+// Lê ~/.local/share/lw/games.json e chama `lw game` para qualquer mudança (nunca escreve o JSON direto).
 // As telas usam: games (lista), column(status), launch(id), set(id, ...), scan(), meta()...
 pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.components
 
 // The LW // GAMES data: ~/.local/share/lw/games.json, read here and written only through
-// extras/games.py (one lock, atomic writes), so the window and the helper never race.
+// `lw game` (one lock, atomic writes), so the window and the watcher never race.
 Singleton {
     id: root
 
     readonly property string dataPath: (Quickshell.env("XDG_DATA_HOME") || Quickshell.env("HOME") + "/.local/share") + "/lw/games.json"
-    readonly property var helper: ["/usr/bin/python3", Quickshell.shellDir + "/../extras/games.py"]
-    readonly property var lw: ["/usr/bin/python3", Quickshell.shellDir + "/../extras/rice.py"]
+    // As pastas da config (games.* do config.toml), como aparecem nos textos.
+    readonly property string prefixDir: shown(Modules.config("games", "prefix_dir"))
+    readonly property string romDirs: (Modules.config("games", "rom_dirs") || []).map(shown).join(" e ")
+    readonly property string downloadDirs: (Modules.config("games", "download_dirs") || []).map(d => shown(d).split("/").pop()).join(" e ")
     readonly property var statuses: ["want", "playing", "done", "dropped"]
     readonly property var statusLabel: ({ want: "quero jogar", playing: "jogando", done: "zerado", dropped: "largado" })
 
     property var games: []
     property var doc: ({})
     property bool loaded: false
-    // Sessions live in games.json (written by the games.py watcher, even with LW closed).
+    // Sessions live in games.json (written by the session watcher, even with LW closed).
     readonly property var session: doc.open_session || null
     readonly property var sessionGame: session ? byId(session.id) : null
     property double now: Date.now()
@@ -40,6 +43,12 @@ Singleton {
     // Cor de cada status: quero jogar (azul), jogando (destaque), zerado (verde), largado (apagado).
     function statusColor(status) {
         return status === "want" ? Theme.blue : status === "playing" ? Theme.accent : status === "done" ? Theme.ok : Theme.faint;
+    }
+    // Um caminho com "~" no lugar da pasta pessoal e sem "/" no fim.
+    function shown(path) {
+        const home = Quickshell.env("HOME");
+        const p = String(path || "").replace(/(.)\/+$/, "$1");
+        return p.startsWith(home + "/") ? "~" + p.slice(home.length) : p;
     }
     // O jogo com esse id, ou null.
     function byId(id) { return games.find(g => g.id === id) || null; }
@@ -71,27 +80,27 @@ Singleton {
     }
 
     // ---- commands ------------------------------------------------------------------
-    // base: o comando (games.py por padrão; lw para o compat).
-    function run(args, done, base) {
-        const proc = runner.createObject(root, { args: args, done: done || null, base: base || helper });
-        proc.running = true;
+    // Roda `lw <args> --json` e chama done(ok, data, erro). O que grava termina mesmo se o LW fechar
+    // (Theme.rice); leituras, scan e IGDB param com ele (program: Theme.lw).
+    function run(args, done, program) {
+        runner.createObject(root, { done: done || null, program: program || Theme.rice }).call(args.concat(["--json"]));
     }
     // Lê o hardware e avalia os jogos com requisito conhecido (uma vez por abertura de JOGOS).
     function loadCompat() {
-        run(["compat", "check", "--json"], (ok, data) => {
+        run(["compat", "check"], (ok, data) => {
             if (!ok) return;
             const map = {};
-            for (const g of data.data.games) map[norm(g.n)] = { k: g.k, w: g.w };
+            for (const g of data.games) map[norm(g.n)] = { k: g.k, w: g.w };
             compat = map;
-        }, lw);
+        }, Theme.lw);
     }
     // quiet: the automatic scan on opening only speaks when something changed.
     function scan(quiet) {
         if (scanning) return;
         scanning = true;
-        run(["scan"], (ok, data) => {
+        run(["game", "scan"], (ok, data, error) => {
             scanning = false;
-            if (!ok) { failed(data.error || "scan falhou"); return; }
+            if (!ok) { failed(error || "scan falhou"); return; }
             lastScan = data;
             // Then IGDB data for games never looked up (silent without a key).
             if (games.some(g => !g.igdb) || data.played_pending) meta(true);
@@ -100,7 +109,7 @@ Singleton {
             if (quiet && !data.new && !broken.length) return;
             changed("scan: " + data.total + " jogos · " + data.new + " novos" + (data.missing ? " · " + data.missing + " sumiram" : "")
                     + (broken.length ? " · erro em " + broken.join(", ") : ""));
-        });
+        }, Theme.lw);
     }
     // IGDB: cover and est_hours where empty, plus genres, times and similar games.
     property bool fetchingMeta: false
@@ -108,31 +117,31 @@ Singleton {
     function meta(quiet, ids) {
         if (fetchingMeta) return;
         fetchingMeta = true;
-        run(["meta"].concat(ids || []), (ok, data) => {
+        run(["game", "meta"].concat(ids || []), (ok, data, error) => {
             fetchingMeta = false;
-            if (!ok) { if (!quiet) failed(data.error || "IGDB falhou"); return; }
+            if (!ok) { if (!quiet) failed(error || "IGDB falhou"); return; }
             const played = data.played || { matched: 0, missed: [] };
             if (quiet && !data.matched.length && !played.matched) return;
             changed("IGDB: " + data.matched.length + " jogo(s) com dados" + (data.missed.length ? " · sem par: " + data.missed.join(", ") : "")
                     + (played.matched ? " · " + played.matched + " já jogados" : "") + (played.missed.length ? " · sem par: " + played.missed.join(", ") : ""));
-        });
+        }, Theme.lw);
     }
     // Recomendações: "já joguei" (entra nos já jogados) e "não quero" (some; clear traz de volta).
-    function playedAdd(igdbId, name) { run(["played-add", String(igdbId)], (ok, data) => ok ? changed("✓ " + name + " nos já jogados") : failed(data.error)); }
-    function recHide(igdbId, name) { run(["rec-hide", String(igdbId)], (ok, data) => ok ? changed("✕ " + name + " escondido") : failed(data.error)); }
-    function recUnhideAll() { run(["rec-hide", "--clear"], (ok, data) => ok ? changed("sugestões escondidas de volta") : failed(data.error)); }
+    function playedAdd(igdbId, name) { run(["game", "played-add", String(igdbId)], (ok, data, error) => ok ? changed("✓ " + name + " nos já jogados") : failed(error)); }
+    function recHide(igdbId, name) { run(["game", "rec-hide", String(igdbId)], (ok, data, error) => ok ? changed("✕ " + name + " escondido") : failed(error)); }
+    function recUnhideAll() { run(["game", "rec-hide", "--clear"], (ok, data, error) => ok ? changed("sugestões escondidas de volta") : failed(error)); }
     // Muda campos de um jogo (ex.: ["status=done"]) e mostra a mensagem se der certo.
     function set(id, pairs, message) {
-        run(["set", id].concat(pairs), (ok, data) => ok ? (message ? changed(message) : null) : failed(data.error));
+        run(["game", "set", id].concat(pairs), (ok, data, error) => ok ? (message ? changed(message) : null) : failed(error));
     }
     // Adiciona um jogo à mão (executável, prefixo do Wine, nome).
     function add(exe, prefix, title) {
-        const args = ["add", "--exe", exe];
+        const args = ["game", "add", "--exe", exe];
         if (prefix) args.push("--prefix", prefix);
         if (title) args.push("--title", title);
-        run(args, (ok, data) => ok ? changed("[ + ] " + data.added.title + " na biblioteca") : failed(data.error));
+        run(args, (ok, data, error) => ok ? changed("[ + ] " + data.added.title + " na biblioteca") : failed(error));
     }
-    // Inicia o jogo (games.py launch) e abre a tela de lançamento.
+    // Inicia o jogo (lw game launch) e abre a tela de lançamento.
     function launch(id) {
         const g = byId(id);
         if (!g) return;
@@ -141,17 +150,17 @@ Singleton {
         launching = { id: id, title: g.title, source: g.source, gamemode: !!g.gamemode, mangohud: !!g.mangohud,
                       proton: !!g.proton, gamescope: !!g.gamescope, fsr: !!g.fsr,
                       command: "", ok: false, error: "", detected: false };
-        run(["launch", id], (ok, data) => {
+        run(["game", "launch", id], (ok, data, error) => {
             if (!launching || launching.id !== id) return;
-            launching = Object.assign({}, launching, ok ? { ok: true, command: data.command, tools: data.tools } : { error: data.error || "falha ao lançar" });
-            if (!ok) failed(data.error || "falha ao lançar");
+            launching = Object.assign({}, launching, ok ? { ok: true, command: data.command, tools: data.tools } : { error: error || "falha ao lançar" });
+            if (!ok) failed(error || "falha ao lançar");
         });
     }
     // Pede para o jogo fechar.
-    function stop(id) { run(["stop", id], (ok, data) => ok ? changed("■ parando " + ((byId(id) || {}).title || id)) : failed(data.error)); }
+    function stop(id) { run(["game", "stop", id], (ok, data, error) => ok ? changed("■ parando " + ((byId(id) || {}).title || id)) : failed(error)); }
     // A session left open (LW closed, reboot): resumed if the game runs, closed otherwise.
     function recover() {
-        run(["recover"], (ok, data) => {
+        run(["game", "recover"], (ok, data) => {
             if (ok && data.session === "running") changed("● sessão retomada: " + ((byId(data.id) || {}).title || data.id));
         });
     }
@@ -160,7 +169,7 @@ Singleton {
 
     // One backlog column in a single write: status and order 1..n for these ids.
     function arrange(status, ids, message) {
-        run(["arrange", status].concat(ids), (ok, data) => ok ? (message ? changed(message) : null) : failed(data.error));
+        run(["game", "arrange", status].concat(ids), (ok, data, error) => ok ? (message ? changed(message) : null) : failed(error));
     }
     // Games of one status in backlog order (missing ones last).
     function column(status) {
@@ -169,7 +178,7 @@ Singleton {
     }
 
     // ---- installers: setup.exe → Wine prefix → library ------------------------------
-    // The list comes from `games.py installers`; each install's live state is in games.json.
+    // The list comes from `lw game installers`; each install's live state is in games.json.
     property var installers: []
     property var readyGames: []              // Hydra downloads not in the library yet
     property bool findingInstallers: false
@@ -178,42 +187,42 @@ Singleton {
     function findInstallers() {
         if (findingInstallers) return;
         findingInstallers = true;
-        run(["installers"], (ok, data) => {
+        run(["game", "installers"], (ok, data, error) => {
             findingInstallers = false;
             if (ok) { installers = data.installers; readyGames = data.ready || []; }
-            else failed(data.error || "busca de instaladores falhou");
-        });
+            else failed(error || "busca de instaladores falhou");
+        }, Theme.lw);
     }
     // Começa a instalar um setup.exe num prefixo novo.
     function install(setup, name) {
-        const args = ["install", setup];
+        const args = ["game", "install", setup];
         if (name) args.push("--name", name);
-        run(args, (ok, data) => {
-            if (!ok) { failed(data.error || "a instalação não começou"); return; }
+        run(args, (ok, data, error) => {
+            if (!ok) { failed(error || "a instalação não começou"); return; }
             changed("[ .. ] instalando " + data.install.name + ": siga a janela do instalador");
         });
     }
     // Põe na biblioteca o .exe escolhido de uma instalação concluída.
     function installAdd(setup, exe) {
-        run(["install-add", setup, exe], (ok, data) => ok ? changed("[ + ] " + data.added.title + " na biblioteca") : failed(data.error));
+        run(["game", "install-add", setup, exe], (ok, data, error) => ok ? changed("[ + ] " + data.added.title + " na biblioteca") : failed(error));
     }
-    // A ready game: own prefix in ~/Games/<name>, Proton on when umu-run exists.
+    // A ready game: own prefix in prefix_dir/<name>, Proton on when umu-run exists.
     function addReady(exe, name) {
-        run(["add-ready", exe, "--name", name], (ok, data) => {
-            if (!ok) { failed(data.error); return; }
+        run(["game", "add-ready", exe, "--name", name], (ok, data, error) => {
+            if (!ok) { failed(error); return; }
             changed("[ + ] " + data.added.title + " na biblioteca" + (data.added.proton ? " · proton-ge ligado" : ""));
             findInstallers();
         });
     }
     // Apaga o registro de uma instalação (o prefixo fica no disco).
     function installForget(setup) {
-        run(["install-forget", setup], (ok, data) => ok ? changed("[ - ] registro da instalação apagado (o prefixo continua)") : failed(data.error));
+        run(["game", "install-forget", setup], (ok, data, error) => ok ? changed("[ - ] registro da instalação apagado (o prefixo continua)") : failed(error));
     }
 
     // Tira um jogo da biblioteca.
     function remove(id) {
         const g = byId(id);
-        run(["remove", id], (ok, data) => ok ? changed("[ - ] " + (g ? g.title : id) + " removido") : failed(data.error));
+        run(["game", "remove", id], (ok, data, error) => ok ? changed("[ - ] " + (g ? g.title : id) + " removido") : failed(error));
     }
 
     // The file is replaced atomically by the helper: reload on every change.
@@ -247,19 +256,13 @@ Singleton {
 
     Component {
         id: runner
-        Process {
-            id: proc
-            property var args: []
+        RiceCommand {
+            id: command
             property var done: null
-            property var base: root.helper
-            command: base.concat(args)
-            stdout: StdioCollector { id: out }
-            onExited: code => {
-                let data = {};
-                try { data = JSON.parse(out.text); } catch (error) { data = { error: "resposta inválida do games.py" }; }
-                if (proc.done) proc.done(code === 0 && data.ok, data);
-                proc.destroy();
-            }
+            // Entrega a resposta e some.
+            function finish(ok, data, error) { if (done) done(ok, data, error); command.destroy(); }
+            onSucceeded: data => finish(true, data, "")
+            onFailed: message => finish(false, {}, message)
         }
     }
 }
