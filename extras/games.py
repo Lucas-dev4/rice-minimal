@@ -686,9 +686,43 @@ def command_for(game):
     return cmd
 
 
-def pids_of(gid, proc='/proc'):
-    """Processos do jogo, achados pela variável LW_GAME_ID (ou SteamAppId) no ambiente deles."""
+def stat_of(entry):
+    """(sessão, hora de início) de um processo, pelo /proc/PID/stat, que qualquer um pode ler."""
+    fields = (entry/'stat').read_text().rsplit(')', 1)[1].split()
+    return int(fields[3]), int(fields[19])
+
+
+def lw_session(data, gid):
+    """[PID, hora de início] da sessão de processos que o LW criou para este jogo, se ele anotou uma."""
+    for key in ('launching', 'open_session'):
+        live = data.get(key) or {}
+        if live.get('id') == gid and live.get('session'):
+            return live['session']
+    return None
+
+
+def hidden_in(entry, session):
+    """True se é um processo meu, de ambiente ilegível, dentro dessa sessão. O Ryujinx se marca como
+    não-dumpable, e aí nem o dono lê o LW_GAME_ID dele."""
+    try:
+        uid = re.search(r'^Uid:\s*(\d+)', (entry/'status').read_text(), re.M)
+        return bool(uid) and int(uid.group(1)) == os.getuid() and stat_of(entry)[0] == session[0]
+    except (OSError, ValueError, IndexError):
+        return False
+
+
+def pids_of(gid, proc='/proc', session=None):
+    """Processos do jogo, achados pela variável LW_GAME_ID (ou SteamAppId) no ambiente deles. Com a
+    sessão que o LW criou para o jogo (lw_session), também os de ambiente ilegível dela, e só dela:
+    o líder tem que ser o mesmo processo (PID e hora de início) e carregar o LW_GAME_ID deste jogo."""
     out = []
+    if session:
+        leader = Path(proc)/str(session[0])
+        try:
+            if stat_of(leader) != tuple(session) or b'LW_GAME_ID=' + gid.encode() not in (leader/'environ').read_bytes().split(b'\0'):
+                session = None
+        except (OSError, ValueError, IndexError):
+            session = None
     want_lw = b'LW_GAME_ID=' + gid.encode()
     want_steam = b'SteamAppId=' + gid.split(':', 1)[1].encode() if gid.startswith('steam:') else None
     for entry in Path(proc).iterdir():
@@ -697,6 +731,8 @@ def pids_of(gid, proc='/proc'):
         try:
             env = (entry/'environ').read_bytes().split(b'\0')
         except OSError:
+            if session and hidden_in(entry, session) and not is_wine_helper(entry):
+                out.append(int(entry.name))
             continue
         if (want_lw in env or (want_steam and want_steam in env)) and not is_wine_helper(entry):
             out.append(int(entry.name))
@@ -731,7 +767,7 @@ def launch(gid):
     if game.get('missing'):
         raise ValueError(game['title'] + ' sumiu da fonte')
     live = data.get('open_session')
-    if live and pids_of(live['id']):
+    if live and pids_of(live['id'], session=lw_session(data, live['id'])):
         other = next((g['title'] for g in data['games'] if g['id'] == live['id']), live['id'])
         raise ValueError('já há uma sessão: ' + other)
     cmd = command_for(game)
@@ -745,17 +781,26 @@ def launch(gid):
         env['WINEPREFIX'] = game['prefix']
     cwd = game.get('workdir') if game.get('workdir') and Path(game['workdir']).is_dir() else str(home())
     log = data_dir()/'last-launch.log'
+    # An emulator may hide its environment (Ryujinx): the shell stays in front of it, carrying
+    # LW_GAME_ID until it exits. Wine games must not: their wrappers outlive the game.
+    emulated = game['source'] == 'rom'
     with open(log, 'w') as out:
-        subprocess.Popen(['sh', '-c', cmd], env=env, cwd=cwd, stdin=subprocess.DEVNULL, stdout=out,
-                         stderr=subprocess.STDOUT, start_new_session=True)
+        started = subprocess.Popen(['sh', '-c', cmd + '\nexit $?' if emulated else cmd], env=env, cwd=cwd, stdin=subprocess.DEVNULL,
+                                   stdout=out, stderr=subprocess.STDOUT, start_new_session=True)
+    session = None
+    if emulated:
+        try:
+            session = [started.pid, stat_of(Path('/proc')/str(started.pid))[1]]
+        except (OSError, ValueError, IndexError):
+            pass
+    def pending(d):
+        """Marca o jogo como "iniciando" no games.json (antes do vigia, que lê a sessão daqui)."""
+        d['launching'] = {'id': gid, 'at': int(time.time()), 'command': cmd, **({'session': session} if session else {})}
+    update(pending)
     # The watcher is its own session too: closing LW never stops the count.
     subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'watch', gid], stdin=subprocess.DEVNULL,
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
                      env={k: v for k, v in os.environ.items() if k != 'LW_GAME_ID'})
-    def pending(d):
-        """Marca o jogo como "iniciando" no games.json."""
-        d['launching'] = {'id': gid, 'at': int(time.time()), 'command': cmd}
-    update(pending)
     return {'command': cmd, 'tools': tools(), 'log': str(log)}
 
 
@@ -767,8 +812,9 @@ def watch(gid):
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError:
             return {'watch': 'already watching'}
+        session = lw_session(load(), gid)
         deadline = time.time() + WATCH_APPEAR
-        while not pids_of(gid):
+        while not pids_of(gid, session=session):
             if time.time() > deadline:
                 def failed(d):
                     d.pop('launching', None)
@@ -782,11 +828,13 @@ def watch(gid):
             prior = d.get('open_session')
             # LW reopened during a session that is still running: keep its start.
             d['open_session'] = prior if prior and prior.get('id') == gid else {'id': gid, 'start': int(start), 'seen': int(start)}
+            if session:
+                d['open_session']['session'] = session
         update(begin)
         misses, beat = 0, time.time()
         while misses < 2:
             time.sleep(WATCH_POLL)
-            misses = 0 if pids_of(gid) else misses + 1
+            misses = 0 if pids_of(gid, session=session) else misses + 1
             if misses == 0 and time.time() - beat >= HEARTBEAT:
                 beat = time.time()
                 update(lambda d: d.get('open_session') and d['open_session'].update(seen=int(beat)))
@@ -824,7 +872,7 @@ def recover():
     live = data.get('open_session')
     if not live:
         return {'session': None}
-    if pids_of(live['id']):
+    if pids_of(live['id'], session=lw_session(data, live['id'])):
         subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'watch', live['id']], stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         return {'session': 'running', 'id': live['id']}
@@ -833,11 +881,15 @@ def recover():
 
 def stop(gid):
     """Pede para o jogo fechar (SIGTERM)."""
-    pids = pids_of(gid)
+    session = lw_session(load(), gid)
+    pids = pids_of(gid, session=session)
+    # The shell in front of an emulator goes by itself, after it: until then the session is open.
+    if session:
+        pids = [p for p in pids if p != session[0]] or pids
     for pid in pids:
         try:
             os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             pass
     return {'signalled': len(pids)}
 

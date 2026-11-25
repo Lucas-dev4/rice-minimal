@@ -189,6 +189,56 @@ class Games(unittest.TestCase):
         (proc/'20/environ').write_bytes(b'')
         self.assertEqual(games.running(proc), [])     # only Wine helpers left: the game is over
 
+    def process(self, proc, pid, sid, start=1, env=b'', uid=None, comm='jogo'):
+        """Um processo falso; env None = ambiente ilegível (como o de um processo não-dumpable)."""
+        entry = proc/str(pid)
+        entry.mkdir(parents=True)
+        (entry/'comm').write_text(comm + '\n')
+        (entry/'stat').write_text(f'{pid} ({comm}) S 1 {sid} {sid} ' + '0 '*15 + f'{start} 0 0\n')
+        (entry/'status').write_text(f'Name:\t{comm}\nUid:\t{os.getuid() if uid is None else uid}\t0\t0\t0\n')
+        (entry/'environ').write_bytes(env or b'')
+        if env is None:
+            (entry/'environ').chmod(0)
+
+    def test_hidden_processes_count_only_in_the_session_lw_made_for_that_game(self):
+        mine = b'LW_GAME_ID=rom:a\0'
+        proc = self.home/'proc'
+        self.process(proc, 100, 100, 7, mine, comm='sh')         # o sh do LW, líder da sessão
+        self.process(proc, 101, 100, 8, None)                    # o emulador, ilegível
+        self.process(proc, 102, 100, 8, None, uid=os.getuid() + 1)  # de outro usuário
+        self.process(proc, 103, 100, 8, None, comm='gamescope')  # um dos que ficam em volta do jogo
+        self.process(proc, 104, 100, 8, b'X=1\0')                # legível e sem o LW_GAME_ID
+        self.process(proc, 201, 200, 9, None)                    # ilegível, em outra sessão
+        self.process(proc, 300, 300, 5, b'LW_GAME_ID=rom:b\0')   # a sessão de outro jogo
+        self.process(proc, 301, 300, 5, None)
+        pids = lambda gid, session=None: sorted(games.pids_of(gid, proc, session))
+        self.assertEqual(pids('rom:a', [100, 7]), [100, 101])
+        self.assertEqual(pids('rom:a'), [100])                   # sem sessão anotada: só o LW_GAME_ID
+        self.assertEqual(pids('rom:a', [100, 6]), [100])         # o PID é de outro processo
+        self.assertEqual(pids('rom:a', [300, 5]), [100])         # o líder é de outro jogo
+        self.assertEqual(pids('rom:a', [200, 9]), [100])         # o líder nem existe
+        self.assertEqual(pids('rom:c', [100, 7]), [])
+        self.assertEqual(pids('rom:b', [300, 5]), [300, 301])
+
+    def test_the_noted_session_belongs_to_one_game(self):
+        data = {'open_session': {'id': 'rom:a', 'session': [1, 2]}, 'launching': {'id': 'rom:b', 'session': [3, 4]}}
+        self.assertEqual((games.lw_session(data, 'rom:a'), games.lw_session(data, 'rom:b'), games.lw_session(data, 'rom:c')), ([1, 2], [3, 4], None))
+        self.assertIsNone(games.lw_session({'open_session': {'id': 'rom:a'}}, 'rom:a'))
+        self.assertIsNone(games.lw_session({}, 'rom:a'))
+
+    def test_only_an_emulated_game_keeps_the_shell_in_front(self):
+        exe = self.home/'jogo.sh'
+        exe.write_text('')
+        gid = games.add(str(exe))['added']['id']
+        rom = games.blank('rom:a', 'A', 'rom', 'ryujinx a.nsp')
+        games.update(lambda d: d['games'].append(rom))
+        for which, ends in ((gid, False), ('rom:a', True)):
+            with patch.object(games.subprocess, 'Popen') as popen:
+                popen.return_value.pid = os.getpid()
+                games.launch(which)
+            self.assertEqual(popen.call_args_list[0].args[0][2].endswith('\nexit $?'), ends)
+            self.assertEqual('session' in games.load()['launching'], ends)
+
     def test_wrappers_only_when_toggled_and_installed_and_never_for_steam(self):
         game = {'source': 'wine', 'launch': 'wine x.exe', 'gamemode': True, 'mangohud': True}
         with patch.object(games, 'tools', return_value={'gamemode': True, 'mangohud': False}):

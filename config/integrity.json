@@ -33,7 +33,7 @@
   "extras/doctor.py": "93f2ccaaa28a31756652418d2c13f610ee862eeeb4626ff6ac0612e82aeb2b0d",
   "extras/emulators.py": "853117bc03a28f69a8dc4a016301400cff34a25b44f67dfc66fa9e2db13c1a96",
   "extras/games-list.json": "75c543c50321f90a73525e0a85d59af9ccdb8b5980dbc35625e539c2fe79d947",
-  "extras/games.py": "35e679e615efe78362ab35b54365e5049bac61d31a0a800682b8dbdc58a06da0",
+  "extras/games.py": "8b0f8440b2401760bedda6f225520c88cda88f31ea87bb920346a5e5893b9ff3",
   "extras/library.py": "4dc9de4ad4b303727f01cd2592856cf9b80880d7358bea34a645a2fb746f0178",
   "extras/lockscreen.py": "5c27d49cc2c0d02f6fcab30145035e5dcb592df3e0ddfe41f70bc481113ab985",
   "extras/lwbar.py": "d0e88823ff6634c9dabd06ae42ec4920b7462ff4cfe07f25e05441b1e94fefe4",

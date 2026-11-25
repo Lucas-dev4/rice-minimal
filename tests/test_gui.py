@@ -420,6 +420,35 @@ class GamesSection(Window):
         self.assertTrue(4 <= session['end'] - session['start'] <= 8, session)
         self.assertNotIn('open_session', self.doc())
 
+    def emulated(self):
+        """Um emulador falso que se marca como não-dumpable, como o Ryujinx, e uma ROM dele."""
+        self.program('ryujinx', f'#!{sys.executable}\nimport ctypes, time\nctypes.CDLL(None).prctl(4, 0, 0, 0, 0)\n'
+                                'open("%s", "w").write(str(__import__("os").getpid()))\ntime.sleep(8)\n' % (self.home/'emulador'))
+        rom = self.home/'Jogos/ROMs/switch/Monstro.nsp'
+        rom.parent.mkdir(parents=True)
+        rom.write_text('x')
+        self.lw('game', 'scan')
+        self.enter()
+        gid = next(g['id'] for g in self.doc()['games'] if g['source'] == 'rom')
+        self.play(gid)
+        pid = int(self.until(lambda: (self.home/'emulador').exists() and (self.home/'emulador').read_text()))
+        self.addCleanup(lambda: self.alive(pid) and os.kill(pid, signal.SIGKILL))
+        self.until(lambda: not os.access(f'/proc/{pid}/environ', os.R_OK))     # ilegível de verdade
+        return gid, pid
+
+    def test_an_emulator_that_hides_its_environment_counts_whole_even_with_lw_closed(self):
+        gid, pid = self.emulated()
+        self.quit()
+        self.until(lambda: self.sessions(gid), 25)
+        session = self.sessions(gid)[0]
+        self.assertTrue(6 <= session['end'] - session['start'] <= 10, session)
+
+    def test_stop_reaches_the_hidden_emulator(self):
+        gid, pid = self.emulated()
+        self.assertEqual(json.loads(self.lw('game', 'stop', gid))['data'], {'signalled': 1})
+        self.until(lambda: not self.alive(pid), 5)
+        self.until(lambda: self.sessions(gid), 15)
+
     def test_a_steam_game_counts_by_its_app_id(self):
         # Uma Steam falsa, já aberta: só entrega o jogo, com o SteamAppId no ambiente.
         self.program('steam', '#!/bin/sh\nunset LW_GAME_ID\nSteamAppId=620 setsid sleep 6 &\n')

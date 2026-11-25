@@ -26,3 +26,4 @@ Decisões tomadas sem confirmar, sempre pela opção mais conservadora (manter o
 
 - **Prefixos em `+ JOGO`:** só aparecem `~/.wine*` e os de `prefix_dir` que já rodaram com Proton (têm `pfx`). Um prefixo instalado só com o Wine não entra na lista.
 - **Aviso do `OnlineScreen.qml:56`** no log, de vez em quando, ao sair de ONLINE antes de uma resposta (`indexOf` de `undefined`). Já existia; é de MÚSICA.
+- **Primeiro uso:** se a pasta `~/.local/share/lw` não existe quando o LW abre, a janela não vê o `games.json` nascer (o `FileView` de `Games.qml` não acompanha) e a biblioteca fica vazia até reabrir. Já existia; aparece numa máquina limpa (sessão 7).
