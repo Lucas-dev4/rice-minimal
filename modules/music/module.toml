@@ -1,0 +1,8 @@
+# Manifesto do módulo MÚSICA (contrato em docs/modulos.md).
+# Os padrões daqui valem quando ~/.config/lw/config.toml não diz outra coisa.
+id = "music"
+name = "MÚSICA"
+
+[config.dir]
+default = "~/Músicas"
+description = "Pasta das músicas; o initial_directory do cliamp é escrito a partir dela"

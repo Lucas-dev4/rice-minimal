@@ -1,0 +1,36 @@
+# Manifesto do módulo JOGOS (contrato em docs/modulos.md).
+# Os padrões daqui valem quando ~/.config/lw/config.toml não diz outra coisa.
+id = "games"
+name = "JOGOS"
+
+[config.rom_dirs]
+default = ["~/ROMs", "~/Jogos/ROMs"]
+description = "Pastas de ROMs, com uma subpasta por console (ps2, snes…)"
+
+[config.ready_dirs]
+default = ["~/Downloads/hydra_Jogos"]
+description = "Pastas com jogos que vêm prontos para jogar"
+
+[config.emulator_dirs]
+default = ["~/Jogos/Emuladores"]
+description = "Pastas com emuladores em AppImage"
+
+[config.download_dirs]
+default = ["~/Downloads"]
+description = "Pastas onde procurar instaladores de Windows"
+
+[config.retroarch]
+default = "retroarch"
+description = "Comando do RetroArch"
+
+[config.cores_dir]
+default = "/usr/lib/libretro"
+description = "Pasta dos cores do RetroArch"
+
+[config.emulators]
+default = {}
+description = "Comando por extensão de ROM, com {rom} no lugar do arquivo (ex.: \".xyz\" = \"emu {rom}\")"
+
+[config.compat_list]
+default = "extras/games-list.json"
+description = "JSON com a lista de jogos (já jogados e mistério); caminho relativo conta a partir do repositório"

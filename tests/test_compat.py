@@ -33,7 +33,7 @@ class Machine(unittest.TestCase):
         for p in (patch.object(compat, 'ROOT', self.root),
                   patch.object(compat, 'run', lambda cmd: self.out.get(cmd[0])),
                   patch.object(compat, 'free_gb', lambda path: self.free.get(str(path), 100.0)),
-                  patch.dict(os.environ, {'HOME': str(self.home), 'XDG_DATA_HOME': str(self.home/'.local/share')})):
+                  patch.dict(os.environ, {'HOME': str(self.home), 'XDG_DATA_HOME': str(self.home/'.local/share'), 'XDG_CONFIG_HOME': str(self.home/'.config')})):
             p.start()
             self.addCleanup(p.stop)
         self.addCleanup(self.tmp.cleanup)
@@ -131,7 +131,8 @@ class Machine(unittest.TestCase):
 
 class Data(unittest.TestCase):
     def test_every_game_has_requirements_and_a_source_flag(self):
-        d = compat.data()
+        with tempfile.TemporaryDirectory() as home, patch.dict(os.environ, {'HOME': home, 'XDG_CONFIG_HOME': home, 'XDG_DATA_HOME': home}):
+            d = compat.data()
         names = [g['n'] for g in d['list']] + [g['n'] for g in d['mystery']]
         self.assertEqual((len(d['list']), len(d['mystery'])), (35, 21))
         self.assertEqual(sorted(names), sorted(d['req']))

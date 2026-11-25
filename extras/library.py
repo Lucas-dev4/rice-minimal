@@ -37,6 +37,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from difflib import SequenceMatcher
 from pathlib import Path
+import settings
 
 AUDIO = {'.mp3', '.m4a', '.flac', '.ogg', '.opus', '.wav', '.aac', '.wv', '.ape', '.aiff', '.alac', '.wma'}
 LYRICS_LIMIT = 4000
@@ -286,9 +287,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest='action', required=True)
     s = sub.add_parser('scan')
-    s.add_argument('--root', default=str(Path.home()/'Músicas'))
+    s.add_argument('--root', default=settings.get('music', 'dir'))
     look = sub.add_parser('lookup')
-    look.add_argument('--root', default=str(Path.home()/'Músicas'))
+    look.add_argument('--root', default=settings.get('music', 'dir'))
     look.add_argument('--out', required=True)
     write = sub.add_parser('apply')
     write.add_argument('--plan', required=True)

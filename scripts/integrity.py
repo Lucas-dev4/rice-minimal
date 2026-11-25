@@ -2,7 +2,7 @@
 """Refresh config/integrity.json, the SHA-256 list that `rice doctor` checks
 ("Managed file integrity"). Run it after editing any managed file, before committing.
 
-  scripts/integrity.py           rewrite the list (same files, plus every gui/**/*.qml|js)
+  scripts/integrity.py           rewrite the list (same files, plus every gui/**/*.qml|js and modules/*/module.toml)
   scripts/integrity.py --check   only report files whose hash changed; exit 1 if any
 """
 # integrity.py — atualiza config/integrity.json (hash SHA-256 de cada arquivo gerenciado).
@@ -18,9 +18,10 @@ LIST = ROOT/'config'/'integrity.json'
 
 
 def wanted(current):
-    """Arquivos que entram na lista: os já listados que existem + todos os .qml/.js da GUI."""
+    """Arquivos que entram na lista: os já listados que existem + todos os .qml/.js da GUI + os manifestos."""
     names = {n for n in current if (ROOT/n).is_file()}
     names |= {str(p.relative_to(ROOT)) for p in ROOT.glob('gui/**/*') if p.suffix in ('.qml', '.js')}
+    names |= {str(p.relative_to(ROOT)) for p in ROOT.glob('modules/*/module.toml')}
     return sorted(names)
 
 

@@ -17,7 +17,7 @@ import backups
 import lockscreen
 import shortcuts
 
-COMMANDS = {'status','gui','music','games','wallpaper','palette','profile','greeter','sync','shortcuts','lock','compat','emu','backups','bt'}
+COMMANDS = {'status','gui','music','games','wallpaper','palette','profile','greeter','sync','shortcuts','lock','compat','emu','backups','bt','cliamp'}
 THUMBS = Path(os.environ.get('XDG_CACHE_HOME',Path.home()/'.cache'))/'rice-minimal/thumbs'
 THUMB_SIZE = 400
 
@@ -493,6 +493,8 @@ def main(argv):
     compat_cmd=actions.add_parser('compat').add_subparsers(dest='operation',required=True)
     for operation in ('scan','check'):
         compat_cmd.add_parser(operation,parents=[common])
+    # Pasta das músicas no cliamp (extras/cliamp.py).
+    actions.add_parser('cliamp').add_subparsers(dest='operation',required=True).add_parser('sync',parents=[common])
     # Emuladores e controle (extras/emulators.py).
     emu=actions.add_parser('emu').add_subparsers(dest='operation',required=True)
     emu.add_parser('list',parents=[common])
@@ -565,6 +567,9 @@ def main(argv):
         elif name == 'compat check':
             import compat
             data=compat.check()
+        elif name == 'cliamp sync':
+            import cliamp
+            data,warnings=cliamp.sync()
         elif name.startswith('emu '):
             import emulators
             if name == 'emu list': data=emulators.listing()

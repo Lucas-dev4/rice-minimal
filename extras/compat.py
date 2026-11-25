@@ -5,9 +5,9 @@ scan   CPU, threads, RAM, GPU (a mais forte, se houver várias), VRAM e espaço 
 check  cada jogo da lista e do mistério: ok / lim / no / na, com os motivos
 
 Tudo sem sudo e sem depender do idioma do sistema: lê /proc e /sys direto, usa os códigos
-numéricos do lspci e o nvidia-smi em CSV. Os dados (lista, mistério, requisitos e as tabelas
-de GPU/CPU) vêm de compat-data.json, extraído de docs/lw-jogos-prototype.html, e a avaliação
-é a mesma do evalG daquela página.
+numéricos do lspci e o nvidia-smi em CSV. Os requisitos e as tabelas de GPU/CPU vêm de
+compat-data.json; a lista e o mistério, do JSON de games.compat_list (padrão: games-list.json).
+Os dois saíram de docs/lw-jogos-prototype.html, e a avaliação é a mesma do evalG daquela página.
 """
 # compat.py — compatibilidade dos jogos com o hardware (lw compat scan|check).
 import json
@@ -27,8 +27,8 @@ ROOT = Path('/')
 
 
 def data():
-    """Lista, mistério, requisitos e tabelas (compat-data.json)."""
-    return json.loads(DATA.read_text())
+    """Requisitos e tabelas (compat-data.json) com a lista de jogos (games.compat_list)."""
+    return dict(json.loads(DATA.read_text()), **games.game_list())
 
 
 def run(command):

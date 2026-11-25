@@ -48,7 +48,7 @@ class Games(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.home = Path(self.tmp.name)
-        env = patch.dict(os.environ, {'HOME': str(self.home), 'XDG_DATA_HOME': str(self.home/'data')})
+        env = patch.dict(os.environ, {'HOME': str(self.home), 'XDG_DATA_HOME': str(self.home/'data'), 'XDG_CONFIG_HOME': str(self.home/'.config')})
         env.start()
         self.addCleanup(env.stop)
 

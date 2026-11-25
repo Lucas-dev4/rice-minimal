@@ -539,5 +539,87 @@ class Launcher(unittest.TestCase):
         self.assertIn(['go','system'],ops)
         self.assertNotIn(['close'],ops)
 
+class CliampSync(unittest.TestCase):
+    """lw cliamp sync: music.dir manda no initial_directory do cliamp."""
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.home = Path(temp.name)
+        env = patch.dict(os.environ,{'HOME':str(self.home),'XDG_CONFIG_HOME':str(self.home/'.config'),
+                                     'XDG_STATE_HOME':str(self.home/'state')})
+        env.start()
+        self.addCleanup(env.stop)
+        self.conf = self.home/'.config/cliamp/config.toml'
+        self.conf.parent.mkdir(parents=True)
+
+    def sync(self):
+        out = StringIO()
+        with redirect_stdout(out):
+            code = cli.main(['cliamp','sync','--json'])
+        return code, json.loads(out.getvalue())
+
+    def music_dir(self, value):
+        path = self.home/'.config/lw/config.toml'
+        path.parent.mkdir(exist_ok=True)
+        path.write_text(f'[music]\ndir = "{value}"\n')
+
+    def backups(self):
+        return sorted((self.home/'state/rice-minimal/cliamp/backups').glob('*'))
+
+    def test_only_that_value_changes_with_backup_and_mode(self):
+        text = '# meu\ntheme = "rice"\ninitial_directory = "~/Músicas" # pasta\neq = [\n  0,\n]\n[x]\ninitial_directory = "fica"\n'
+        self.conf.write_text(text)
+        self.conf.chmod(0o600)
+        (self.home/'Áudio').mkdir()
+        self.music_dir('~/Áudio')
+        code, result = self.sync()
+        self.assertEqual((code,result['ok'],result['action'],result['warnings']),(0,True,'cliamp sync',[]))
+        self.assertEqual((result['data']['dir'],result['data']['exists'],result['data']['changed']),(str(self.home/'Áudio'),True,True))
+        self.assertEqual(self.conf.read_text(),text.replace('"~/Músicas"','"~/Áudio"'))
+        self.assertEqual(self.conf.stat().st_mode & 0o777,0o600)
+        self.assertEqual([p.read_text() for p in self.backups()],[text])
+        self.assertEqual(result['data']['backup'],str(self.backups()[0]))
+        self.assertEqual([p.name for p in self.conf.parent.iterdir()],['config.toml'])
+        self.assertFalse(self.sync()[1]['data']['changed'])       # de novo: nada a fazer
+        self.assertEqual(len(self.backups()),1)
+
+    def test_same_folder_written_in_full_is_not_touched(self):
+        self.conf.write_text(f'initial_directory = "{self.home}/Músicas/"\n')
+        self.assertFalse(self.sync()[1]['data']['changed'])
+        self.assertEqual(self.backups(),[])
+
+    def test_default_wins_over_a_folder_edited_in_cliamp(self):
+        self.conf.write_text('initial_directory = "/outra"\n')
+        code, result = self.sync()
+        self.assertTrue(result['data']['changed'])
+        self.assertEqual(self.conf.read_text(),'initial_directory = "~/Músicas"\n')
+        self.assertFalse((self.home/'.config/lw/config.toml').exists())   # nunca o contrário
+
+    def test_missing_key_is_added_at_the_top_level(self):
+        self.conf.write_text('[soundcloud]\nenabled = true\n')
+        self.sync()
+        self.assertEqual(self.conf.read_text(),'initial_directory = "~/Músicas"\n[soundcloud]\nenabled = true\n')
+
+    def test_special_characters_are_escaped_and_links_stay_links(self):
+        real = self.home/'dotfiles.toml'
+        real.write_text('initial_directory = "~/Músicas"\n')
+        self.conf.symlink_to(real)
+        (self.home/'.config/lw').mkdir()
+        (self.home/'.config/lw/config.toml').write_text("[music]\ndir = '/m/a\"b\\1'\n")
+        self.assertTrue(self.sync()[1]['data']['changed'])
+        self.assertTrue(self.conf.is_symlink())
+        import tomllib
+        self.assertEqual(tomllib.loads(real.read_text())['initial_directory'],'/m/a"b\\1')
+
+    def test_broken_or_missing_file_is_not_written(self):
+        code, result = self.sync()
+        self.assertEqual((code,result['data']['changed'],len(result['warnings'])),(0,False,2))
+        self.assertFalse(self.conf.exists())
+        self.conf.write_text('initial_directory = \n')
+        code, result = self.sync()
+        self.assertEqual((code,result['ok'],result['error']['code']),(1,False,'invalid'))
+        self.assertEqual((self.conf.read_text(),self.backups()),('initial_directory = \n',[]))
+
+
 if __name__ == '__main__':
     unittest.main()

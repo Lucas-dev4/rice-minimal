@@ -21,6 +21,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import settings
 
 # Linhas que o yt-dlp imprime para este script (o resto da saída é ignorado).
 TAG = 'LW\t'
@@ -143,7 +144,7 @@ def main(argv=None):
     d = sub.add_parser('download')
     d.add_argument('url')
     d.add_argument('--playlist', action='store_true')
-    d.add_argument('--root', default=str(Path.home()/'Músicas'))
+    d.add_argument('--root', default=settings.get('music', 'dir'))
     args = parser.parse_args(argv)
     if not args.url.startswith(('http://', 'https://')):
         emit({'event': 'end', 'ok': False, 'done': 0, 'skipped': 0, 'errors': 1, 'message': 'link inválido'})

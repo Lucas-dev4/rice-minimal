@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 from theme import theme
+import settings
 
 
 def inspect(report=None):
@@ -84,6 +85,9 @@ def inspect(report=None):
         add('OK' if enabled else 'WARN','Lock activation','active' if enabled else 'tested on this layout; not activated yet' if lockscreen.tested() else 'staged; run a lock trial first')
     except Exception as exc:
         add('WARN','Lock visual candidate',exc)
+    # Manifestos dos módulos e ~/.config/lw/config.toml: com erro vale o padrão.
+    bad=settings.problems()
+    add('FAIL' if bad else 'OK','LW config','; '.join(bad) or (settings.path() if settings.path().exists() else 'defaults'))
     try:
         # Installed copies that drifted from the repository (scripts/install.py fixes them).
         import importlib.util

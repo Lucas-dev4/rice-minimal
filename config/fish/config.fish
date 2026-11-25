@@ -1,6 +1,6 @@
 # config.fish — Fish do rice. Mantém a configuração do CachyOS e troca só a saudação e o prompt.
 # Instalado em ~/.config/fish/config.fish. As cores vêm de rice_theme_refresh (rice-adaptive.fish).
-source /usr/share/cachyos-fish-config/cachyos-config.fish
+test -f /usr/share/cachyos-fish-config/cachyos-config.fish; and source /usr/share/cachyos-fish-config/cachyos-config.fish
 
 # overwrite greeting
 # potentially disabling fastfetch

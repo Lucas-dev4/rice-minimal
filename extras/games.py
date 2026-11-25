@@ -36,7 +36,7 @@
 Sources: Steam (every library in libraryfolders.vdf, art from appcache/librarycache in
 both the old flat and the newer per-app layout, playtime from userdata localconfig.vdf),
 Wine/native executables added by hand, the Hydra Launcher's library when it names an
-executable, and ROM folders (~/.local/share/lw/games-config.json). A scan only adds new
+executable, and ROM folders (games.rom_dirs in ~/.config/lw/config.toml). A scan only adds new
 games and refreshes what the source knows (title, launch, cover, hours_source); status,
 your hours, notes and the rest are never touched. Games a source no longer has are marked
 `missing`, not removed. Everything prints one JSON object.
@@ -58,6 +58,9 @@ import tempfile
 import time
 from contextlib import contextmanager
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import settings  # noqa: E402
 
 STATUSES = ('want', 'playing', 'done', 'dropped')
 EDITABLE = {'status': str, 'progress': int, 'est_hours': float, 'notes': str, 'fav': bool, 'igdb_id': int,
@@ -91,16 +94,32 @@ def db_path():
 
 
 def config():
-    """Configuração (games-config.json) por cima dos padrões: pastas de ROMs, prontos, emuladores, RetroArch."""
+    """Configuração do módulo: config.toml, depois o antigo games-config.json, depois o padrão do manifesto."""
     path = data_dir()/'games-config.json'
-    defaults = {'rom_dirs': ['~/ROMs', '~/Jogos/ROMs'], 'ready_dirs': ['~/Downloads/hydra_Jogos'],
-                'emulator_dirs': ['~/Jogos/Emuladores'],
-                'retroarch': 'retroarch', 'cores_dir': '/usr/lib/libretro', 'emulators': {}}
+    values = settings.section('games')
     try:
-        defaults.update(json.loads(path.read_text()))
+        values.update(json.loads(path.read_text()))
     except (OSError, ValueError):
         pass
-    return defaults
+    values.update(settings.chosen('games'))
+    return values
+
+
+def game_list():
+    """A lista de jogos (games.compat_list): list, mystery, chaos e categories."""
+    path = Path(__file__).resolve().parents[1]/Path(config()['compat_list']).expanduser()
+    try:
+        data = json.loads(path.read_text())
+    except OSError as exc:
+        raise ValueError(f'lista de jogos não encontrada: {path}') from exc
+    except ValueError as exc:
+        raise ValueError(f'lista de jogos inválida: {path}: {exc}') from exc
+    found = {key: data.get(key, []) for key in ('list', 'mystery', 'chaos', 'categories')} if isinstance(data, dict) else {}
+    if not found or not all(isinstance(items, list) for items in found.values()) \
+            or not all(isinstance(g, dict) and isinstance(g.get('n'), str)
+                       for key in ('list', 'mystery') for g in found[key]):
+        raise ValueError(f'lista de jogos inválida: {path}')
+    return found
 
 
 @contextmanager
@@ -837,7 +856,7 @@ PREFIX_SKIP = {'windows', 'programdata', 'users', 'common files', 'internet expl
 
 def download_dirs():
     """Pastas onde procurar instaladores (padrão: ~/Downloads)."""
-    return [Path(d).expanduser() for d in config().get('download_dirs', ['~/Downloads'])]
+    return [Path(d).expanduser() for d in config()['download_dirs']]
 
 
 def clean_name(text):
@@ -1177,10 +1196,10 @@ def fetch_cover(image_id, gid):
 
 
 def played_titles():
-    """Jogos que já joguei (a lista de compat-data.json): nome, horas e platina."""
+    """Jogos que já joguei (a lista de games.compat_list): nome, horas e platina."""
     try:
-        items = json.loads((Path(__file__).resolve().parent/'compat-data.json').read_text())['list']
-    except (OSError, ValueError, KeyError):
+        items = game_list()['list']
+    except ValueError:
         return []
     return [{'n': g['n'], 'hrs': g.get('hrs'), 'plat': bool(g.get('plat'))} for g in items]
 

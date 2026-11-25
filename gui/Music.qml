@@ -176,21 +176,18 @@ Singleton {
 
     // Starts cliamp headless. With a saved session (see session()) it gets the same queue
     // and comes back paused at the same track and second; otherwise it opens the folder
-    // of `initial_directory` in its config (~/Músicas), without playing. cliamp's own
+    // given by `lw cliamp sync` (music.dir), without playing. cliamp's own
     // resume.json is not used by its daemon, hence our session.
     property var pendingResume: null
-    // Liga o cliamp sem janela (daemon), com a sessão salva ou abrindo ~/Músicas.
-    function start(saved) {
+    // Liga o cliamp sem janela (daemon), com a sessão salva ou abrindo a pasta das músicas.
+    function start(saved, folder) {
         if (online) return;
         const paths = saved && saved.paths ? saved.paths : [];
         pendingResume = paths.length ? saved : null;
         if (paths.length)
             Quickshell.execDetached(["setsid", bin, "--daemon"].concat(paths));
         else
-            Quickshell.execDetached(["setsid", "bash", "-c",
-                'conf="${XDG_CONFIG_HOME:-$HOME/.config}/cliamp"; ' +
-                'dir=$(sed -n \'s/^initial_directory *= *"\\(.*\\)"/\\1/p\' "$conf/config.toml" | head -1); dir="${dir/#\\~/$HOME}"; ' +
-                '[ -d "$dir" ] && exec "$1" --daemon "$dir"; exec "$1" --daemon', "lw-music", bin]);
+            Quickshell.execDetached(["setsid", bin, "--daemon"].concat(folder ? [folder] : []));
         startWatch.restart();
         connecting = true;
         retry.interval = 400;
@@ -217,8 +214,8 @@ Singleton {
     // (música movida ou apagada), então os que sumiram ficam de fora antes.
     function startCliamp() {
         const saved = savedSession();
-        if (!saved) return start(null);
-        if (pathCheck.running) return;
+        if (pathCheck.running || folderSync.running) return;
+        if (!saved) return syncFolder(null);
         pathCheck.saved = saved;
         pathCheck.command = ["sh", "-c", 'for p; do case "$p" in *://*) echo 1 ;; *) [ -e "$p" ] && echo 1 || echo 0 ;; esac; done',
                              "lw-music"].concat(saved.paths);
@@ -237,7 +234,25 @@ Singleton {
         id: pathCheck
         property var saved: null
         stdout: StdioCollector { id: pathFlags }
-        onExited: root.start(root.keepExisting(saved, pathFlags.text.split("\n")))
+        onExited: root.syncFolder(root.keepExisting(saved, pathFlags.text.split("\n")))
+    }
+    // Antes de ligar: o LW passa music.dir para o initial_directory do cliamp (lw cliamp sync)
+    // e devolve a pasta. Com o cliamp parado, ele não regrava a config por cima.
+    function syncFolder(saved) {
+        folderSync.saved = saved;
+        folderSync.running = true;
+    }
+    Process {
+        id: folderSync
+        property var saved: null
+        command: ["/usr/bin/python3", Quickshell.shellDir + "/../extras/rice.py", "cliamp", "sync", "--json"]
+        stdout: StdioCollector { id: folderOut }
+        onExited: {
+            let reply = {};
+            try { reply = JSON.parse(folderOut.text); } catch (error) { reply = { error: { message: "resposta inválida do lw" } }; }
+            if (!reply.ok) root.failed("pasta das músicas", reply.error.message);
+            root.start(saved, reply.ok && reply.data.exists ? reply.data.dir : "");
+        }
     }
     // Ao fechar o LW em MÚSICA: salva a sessão e desliga o cliamp.
     function closeSession() {

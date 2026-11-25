@@ -46,7 +46,7 @@ screens = [
 
 [commands]
 handler = "cmd_music"           # extras/cmd_music.py
-names = ["library", "organize", "radio", "download"]
+names = ["library", "organize", "radio", "download", "cliamp"]
 open = "music"                  # `lw music` = `lw gui music` (opcional)
 
 [[dependency]]
@@ -62,7 +62,7 @@ why = "busca e download do YouTube na tela ONLINE"
 
 [config.dir]
 default = "~/Músicas"
-description = "Pasta das músicas"
+description = "Pasta das músicas; o initial_directory do cliamp é escrito a partir dela"
 
 [[shortcut]]
 keys = "SUPER + M"
@@ -116,7 +116,7 @@ games = false          # ausente = o `default` do manifesto
 dir = "~/Áudio"
 ```
 
-- O padrão existe só no manifesto. Arquivo ou chave ausente = padrão. O tipo é o do padrão, e `~/` no começo vira a pasta pessoal (também em listas).
+- O padrão existe só no manifesto. Arquivo ou chave ausente = padrão. O tipo é o do padrão (lista e tabela são de textos; texto vazio não vale), e `~/` no começo vira a pasta pessoal (também em listas).
 - `settings.get('music', 'dir')` no Python; `Modules.config("music", "dir")` no QML.
 - Arquivo quebrado ou tipo errado: vale o padrão e o `lw doctor` mostra FAIL. O LW sempre abre.
 - `lw modules enable|disable` muda só a linha do módulo em `[modules]`: backup, temp + rename, e o resultado precisa passar no `tomllib` antes de substituir.
@@ -199,12 +199,12 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 ### MÚSICA: `modules/music/`
 
 - `order = 20`. Telas e manifesto no exemplo acima.
-- **Comandos** (`cmd_music`), hoje scripts que a GUI chama direto: `library scan|lookup|apply`, `organize plan|apply|move`, `radio search|saved|add`, `download` (fluxo, `ytdl.py`).
+- **Comandos** (`cmd_music`), hoje scripts que a GUI chama direto: `library scan|lookup|apply`, `organize plan|apply|move`, `radio search|saved|add`, `download` (fluxo, `ytdl.py`); e `cliamp sync`, que já nasceu no `lw`.
 - **Gancho**: `summary`, `sidebar`, `header`, `ready`/`gate`, `overlay` (soltar arquivos), `context`, `bootStep`, `entered`, `closing`, `key`, `backgroundKey`, `screenLoaded`, `act`.
 - **Singletons**: `Music`, `Spectrum`, `Downloads` (continuam em `gui/`).
 - **Obrigatórias**: `cliamp` (manual) · `wpctl` wireplumber · `pactl` libpulse.
 - **Opcionais**: `cava` (visualizador) · `ffmpeg`/`ffprobe` ffmpeg (LIBRARY, detalhes, download) · `yt-dlp` (ONLINE) · `playerctl` (capa) · `zenity` (escolher arquivos) · `gio` glib2 (lixeira).
-- **Config**: `dir`.
+- **Config**: `dir`. É a fonte de verdade: `lw cliamp sync` escreve o `initial_directory` de `~/.config/cliamp/config.toml` a partir dela (com backup), nunca o contrário. O `Music.qml` chama antes de ligar o cliamp.
 
 ### JOGOS: `modules/games/`
 
@@ -215,7 +215,7 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 - **Singleton**: `Games`.
 - **Obrigatórias**: nenhuma; a lista abre vazia.
 - **Opcionais**: `wine` · `umu-run` umu-launcher (Proton) · `gamemoderun` gamemode · `mangohud` · `gamescope` · `steam` · `retroarch` · `dolphin-emu` · `ppsspp` · `ryujinx` · `lspci` pciutils · `zenity`.
-- **Config**: `rom_dirs`, `ready_dirs`, `emulator_dirs`, `download_dirs`, `retroarch`, `cores_dir`, `emulators`, `compat_list` (caminho do JSON com a lista de jogos; lista longa não vai dentro do `config.toml`).
+- **Config**: `rom_dirs`, `ready_dirs`, `emulator_dirs`, `download_dirs`, `retroarch`, `cores_dir`, `emulators`, `compat_list` (caminho do JSON com a lista de jogos; lista longa não vai dentro do `config.toml`; caminho relativo conta a partir do repositório).
 - **Atalhos**: `SUPER + G` (`lw games`).
 
 ## Módulo novo, passo a passo

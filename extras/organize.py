@@ -27,6 +27,7 @@ import subprocess
 import sys
 import tempfile
 import unicodedata
+import settings
 
 AUDIO = {'.mp3', '.m4a', '.opus', '.ogg', '.flac', '.wav', '.aac'}
 DOWNLOADS = 'Downloads'
@@ -222,7 +223,7 @@ def move_one(root, file, folder):
 def main(argv=None):
     """Linha de comando (plan | apply | move FILE FOLDER); imprime um JSON."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument('--root', default=str(Path.home()/'Músicas'))
+    parser.add_argument('--root', default=settings.get('music', 'dir'))
     sub = parser.add_subparsers(dest='cmd', required=True)
     sub.add_parser('plan')
     sub.add_parser('apply')
