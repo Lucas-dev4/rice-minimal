@@ -76,7 +76,11 @@ LwModule {
             live: Music.live, volume: Music.volumePercent, volumeDb: Music.volumeDb, muted: Music.muted,
             shuffle: Music.shuffle, repeat: Music.repeat, index: Music.currentIndex,
             playlist: Music.playlist.map(t => t.title || Music.fileName(t.path)),
-            eq: Music.eqBands, error: Music.lastError
+            eq: Music.eqBands, error: Music.lastError,
+            // A busca de ONLINE, se ela é a tela aberta.
+            online_search: screenItem && screenItem.ytSearch !== undefined
+                ? { provider: screenItem.provider, searching: screenItem.searching, error: screenItem.error,
+                    results: screenItem.results.map(t => t.title) } : null
         };
     }
     function act(op, arg) {
@@ -109,7 +113,8 @@ LwModule {
     property string lastPath: ""
     Connections {
         target: Music
-        function onFailed(op, message) { Status.say("[ !! ] " + op + ": " + message, Theme.red); }
+        // Menos a falha de uma busca que já foi trocada por outra.
+        function onFailed(op, message, search) { if (!search || search === Music.search) Status.say("[ !! ] " + op + ": " + message, Theme.red); }
         function onChanged() {
             const path = Music.track ? Music.track.path : "";
             if (path && path !== root.lastPath && root.lastPath !== "")

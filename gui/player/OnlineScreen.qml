@@ -34,7 +34,7 @@ Item {
     property bool searching: false
     property string error: ""
     property string lastQuery: ""
-    property int seq: 0
+    property int seq: 0                  // a busca atual (Music.nextSearch)
     property var ytSearch: null          // a busca do yt-dlp em andamento
     property int cursor: 0
     readonly property var selected: results[cursor] || null
@@ -74,7 +74,7 @@ Item {
         results = [];             // never show one source's results under another's name
         fromLink = link;
         playlist = null;
-        const mine = ++seq;
+        const mine = seq = Music.nextSearch();
         if (ytSearch) ytSearch.signal(15);
         ytSearch = null;
         if (link || provider === "ytdlp") {
@@ -89,7 +89,7 @@ Item {
             results = result.tracks || [];
             cursor = 0;
             view.positionViewAtBeginning();
-        }, 30000);
+        }, 30000, mine);
     }
     // Passa para a próxima fonte (Tab).
     function cycleProvider() {
@@ -222,8 +222,9 @@ Item {
     Connections {
         target: Music
         function onOnlineChanged() { if (Music.online && !root.listed) root.loadProviders(); }
-        function onFailed(op, message) {
-            if (op !== "provider.search") return;
+        function onFailed(op, message, search) {
+            // Só a falha da busca atual desta tela.
+            if (op !== "provider.search" || search !== root.seq) return;
             root.searching = false;
             root.error = message;
             root.results = [];

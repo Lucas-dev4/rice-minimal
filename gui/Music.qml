@@ -88,7 +88,8 @@ Singleton {
     readonly property string bin: Quickshell.env("RICE_CLIAMP") || "cliamp"
 
     signal changed()          // any new snapshot
-    signal failed(string op, string message)
+    // search: o id da busca que falhou (nextSearch), 0 se não era uma.
+    signal failed(string op, string message, int search)
 
     // local | radio | stream. Plain http(s) is a radio stream unless it is a known
     // streaming site; provider ids (spotify:, ytmusic: …) are streaming.
@@ -110,11 +111,16 @@ Singleton {
 
     // ---- commands -----------------------------------------------------------
     // op: a v2 operation; params: object. done(result) on success. limit: ms before giving
-    // up (4 s; an online search through yt-dlp needs more).
-    function call(op, params, done, limit) {
-        const proc = caller.createObject(root, { op: op, params: params || {}, done: done || null, limit: limit || 4000 });
+    // up (4 s; an online search through yt-dlp needs more). search: the id of an online
+    // search (nextSearch), which comes back in failed().
+    function call(op, params, done, limit, search) {
+        const proc = caller.createObject(root, { op: op, params: params || {}, done: done || null, limit: limit || 4000, search: search || 0 });
         proc.start();
     }
+    // A última busca online, do cliamp ou do yt-dlp. O id é da janela, não da tela: a ONLINE é
+    // recriada ao voltar, e a falha de uma busca da anterior não pode valer na nova.
+    property int search: 0
+    function nextSearch() { return ++search; }
     // Play/pause.
     function toggle() { call("toggle"); }
     // Próxima faixa.
@@ -268,7 +274,7 @@ Singleton {
         program: Theme.lw
         onSucceeded: data => root.start(saved, data.exists ? data.dir : "")
         onFailed: message => {
-            root.failed("pasta das músicas", message);
+            root.failed("pasta das músicas", message, 0);
             root.start(saved, "");
         }
     }
@@ -429,7 +435,7 @@ Singleton {
     Timer {
         id: startWatch
         interval: 8000
-        onTriggered: if (!root.online) root.failed("start", root.lastError || "o cliamp não respondeu")
+        onTriggered: if (!root.online) root.failed("start", root.lastError || "o cliamp não respondeu", 0)
     }
     // 0.4 s, then up to 5 s between attempts while cliamp is away.
     Timer {
@@ -503,6 +509,7 @@ Singleton {
             property var params
             property var done
             property int limit: 4000
+            property int search: 0
             function start() {
                 command = [root.bin, "remote", "call", op, "--params", JSON.stringify(params), "--wait"];
                 running = true;
@@ -523,7 +530,7 @@ Singleton {
                     const message = (e && (e.message || e.code || (typeof e === "string" ? e : JSON.stringify(e))))
                         || err.text.trim() || op + " failed (" + code + ")";
                     root.lastError = String(message);
-                    root.failed(op, String(message));
+                    root.failed(op, String(message), proc.search);
                 }
                 proc.destroy();
             }
@@ -532,7 +539,7 @@ Singleton {
                 interval: proc.limit
                 onTriggered: {
                     // Never started (binary missing) or hung: report it either way.
-                    root.failed(proc.op, proc.running ? "o cliamp não respondeu em " + Math.round(proc.limit / 1000) + " s" : "comando cliamp não encontrado (" + root.bin + ")");
+                    root.failed(proc.op, proc.running ? "o cliamp não respondeu em " + Math.round(proc.limit / 1000) + " s" : "comando cliamp não encontrado (" + root.bin + ")", proc.search);
                     if (proc.running) proc.signal(9); else proc.destroy();
                 }
             }

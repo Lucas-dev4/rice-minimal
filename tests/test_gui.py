@@ -42,6 +42,15 @@ elif args[:2] == ['remote', 'call']:
     result = {{}}
     if op == 'queue.list':
         result = {{'tracks': [{{'path': {song!r}, 'title': 'A'}}], 'total': 1}}
+    elif op == 'provider.list':
+        result = {{'providers': [{{'key': 'soundcloud', 'name': 'SoundCloud', 'searchable': True}}]}}
+    elif op == 'provider.search':
+        if params['query'].startswith('velha'):
+            time.sleep(1.5)
+            print(json.dumps({{'ok': False, 'error': {{'message': 'quebrou'}}}}))
+            (here/'failed').write_text('')
+            sys.exit(1)
+        result = {{'tracks': [{{'title': 'SC ' + params['query'], 'path': 'https://soundcloud.com/x'}}]}}
     elif op == 'queue.play':
         time.sleep(number('resume'))
     print(json.dumps({{'ok': True, 'result': result}}))
@@ -208,6 +217,69 @@ class ClosingMusic(Window):
     def calls(self):
         path = self.home/'calls.txt'
         return path.read_text().split() if path.exists() else []
+
+
+class OnlineSearch(Window):
+    """A falha de uma busca que já foi trocada por outra não aparece."""
+    def setUp(self):
+        super().setUp()
+        self.program('yt-dlp', '#!/bin/sh\necho \'{"entries":[{"title":"YT","url":"https://y/v"}]}\'\n')
+        self.save_session()
+        self.open('music')
+        screens = json.loads(subprocess.run([sys.executable, str(ROOT/'extras/rice.py'), 'modules', 'list', '--json'],
+                                            env=self.env, capture_output=True, text=True).stdout)['data']
+        self.online = next(m for m in screens if m['id'] == 'music')['screens'].index({'name': 'ONLINE', 'file': 'OnlineScreen.qml'})
+        self.until(lambda: self.state().get('online'))
+        self.ipc('open', str(self.online))
+        # A fonte que aparece primeiro depende de quem responde antes; Tab só troca com as duas.
+        self.tab_to('ytdlp')
+        self.tab_to('soundcloud')
+
+    def search(self):
+        return self.state().get('online_search') or {}
+
+    def tab_to(self, provider):
+        """Tab até a fonte ser essa."""
+        def there():
+            if self.search().get('provider') == provider:
+                return True
+            self.ipc('key', 'Tab')
+        self.until(there)
+
+    def old_fails(self):
+        """Espera a busca velha falhar e a janela receber a falha."""
+        self.until((self.home/'failed').exists)
+        time.sleep(0.5)
+
+    def test_the_failure_of_the_current_search_shows(self):
+        self.ipc('query', 'velha')
+        self.until(lambda: self.search()['error'] == 'quebrou')
+        self.assertFalse(self.search()['searching'])
+        self.assertIn('quebrou', self.state()['message'])
+
+    def test_an_old_soundcloud_failure_does_not_reach_a_new_soundcloud_search(self):
+        self.ipc('query', 'velha')
+        self.ipc('query', 'nova')
+        self.until(lambda: self.search()['results'] == ['SC nova'])
+        self.old_fails()
+        self.assertEqual((self.search()['results'], self.search()['error']), (['SC nova'], ''))
+        self.assertNotIn('quebrou', self.state()['message'])
+
+    def test_an_old_soundcloud_failure_does_not_reach_youtube(self):
+        self.ipc('query', 'velha')
+        self.ipc('key', 'Tab')      # a mesma busca, agora no YouTube
+        self.until(lambda: self.search()['results'] == ['YT'])
+        self.old_fails()
+        self.assertEqual((self.search()['results'], self.search()['error']), (['YT'], ''))
+        self.assertNotIn('quebrou', self.state()['message'])
+
+    def test_a_failure_from_before_leaving_the_screen_does_not_reach_the_new_one(self):
+        self.ipc('query', 'velha')
+        self.ipc('open', '0')
+        self.ipc('open', str(self.online))
+        self.until(lambda: self.search().get('provider'))
+        self.old_fails()
+        self.assertEqual((self.search()['searching'], self.search()['error']), (False, ''))
 
 
 if __name__ == '__main__':

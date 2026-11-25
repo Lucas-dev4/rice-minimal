@@ -16,4 +16,3 @@ Decisões tomadas sem confirmar, sempre pela opção mais conservadora (manter o
 - **`TypeError: Value is undefined` no log ao trocar de seção:** por um instante a tela da seção nova é procurada com a lista antiga (`screens[current]`, no `shell.qml`). Não aparece na tela; já existia.
 - **Avisos do `EmulatorsView.qml`** no log ao abrir EMULADORES; é de JOGOS (sessão 5).
 - **`Downloads.dest`** não é usado por nenhuma tela; só passou a seguir `music.dir`.
-- **Busca antiga no SoundCloud que falha depois de uma nova** ainda mostra o erro dela em ONLINE: o aviso de falha do `Music.qml` não diz de qual busca veio. O commit `fix(musica): ignorar resultado de busca antiga` cobre RADIO e o YouTube, que eram os dois pedidos.
