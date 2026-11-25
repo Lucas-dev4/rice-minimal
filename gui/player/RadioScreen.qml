@@ -31,14 +31,17 @@ Item {
         return proc;
     }
     property var searching: null
-    // Busca estações por nome ou gênero.
+    property int seq: 0
+    // Busca estações por nome ou gênero; uma busca nova cancela a anterior.
     function search() {
         error = "";
         if (searching) searching.signal(15);
         const args = ["search"];
         if (box.text.trim()) args.push("--name=" + box.text.trim());
         if (tag) args.push("--tag", tag);
+        const mine = ++seq;
         searching = run(args, (ok, data) => {
+            if (mine !== seq) return;          // uma busca mais nova tomou o lugar desta
             searching = null;
             if (!ok) { error = data.error || "falha na busca"; results = []; return; }
             results = data.stations;

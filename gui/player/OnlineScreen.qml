@@ -35,6 +35,7 @@ Item {
     property string error: ""
     property string lastQuery: ""
     property int seq: 0
+    property var ytSearch: null          // a busca do yt-dlp em andamento
     property int cursor: 0
     readonly property var selected: results[cursor] || null
     // Link colado na busca: os resultados vêm dele, e playlist é {title, url} se for uma.
@@ -74,9 +75,11 @@ Item {
         fromLink = link;
         playlist = null;
         const mine = ++seq;
+        if (ytSearch) ytSearch.signal(15);
+        ytSearch = null;
         if (link || provider === "ytdlp") {
             if (link && !hasYtdlp) { searching = false; error = "links precisam do yt-dlp (sudo pacman -S yt-dlp)"; return; }
-            ytSearch.mine = mine;
+            ytSearch = ytRunner.createObject(root, { mine: mine });
             ytSearch.call(["online", "search", "--json", "--", query]);
             return;
         }
@@ -178,23 +181,33 @@ Item {
         onFailed: message => listed(false)
         Component.onCompleted: call(["online", "status", "--json"])
     }
-    RiceCommand {
-        id: ytSearch
-        property int mine: 0
-        program: Theme.lw
-        onSucceeded: data => {
-            if (mine !== root.seq) return;
-            root.searching = false;
-            root.results = data.results;
-            if (data.playlist) root.playlist = data.playlist;
-            root.cursor = 0;
-            view.positionViewAtBeginning();
-        }
-        onFailed: message => {
-            if (mine !== root.seq) return;
-            root.searching = false;
-            root.error = message;
-            root.results = [];
+    // Um por busca: o resultado de uma busca antiga é ignorado.
+    Component {
+        id: ytRunner
+        RiceCommand {
+            id: proc
+            property int mine: 0
+            program: Theme.lw
+            // Acabou: true se ainda é a busca atual.
+            function finish() {
+                proc.destroy();
+                if (mine !== root.seq) return false;
+                root.ytSearch = null;
+                root.searching = false;
+                return true;
+            }
+            onSucceeded: data => {
+                if (!finish()) return;
+                root.results = data.results;
+                if (data.playlist) root.playlist = data.playlist;
+                root.cursor = 0;
+                view.positionViewAtBeginning();
+            }
+            onFailed: message => {
+                if (!finish()) return;
+                root.error = message;
+                root.results = [];
+            }
         }
     }
     Component.onCompleted: { loadProviders(); Downloads.organize(); }

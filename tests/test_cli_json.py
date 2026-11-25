@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 from contextlib import redirect_stdout
@@ -650,6 +651,22 @@ class Music(unittest.TestCase):
         with patch.object(cmd_music.ytdl,'installed',return_value=False):
             self.assertEqual(self.run_cli('online','status','--json')[1]['data'],{'ytdlp':False})
             self.assertEqual(self.run_cli('online','search','x','--json')[1]['error']['code'],'not_found')
+
+    def test_a_cancelled_online_search_stops_yt_dlp(self):
+        self.ytdlp(f'echo $$ > {self.home}/pid; exec sleep 20\n')
+        search = subprocess.Popen([sys.executable,str(ROOT/'extras/rice.py'),'online','search','x','--json'],
+                                  stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        self.addCleanup(search.kill)
+        pid = self.home/'pid'
+        for _ in range(100):
+            if pid.is_file() and pid.read_text().strip():
+                break
+            time.sleep(0.05)
+        child = int(pid.read_text())
+        search.terminate()
+        self.assertEqual(search.wait(timeout=5),143)
+        with self.assertRaises(ProcessLookupError):
+            os.kill(child,0)
 
     def test_download_streams_events_without_envelope(self):
         with patch.object(cmd_music.ytdl,'download',return_value=0) as download:

@@ -103,11 +103,15 @@ def search(query):
     link = re.fullmatch(r'https?://\S+', query) is not None
     if not installed():
         raise FileNotFoundError('yt-dlp não está instalado: sudo pacman -S yt-dlp')
+    # Cancelada pela tela: sair por exceção faz o subprocess.run matar o yt-dlp junto.
+    before = signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
         out = subprocess.run(['yt-dlp', '--flat-playlist', '--no-warnings', '-J', query if link else 'ytsearch25:' + query],
                              capture_output=True, text=True, timeout=SEARCH_LIMIT)
     except subprocess.TimeoutExpired as exc:
         raise TimeoutError(f'o YouTube não respondeu em {SEARCH_LIMIT} s') from exc
+    finally:
+        signal.signal(signal.SIGTERM, before)
     try:
         data = json.loads(out.stdout) if out.returncode == 0 else None
     except ValueError:
