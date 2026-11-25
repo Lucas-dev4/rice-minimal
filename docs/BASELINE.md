@@ -3,13 +3,17 @@
 Testes que já falhavam antes do trabalho de módulos. Só conta como regressão o que não está aqui.
 
 - Comando: `python3 -m unittest discover -s tests -q`
-- Data: 2026-11-24, commit `9705944` (branch `modulos`), Python 3.14.10
-- Resultado: 216 testes, 2 falhas, 0 erros, 0 pulados; igual em 3 execuções seguidas
+- Data: 2026-11-24, commit `fix: integridade do games.py e baseline verde` (branch `modulos`), Python 3.14.10
+- Resultado: 216 testes, 0 falhas, 0 erros, 0 pulados; igual em 3 execuções seguidas
+
+Baseline verde: qualquer falha ou erro daqui em diante é regressão.
 
 ## Falhas
 
-- `test_install.Install.test_live_system_has_nothing_pending`: o `~/.config/fish/config.fish` do sistema tem no fim um bloco "Added by Antigravity CLI installer" (um `set -gx PATH`) que o repositório não tem, então `install.plan()` não volta vazio.
-- `test_integrity.Integrity.test_integrity_list_matches_the_files`: `extras/games.py` mudou no commit `e234cfb` sem atualizar `config/integrity.json` (falta rodar `scripts/integrity.py`).
+Nenhuma. As 2 que existiam em `9705944` foram resolvidas:
+
+- `test_install.Install.test_live_system_has_nothing_pending`: o bloco do Antigravity CLI saiu do `~/.config/fish/config.fish` para `~/.config/fish/conf.d/antigravity.fish`.
+- `test_integrity.Integrity.test_integrity_list_matches_the_files`: `config/integrity.json` atualizado com o `extras/games.py` do commit `e234cfb`.
 
 ## Erros
 

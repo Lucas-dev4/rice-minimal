@@ -28,7 +28,7 @@
   "extras/compat.py": "83fac8aaebedc2fd5382a35454ee756ab6d19c1bdf36df181419703110414a4f",
   "extras/doctor.py": "4b7f134ab4a5044e94a659216df2174f0fd352c6e6b556b1e0caf3079ce32cb9",
   "extras/emulators.py": "853117bc03a28f69a8dc4a016301400cff34a25b44f67dfc66fa9e2db13c1a96",
-  "extras/games.py": "f5ea8a18c254e0bbed33fb8800360587dc7eeddaf979013cef612817f7e26a55",
+  "extras/games.py": "3e4e24357e57007e0d687be08677730b6e846e412b2a294c4ef788f5fbcd50d5",
   "extras/library.py": "1d23d210cfb1ed219408c82ea76cec51ec45650d13d6de660b0b8ae79ddd84fa",
   "extras/lockscreen.py": "5c27d49cc2c0d02f6fcab30145035e5dcb592df3e0ddfe41f70bc481113ab985",
   "extras/lwbar.py": "d0e88823ff6634c9dabd06ae42ec4920b7462ff4cfe07f25e05441b1e94fefe4",
