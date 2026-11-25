@@ -12,7 +12,7 @@ Decisões tomadas sem confirmar, sempre pela opção mais conservadora (manter o
 
 ### Achado e não mexido
 
-- **Fechar o LW no meio de um download:** o Quickshell mata o `lw download` sem deixar ele parar o `yt-dlp`, que pode seguir sozinho por um tempo. Já era assim com o `ytdl.py`. A busca de ONLINE passou a ter o mesmo limite, porque o `yt-dlp` agora é filho do `lw online search`; ele termina sozinho em segundos.
+- **O `ffmpeg` que o `yt-dlp` lança** não recebe o aviso do kernel: se o LW fechar no meio de uma conversão, ela termina sozinha em segundos. O `yt-dlp` já morre junto com o `lw`.
 - **`TypeError: Value is undefined` no log ao trocar de seção:** por um instante a tela da seção nova é procurada com a lista antiga (`screens[current]`, no `shell.qml`). Não aparece na tela; já existia.
 - **Avisos do `EmulatorsView.qml`** no log ao abrir EMULADORES; é de JOGOS (sessão 5).
 - **`Downloads.dest`** não é usado por nenhuma tela; só passou a seguir `music.dir`.

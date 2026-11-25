@@ -15,6 +15,7 @@
 # e conta o progresso em linhas JSON para a tela (gui/player/OnlineScreen.qml). A busca da tela
 # (lw online search) também é daqui.
 import argparse
+import ctypes
 import json
 import os
 from pathlib import Path
@@ -27,6 +28,10 @@ import settings
 
 # Linhas que o yt-dlp imprime para este script (o resto da saída é ignorado).
 TAG = 'LW\t'
+# prctl(PR_SET_PDEATHSIG): o sinal que o kernel manda ao processo quando o pai dele morre.
+# Carregado aqui porque entre o fork e o exec não é hora de abrir biblioteca.
+PRCTL = ctypes.CDLL(None).prctl
+PR_SET_PDEATHSIG = 1
 # Segundos que a busca espera pelo YouTube.
 SEARCH_LIMIT = 30
 # Capa quadrada: corta o centro da miniatura 16:9 do vídeo. O yt-dlp separa os argumentos
@@ -95,6 +100,18 @@ def installed():
     return shutil.which('yt-dlp') is not None
 
 
+def tied():
+    """O preexec_fn do yt-dlp: ele recebe SIGTERM se este processo morrer, até por SIGKILL."""
+    parent = os.getpid()
+
+    def prepare():
+        PRCTL(PR_SET_PDEATHSIG, signal.SIGTERM, 0, 0, 0)
+        # O pai pode ter morrido entre o fork e o prctl: aí o sinal não viria mais.
+        if os.getppid() != parent:
+            os._exit(143)
+    return prepare
+
+
 def search(query):
     """Busca no YouTube, ou lista o que tem num link (música ou playlist), sem baixar nada."""
     query = query.strip()
@@ -107,7 +124,7 @@ def search(query):
     before = signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     try:
         out = subprocess.run(['yt-dlp', '--flat-playlist', '--no-warnings', '-J', query if link else 'ytsearch25:' + query],
-                             capture_output=True, text=True, timeout=SEARCH_LIMIT)
+                             capture_output=True, text=True, timeout=SEARCH_LIMIT, preexec_fn=tied())
     except subprocess.TimeoutExpired as exc:
         raise TimeoutError(f'o YouTube não respondeu em {SEARCH_LIMIT} s') from exc
     finally:
@@ -148,7 +165,7 @@ def download(url, root, playlist=False):
     archive_path().parent.mkdir(parents=True, exist_ok=True)
     emit({'event': 'start', 'url': url, 'playlist': playlist, 'dest': str(Path(root)/'Downloads')})
     child = subprocess.Popen(command(url, root, playlist), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                             text=True, bufsize=1, start_new_session=True)
+                             text=True, bufsize=1, start_new_session=True, preexec_fn=tied())
 
     def stop(*_):
         # Cancelado pela tela: para o yt-dlp e o ffmpeg dele junto.

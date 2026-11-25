@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
@@ -18,6 +19,14 @@ import cli
 import cmd_music
 import cmd_system
 from theme import theme
+
+
+def running(pid):
+    """True se o processo existe e não é um zumbi esperando o init."""
+    try:
+        return Path(f'/proc/{pid}/stat').read_text().rsplit(')',1)[1].split()[0] != 'Z'
+    except OSError:
+        return False
 
 
 class Envelope(unittest.TestCase):
@@ -667,6 +676,34 @@ class Music(unittest.TestCase):
         self.assertEqual(search.wait(timeout=5),143)
         with self.assertRaises(ProcessLookupError):
             os.kill(child,0)
+
+    def test_yt_dlp_dies_when_lw_is_killed(self):
+        # SIGKILL: o lw não tem chance de limpar nada; quem avisa o yt-dlp é o kernel.
+        self.ytdlp(f'echo $$ > {self.home}/pid; exec sleep 20\n')
+        (self.home/'bin/ffmpeg').write_text('#!/bin/sh\n')
+        (self.home/'bin/ffmpeg').chmod(0o755)
+        pid = self.home/'pid'
+        for command in (['online','search','x','--json'],['download','https://y/v','--root',str(self.music)]):
+            with self.subTest(command=command[0]):
+                pid.unlink(missing_ok=True)
+                lw = subprocess.Popen([sys.executable,str(ROOT/'extras/rice.py'),*command],
+                                      stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+                self.addCleanup(lw.kill)
+                for _ in range(100):
+                    if pid.is_file() and pid.read_text().strip():
+                        break
+                    time.sleep(0.05)
+                child = int(pid.read_text())
+                lw.kill()
+                lw.wait(timeout=5)
+                for _ in range(40):
+                    if not running(child):
+                        break
+                    time.sleep(0.05)
+                alive = running(child)
+                if alive:
+                    os.kill(child,signal.SIGKILL)
+                self.assertFalse(alive)
 
     def test_download_streams_events_without_envelope(self):
         with patch.object(cmd_music.ytdl,'download',return_value=0) as download:
