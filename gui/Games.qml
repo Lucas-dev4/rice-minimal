@@ -171,6 +171,12 @@ Singleton {
             if (ok && data.session === "running") changed("● sessão retomada: " + ((byId(data.id) || {}).title || data.id));
         });
     }
+    // Horas como as telas mostram: "3.5 h", "12 h"; abaixo de 1 h, em minutos; zero é `none`.
+    function hoursLabel(h, none) {
+        if (!(h > 0)) return none;
+        if (h < 1) return Math.max(1, Math.min(59, Math.round(h * 60))) + " min";
+        return (h < 10 ? h.toFixed(1).replace(/\.0$/, "") : Math.round(h)) + " h";
+    }
     // Duração curta para mensagens: "+25 min" ou "+1.5 h".
     function hoursText(h) { return h < 0.1 ? "+" + Math.max(1, Math.round(h * 60)) + " min" : "+" + h.toFixed(1).replace(/\.0$/, "") + " h"; }
 

@@ -21,7 +21,7 @@ Item {
     readonly property var games: Games.games.filter(g => !g.missing)
     readonly property double nowS: Date.now() / 1000
     // Horas → texto.
-    function hours(h) { return h > 0 ? (h < 10 ? h.toFixed(1).replace(/\.0$/, "") : String(Math.round(h))) + " h" : "—"; }
+    function hours(h) { return Games.hoursLabel(h, "—"); }
     // Timestamp → dd/MM/yy.
     function day(stamp) { return stamp ? Qt.formatDate(new Date(stamp * 1000), "dd/MM/yy") : "—"; }
     // Aviso de "sem versão PC" pelas plataformas do IGDB (null se tem PC ou o IGDB não sabe).

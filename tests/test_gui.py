@@ -478,6 +478,22 @@ class GamesSection(Window):
         time.sleep(2)
         self.assertNotIn('em jogo', self.state()['message'])
 
+    def test_hours_below_one_are_minutes_on_every_screen(self):
+        gid = self.game()
+        self.enter()
+        for hours, text in ((0, None), (0.001, '1 min'), (0.016, '1 min'), (0.5, '30 min'), (0.999, '59 min'), (1, '1 h'), (3.54, '3.5 h'), (12.4, '12 h')):
+            with self.subTest(hours=hours):
+                doc = self.doc()
+                doc['games'][0]['hours'] = hours
+                (self.home/'novo').write_text(json.dumps(doc))
+                (self.home/'novo').rename(self.db)
+                for screen in ('0', '2'):       # BIBLIOTECA e DESEMPENHO
+                    self.ipc('open', screen)
+                    self.until(lambda: self.state()['hours'] == (text or '—'), 5)
+                self.ipc('openSheet', gid)
+                self.until(lambda: self.state()['sheet'] == {'id': gid, 'hours': text or '0 h'}, 5)
+                self.ipc('openSheet', '')
+
     def steam(self, seconds=6, hidden=False):
         """Uma Steam falsa na forma da real: fechada, o comando vira o cliente, que fica aberto; ela põe um
         reaper na frente do jogo e o SteamAppId nele. client.pid diz se já estava aberta."""

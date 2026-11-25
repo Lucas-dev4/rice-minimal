@@ -17,7 +17,7 @@ A ficha do jogo, INSTALAR e a tela de lançamento abrem por cima da janela. Na b
 
 ## Sessão
 
-Ao lançar, o LW põe `LW_GAME_ID` no ambiente do jogo e inicia um vigia separado (`games.py watch`). A sessão abre quando um processo com essa variável aparece e fecha quando o último some. A contagem segue com o LW fechado; se o vigia morrer, a sessão volta ou fecha na próxima abertura. Uma sessão por vez. Não há tempo mínimo; o fim tem até 2 s de erro. Abaixo de 1 h a ficha mostra minutos, e uma sessão que termina com o LW fechado é avisada quando ele abre.
+Ao lançar, o LW põe `LW_GAME_ID` no ambiente do jogo e inicia um vigia separado (`games.py watch`). A sessão abre quando um processo com essa variável aparece e fecha quando o último some. A contagem segue com o LW fechado; se o vigia morrer, a sessão volta ou fecha na próxima abertura. Uma sessão por vez. Não há tempo mínimo; o fim tem até 2 s de erro. Abaixo de 1 h a ficha, a BIBLIOTECA e o DESEMPENHO mostram minutos, e uma sessão que termina com o LW fechado é avisada quando ele abre.
 
 Jogo da Steam é lançado sem o `LW_GAME_ID`, porque uma Steam fechada abre por esse comando, o herdaria e ficaria aberta depois do jogo. A sessão dele vive enquanto existir o `reaper SteamLaunch AppId=<ID>` que a Steam põe na frente do jogo, ou um processo com o `SteamAppId`; o PARAR nunca alcança o cliente.
 

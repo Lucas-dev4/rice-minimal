@@ -23,7 +23,7 @@ Item {
     // Fecha a ficha e devolve o foco à lista.
     function close() { gameId = ""; if (keyTarget) keyTarget.forceActiveFocus(); }
     // Horas → texto ("3.5 h"; abaixo de 1 h, em minutos).
-    function hours(h) { return h > 0 && h < 1 ? Math.max(1, Math.min(59, Math.round(h * 60))) + " min" : h ? (h < 10 ? h.toFixed(1).replace(/\.0$/, "") : Math.round(h)) + " h" : "0 h"; }
+    function hours(h) { return Games.hoursLabel(h, "0 h"); }
     // As horas que a ficha mostra.
     readonly property string hoursShown: !game ? "" : hours(game.hours || 0) + (game.hours_source ? "  ·  steam: " + hours(game.hours_source) : "")
     // Muda o status do jogo.

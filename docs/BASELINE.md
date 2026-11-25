@@ -3,8 +3,8 @@
 Testes que já falhavam antes do trabalho de módulos. Só conta como regressão o que não está aqui.
 
 - Comando: `python3 -m unittest discover -s tests -q`
-- Data: 2026-11-25, commit `feat(lw): opção system.fullscreen` (branch `modulos`), Python 3.14.10
-- Resultado: 307 testes, 0 falhas, 0 erros, 0 pulados; igual em 3 execuções seguidas
+- Data: 2026-11-25, commit `fix(jogos): minutos abaixo de 1 h na BIBLIOTECA e no DESEMPENHO` (branch `modulos`), Python 3.14.10
+- Resultado: 308 testes, 0 falhas, 0 erros, 0 pulados; igual em 3 execuções seguidas
 
 Baseline verde: qualquer falha ou erro daqui em diante é regressão.
 

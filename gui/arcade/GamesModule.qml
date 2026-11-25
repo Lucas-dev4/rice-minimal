@@ -43,7 +43,9 @@ LwModule {
     // ---- IPC dos testes
     function state() {
         const sheet = sheets && sheets.sheet.shown ? { id: sheets.sheet.gameId, hours: sheets.sheet.hoursShown } : null;
-        return { games: Games.games.length, scanning: Games.scanning, session: Games.session, sheet: sheet };
+        // As horas do primeiro jogo, como a tela aberta as escreve.
+        const hours = screenItem && screenItem.hours && Games.games.length ? screenItem.hours(Games.hoursOf(Games.games[0])) : null;
+        return { games: Games.games.length, scanning: Games.scanning, session: Games.session, sheet: sheet, hours: hours };
     }
     function act(op, arg) {
         switch (op) {

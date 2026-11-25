@@ -26,7 +26,7 @@ Item {
         .sort((a, b) => (a.missing - b.missing) || (b.last_played || 0) - (a.last_played || 0) || a.title.localeCompare(b.title, "pt"))
 
     // Horas → texto ("—" sem dados).
-    function hours(h) { return h ? (h < 10 ? h.toFixed(1).replace(/\.0$/, "") : Math.round(h)) + " h" : "—"; }
+    function hours(h) { return Games.hoursLabel(h, "—"); }
 
     // ---- adding a game: the .exe, its Wine prefix, its name --------------------------
     property string pickedExe: ""
