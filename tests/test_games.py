@@ -189,13 +189,14 @@ class Games(unittest.TestCase):
         (proc/'20/environ').write_bytes(b'')
         self.assertEqual(games.running(proc), [])     # only Wine helpers left: the game is over
 
-    def process(self, proc, pid, sid, start=1, env=b'', uid=None, comm='jogo'):
+    def process(self, proc, pid, sid, start=1, env=b'', uid=None, comm='jogo', parent=1, argv=()):
         """Um processo falso; env None = ambiente ilegível (como o de um processo não-dumpable)."""
         entry = proc/str(pid)
         entry.mkdir(parents=True)
         (entry/'comm').write_text(comm + '\n')
-        (entry/'stat').write_text(f'{pid} ({comm}) S 1 {sid} {sid} ' + '0 '*15 + f'{start} 0 0\n')
+        (entry/'stat').write_text(f'{pid} ({comm}) S {parent} {sid} {sid} ' + '0 '*15 + f'{start} 0 0\n')
         (entry/'status').write_text(f'Name:\t{comm}\nUid:\t{os.getuid() if uid is None else uid}\t0\t0\t0\n')
+        (entry/'cmdline').write_bytes(b''.join(a.encode() + b'\0' for a in argv))
         (entry/'environ').write_bytes(env or b'')
         if env is None:
             (entry/'environ').chmod(0)
@@ -219,6 +220,74 @@ class Games(unittest.TestCase):
         self.assertEqual(pids('rom:a', [200, 9]), [100])         # o líder nem existe
         self.assertEqual(pids('rom:c', [100, 7]), [])
         self.assertEqual(pids('rom:b', [300, 5]), [300, 301])
+
+    def steam_tree(self, proc, inherited=b'', game=True):
+        """A cadeia que a Steam monta (vista com o Centuries): cliente, reaper, contêiner e jogo."""
+        app = inherited + b'SteamAppId=620\0SteamGameId=620\0'
+        line = ['/s/reaper', 'SteamLaunch', 'AppId=620', '--', '/s/_v2-entry-point', '--', '/s/jogo']
+        for pid, parent, comm, env, argv in (
+                (10, 1, 'steam', inherited, ['/s/steam', 'steam://rungameid/620']),
+                (11, 10, 'srt-bwrap', inherited, ['/s/srt-bwrap']), (12, 11, 'pv-adverb', inherited, ['/s/pv-adverb']),
+                (13, 12, 'steam', inherited, ['/s/steam']), (14, 13, 'steamwebhelper', inherited, ['./steamwebhelper'])):
+            self.process(proc, pid, 10, env=env, comm=comm, parent=parent, argv=argv)
+        if not game:
+            return
+        for pid, parent, comm, env, argv in (
+                (20, 13, 'steam-runtime-l', app, ['steam-runtime-launch-client']),
+                (21, 10, 'steam-runtime-s', inherited, ['/s/steam-runtime-supervisor', '--', '/bin/sh', '-c', ' '.join(line)]),
+                (22, 21, 'reaper', app, line), (23, 22, 'srt-bwrap', app, ['/s/srt-bwrap']),
+                (24, 23, 'pv-adverb', app, ['/s/pv-adverb'])):
+            self.process(proc, pid, 21, env=env, comm=comm, parent=parent, argv=argv)
+
+    def test_a_steam_game_is_its_app_id_and_its_reaper_never_the_client(self):
+        for inherited in (b'', b'LW_GAME_ID=steam:620\0'):      # Steam aberta por mim; aberta por um LW antigo
+            with self.subTest(inherited=inherited):
+                proc = self.home/('proc' + str(len(inherited)))
+                self.steam_tree(proc, inherited)
+                self.process(proc, 25, 25, env=inherited + b'SteamAppId=620\0', comm='centuries-dev', parent=24)
+                self.process(proc, 30, 30, env=b'SteamAppId=999\0', comm='outro')
+                self.assertEqual([sorted(x) for x in games.steam_pids('620', proc)], [[25], [22], [23, 24, 25]])
+                self.assertEqual(sorted(games.pids_of('steam:620', proc)), [22, 25])
+                self.assertEqual(games.running(proc), ['steam:620', 'steam:999'])
+
+    def test_a_steam_client_alone_is_no_game(self):
+        proc = self.home/'proc'
+        self.steam_tree(proc, b'LW_GAME_ID=steam:620\0', game=False)
+        self.assertEqual((games.pids_of('steam:620', proc), games.running(proc)), ([], []))
+
+    def test_the_reaper_keeps_a_game_that_hides_its_environment(self):
+        proc = self.home/'proc'
+        self.steam_tree(proc)
+        self.process(proc, 25, 25, env=None, parent=24)                      # o jogo, ilegível
+        self.process(proc, 26, 26, env=None, parent=24, uid=os.getuid() + 1)  # de outro usuário
+        self.process(proc, 27, 27, env=None, parent=13)                      # ilegível, mas abaixo do cliente
+        self.assertEqual(sorted(games.pids_of('steam:620', proc)), [22, 25])
+
+    def test_only_a_real_reaper_of_that_game_counts(self):
+        proc = self.home/'proc'
+        for pid, argv, uid in ((1, ['/s/reaper', 'SteamLaunch', 'AppId=6200'], None), (2, ['/s/reaper', 'SteamLaunch', 'xAppId=620'], None),
+                               (3, ['/bin/sh', 'reaper', 'SteamLaunch', 'AppId=620'], None), (4, ['/s/reaper', 'AppId=620', 'SteamLaunch'], None),
+                               (5, ['vim', 'SteamLaunch', 'AppId=620'], None), (6, ['/s/reaper', 'SteamLaunch', 'AppId=620'], os.getuid() + 1),
+                               (7, ['/s/reaper'], None)):
+            self.process(proc, pid, pid, argv=argv, uid=uid)
+        self.assertEqual(games.pids_of('steam:620', proc), [])
+        self.process(proc, 8, 8, argv=['/s/reaper', 'SteamLaunch', 'AppId=620', '--'])
+        self.assertEqual(games.pids_of('steam:620', proc), [8])
+
+    def test_steam_is_launched_without_the_game_id(self):
+        games.update(lambda d: d['games'].extend([games.blank('steam:620', 'P', 'steam', 'steam steam://rungameid/620'),
+                                                  games.blank('rom:a', 'A', 'rom', 'ryujinx a.nsp')]))
+        for gid, carries in (('steam:620', None), ('rom:a', 'rom:a')):
+            with patch.dict(os.environ, {'LW_GAME_ID': 'wine:outro'}), patch.object(games.subprocess, 'Popen') as popen:
+                popen.return_value.pid = os.getpid()
+                games.launch(gid)
+            self.assertEqual(popen.call_args_list[0].kwargs['env'].get('LW_GAME_ID'), carries)
+
+    def test_stop_asks_the_game_and_never_the_client_or_the_reaper(self):
+        for tree, asked in ((([25], [22], [23, 24, 25]), [25]), (([], [22], [23, 24]), [23, 24]), (([], [], []), [])):
+            with patch.object(games, 'steam_pids', return_value=tree), patch.object(games.os, 'kill') as kill:
+                self.assertEqual(games.stop('steam:620'), {'signalled': len(asked)})
+            self.assertEqual([c.args[0] for c in kill.call_args_list], asked)
 
     def test_the_noted_session_belongs_to_one_game(self):
         data = {'open_session': {'id': 'rom:a', 'session': [1, 2]}, 'launching': {'id': 'rom:b', 'session': [3, 4]}}

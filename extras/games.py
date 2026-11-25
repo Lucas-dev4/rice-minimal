@@ -590,13 +590,39 @@ def is_wine_helper(entry):
         return False
 
 
+def is_mine(entry):
+    """True se o processo é do meu usuário (o uid real: um processo não-dumpable parece do root)."""
+    try:
+        uid = re.search(r'^Uid:\s*(\d+)', (entry/'status').read_text(), re.M)
+    except OSError:
+        return False
+    return bool(uid) and int(uid.group(1)) == os.getuid()
+
+
+def reaper_of(entry):
+    """O AppId se o processo é o reaper que a Steam põe na frente de cada jogo ("reaper SteamLaunch
+    AppId=620 -- …"), senão None. A linha de comando fica legível mesmo quando o ambiente não fica."""
+    try:
+        argv = (entry/'cmdline').read_bytes().split(b'\0')
+    except OSError:
+        return None
+    found = re.fullmatch(rb'AppId=(\d+)', argv[2]) if len(argv) > 2 else None
+    if not found or argv[0].rsplit(b'/', 1)[-1] != b'reaper' or argv[1] != b'SteamLaunch' or not is_mine(entry):
+        return None
+    return found.group(1).decode()
+
+
 def running(proc='/proc'):
     """Game ids alive now. LW launches carry LW_GAME_ID (every child inherits it, the .exe
-    under Wine too); Steam puts SteamAppId in its games' environment."""
+    under Wine too); Steam puts SteamAppId in its games' environment and a reaper in front of them.
+    A Steam client may carry the LW_GAME_ID of the game that opened it: it is not the game."""
     alive = set()
     for entry in Path(proc).iterdir():
         if not entry.name.isdigit():
             continue
+        appid = reaper_of(entry)
+        if appid and appid != '0':
+            alive.add('steam:' + appid)
         try:
             env = (entry/'environ').read_bytes().split(b'\0')
         except OSError:
@@ -604,7 +630,7 @@ def running(proc='/proc'):
         if is_wine_helper(entry):
             continue
         for var in env:
-            if var.startswith(b'LW_GAME_ID='):
+            if var.startswith(b'LW_GAME_ID=') and not var.startswith(b'LW_GAME_ID=steam:'):
                 alive.add(var[11:].decode(errors='replace'))
             elif var.startswith(b'SteamAppId=') and var[11:] not in (b'', b'0'):
                 alive.add('steam:' + var[11:].decode(errors='replace'))
@@ -705,16 +731,54 @@ def hidden_in(entry, session):
     """True se é um processo meu, de ambiente ilegível, dentro dessa sessão. O Ryujinx se marca como
     não-dumpable, e aí nem o dono lê o LW_GAME_ID dele."""
     try:
-        uid = re.search(r'^Uid:\s*(\d+)', (entry/'status').read_text(), re.M)
-        return bool(uid) and int(uid.group(1)) == os.getuid() and stat_of(entry)[0] == session[0]
+        return is_mine(entry) and stat_of(entry)[0] == session[0]
     except (OSError, ValueError, IndexError):
         return False
+
+
+def steam_pids(appid, proc='/proc'):
+    """(o jogo, os reapers, o que há abaixo deles) de um AppId da Steam. O jogo são os processos com o
+    SteamAppId e os de ambiente ilegível abaixo do reaper, sem os que ficam em volta dele."""
+    want = b'SteamAppId=' + appid.encode()
+    game, reapers, parent, hidden = [], [], {}, set()
+    for entry in Path(proc).iterdir():
+        if not entry.name.isdigit() or int(entry.name) == os.getpid():
+            continue
+        pid = int(entry.name)
+        try:
+            parent[pid] = int((entry/'stat').read_text().rsplit(')', 1)[1].split()[1])
+            if reaper_of(entry) == appid:
+                reapers.append(pid)
+                continue
+            # pv-adverb is the container around the game (and around the Steam client).
+            helper = is_wine_helper(entry) or (entry/'comm').read_text().strip() == 'pv-adverb'
+            try:
+                if want in (entry/'environ').read_bytes().split(b'\0') and not helper:
+                    game.append(pid)
+            except OSError:
+                if not helper and is_mine(entry):
+                    hidden.add(pid)
+        except (OSError, ValueError, IndexError):
+            continue
+    under = []
+    for pid in parent:
+        up, seen = parent[pid], set()
+        while up in parent and up not in seen and up not in reapers:
+            seen.add(up)
+            up = parent[up]
+        if up in reapers:
+            under.append(pid)
+    return game + [p for p in under if p in hidden], reapers, under
 
 
 def pids_of(gid, proc='/proc', session=None):
     """Processos do jogo, achados pela variável LW_GAME_ID (ou SteamAppId) no ambiente deles. Com a
     sessão que o LW criou para o jogo (lw_session), também os de ambiente ilegível dela, e só dela:
-    o líder tem que ser o mesmo processo (PID e hora de início) e carregar o LW_GAME_ID deste jogo."""
+    o líder tem que ser o mesmo processo (PID e hora de início) e carregar o LW_GAME_ID deste jogo.
+    Jogo da Steam não conta pelo LW_GAME_ID: vale o SteamAppId ou o reaper dele."""
+    if gid.startswith('steam:'):
+        game, reapers, _ = steam_pids(gid.split(':', 1)[1], proc)
+        return game + reapers
     out = []
     if session:
         leader = Path(proc)/str(session[0])
@@ -724,7 +788,6 @@ def pids_of(gid, proc='/proc', session=None):
         except (OSError, ValueError, IndexError):
             session = None
     want_lw = b'LW_GAME_ID=' + gid.encode()
-    want_steam = b'SteamAppId=' + gid.split(':', 1)[1].encode() if gid.startswith('steam:') else None
     for entry in Path(proc).iterdir():
         if not entry.name.isdigit() or int(entry.name) == os.getpid():
             continue
@@ -734,7 +797,7 @@ def pids_of(gid, proc='/proc', session=None):
             if session and hidden_in(entry, session) and not is_wine_helper(entry):
                 out.append(int(entry.name))
             continue
-        if (want_lw in env or (want_steam and want_steam in env)) and not is_wine_helper(entry):
+        if want_lw in env and not is_wine_helper(entry):
             out.append(int(entry.name))
     return out
 
@@ -772,6 +835,10 @@ def launch(gid):
         raise ValueError('já há uma sessão: ' + other)
     cmd = command_for(game)
     env = dict(os.environ, LW_GAME_ID=gid)
+    # A closed Steam opens from this command and stays open after the game: it must not carry
+    # LW_GAME_ID (the same as env -u). Steam marks the game itself with SteamAppId.
+    if game['source'] == 'steam':
+        env.pop('LW_GAME_ID')
     # Controllers SDL does not know (generic HID pads): mappings from controllers.txt, so
     # Wine/Proton present them as an Xbox pad (XInput) to the game.
     mappings = controller_mappings()
@@ -882,7 +949,12 @@ def recover():
 def stop(gid):
     """Pede para o jogo fechar (SIGTERM)."""
     session = lw_session(load(), gid)
-    pids = pids_of(gid, session=session)
+    if gid.startswith('steam:'):
+        # Never the client nor the reaper, which goes by itself after what is below it.
+        game, _, under = steam_pids(gid.split(':', 1)[1])
+        pids = game or under
+    else:
+        pids = pids_of(gid, session=session)
     # The shell in front of an emulator goes by itself, after it: until then the session is open.
     if session:
         pids = [p for p in pids if p != session[0]] or pids

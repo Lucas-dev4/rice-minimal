@@ -449,18 +449,67 @@ class GamesSection(Window):
         self.until(lambda: not self.alive(pid), 5)
         self.until(lambda: self.sessions(gid), 15)
 
-    def test_a_steam_game_counts_by_its_app_id(self):
-        # Uma Steam falsa, já aberta: só entrega o jogo, com o SteamAppId no ambiente.
-        self.program('steam', '#!/bin/sh\nunset LW_GAME_ID\nSteamAppId=620 setsid sleep 6 &\n')
+    def steam(self, seconds=6, hidden=False):
+        """Uma Steam falsa na forma da real: fechada, o comando vira o cliente, que fica aberto; ela põe um
+        reaper na frente do jogo e o SteamAppId nele. client.pid diz se já estava aberta."""
+        hide = 'import ctypes; ctypes.CDLL(None).prctl(4, 0, 0, 0, 0)\n' if hidden else ''
+        self.program('jogo-steam', f'#!{sys.executable}\nimport os, time\n{hide}open({str(self.home/"game.pid")!r}, "w").write(str(os.getpid()))\ntime.sleep({seconds})\n')
+        # O Python roda o arquivo SteamLaunch com argv[0] = reaper: o cmdline sai igual ao da Steam.
+        (self.home/'SteamLaunch').write_text('import subprocess, sys\nsubprocess.run(sys.argv[3:])\n')
+        self.program('steam', f'''#!{sys.executable}
+import os, subprocess, sys
+from pathlib import Path
+home = Path({str(self.home)!r})
+env = dict(os.environ, SteamAppId='620', SteamGameId='620')
+subprocess.Popen(['/s/reaper', 'SteamLaunch', 'AppId=620', '--', str(home/'bin/jogo-steam')], executable={sys.executable!r},
+                 cwd=home, env=env, start_new_session=True)
+if not (home/'client.pid').exists():
+    (home/'client.pid').write_text(str(os.getpid()))
+    os.execvp('sleep', ['steam-cliente', '60'])
+''')
         self.db.parent.mkdir(parents=True)
         self.db.write_text(json.dumps({'games': [{'id': 'steam:620', 'title': 'Portal 2', 'source': 'steam',
                                                   'launch': 'steam steam://rungameid/620', 'status': 'want', 'hours': 0, 'sessions': []}]}))
-        self.open('system')
-        self.lw('game', 'launch', 'steam:620')
-        self.until(lambda: (self.state().get('session') or {}).get('id') == 'steam:620')
+        manifest = self.home/'.local/share/Steam/steamapps/appmanifest_620.acf'
+        manifest.parent.mkdir(parents=True)
+        manifest.write_text('"AppState" { "appid" "620" "name" "Portal 2" }')
+        self.enter()
+        self.play('steam:620')
+
+    def steam_session(self):
+        """Espera a sessão fechar; devolve quantos segundos contou."""
         self.until(lambda: self.sessions('steam:620'), 20)
+        self.assertNotIn('open_session', self.doc())
         session = self.sessions('steam:620')[0]
-        self.assertTrue(4 <= session['end'] - session['start'] <= 8, session)
+        return session['end'] - session['start']
+
+    def test_a_steam_lw_opens_stays_out_of_the_session(self):
+        self.steam()
+        client = int((self.home/'client.pid').read_text())
+        self.assertNotIn(b'LW_GAME_ID', Path(f'/proc/{client}/environ').read_bytes())
+        self.assertTrue(4 <= self.steam_session() <= 8)
+        self.assertTrue(self.alive(client))         # a sessão acabou com o jogo, não com a Steam
+
+    def test_a_steam_that_was_already_open(self):
+        mine = subprocess.Popen(['sleep', '60'])
+        self.addCleanup(mine.wait)
+        self.addCleanup(mine.kill)
+        (self.home/'client.pid').write_text(str(mine.pid))
+        self.steam()
+        self.assertTrue(4 <= self.steam_session() <= 8)
+
+    def test_a_steam_game_that_hides_its_environment(self):
+        self.steam(hidden=True)
+        self.assertTrue(4 <= self.steam_session() <= 8)
+
+    def test_stop_closes_the_steam_game_and_not_steam(self):
+        self.steam(seconds=60)
+        client = int((self.home/'client.pid').read_text())
+        game = int(self.until(lambda: (self.home/'game.pid').exists() and (self.home/'game.pid').read_text()))
+        self.assertEqual(json.loads(self.lw('game', 'stop', 'steam:620'))['data'], {'signalled': 1})
+        self.until(lambda: not self.alive(game), 5)
+        self.steam_session()
+        self.assertTrue(self.alive(client))
 
 
 class Sections(Window):

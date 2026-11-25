@@ -1,5 +1,5 @@
 {
-  "README.md": "4c66f43331c57a380227b935a0c5b4f3a63092c4539c13f2c77d40c2847a9d87",
+  "README.md": "78d01f2b0e3829640ccdd57cb3e5f2c40ee0578d1da4649509cdbe240a3d632b",
   "config/autostart/rice-minimal.desktop": "c592575a7c2e736e66bd76410b9c52775b8190c7a69f9b9369efbf593d9477d4",
   "config/cliamp/config.toml": "b7411892f51694364881d0e9be4c590bab6787108215ebbc504fb4b81d2e3f2e",
   "config/fastfetch/config.jsonc": "548e76a29ea67501f11c38dce97279fafee1cea0d1c734cfcd8dedc0bf308f03",
@@ -33,7 +33,7 @@
   "extras/doctor.py": "93f2ccaaa28a31756652418d2c13f610ee862eeeb4626ff6ac0612e82aeb2b0d",
   "extras/emulators.py": "853117bc03a28f69a8dc4a016301400cff34a25b44f67dfc66fa9e2db13c1a96",
   "extras/games-list.json": "75c543c50321f90a73525e0a85d59af9ccdb8b5980dbc35625e539c2fe79d947",
-  "extras/games.py": "8b0f8440b2401760bedda6f225520c88cda88f31ea87bb920346a5e5893b9ff3",
+  "extras/games.py": "38a59e64abc8014d5bf3c379ee4cfefa0887781fd45fcce8e8c903606df7e9fc",
   "extras/library.py": "4dc9de4ad4b303727f01cd2592856cf9b80880d7358bea34a645a2fb746f0178",
   "extras/lockscreen.py": "5c27d49cc2c0d02f6fcab30145035e5dcb592df3e0ddfe41f70bc481113ab985",
   "extras/lwbar.py": "d0e88823ff6634c9dabd06ae42ec4920b7462ff4cfe07f25e05441b1e94fefe4",
