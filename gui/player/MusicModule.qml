@@ -17,7 +17,7 @@ LwModule {
     ready: Music.online
     context: output || "—"
     idleText: Music.online ? "" : "[ -- ] cliamp offline"
-    hints: [["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"], ["alt 1-3", "seção"]]
+    hints: [["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"], [Modules.altKeys, "seção"]]
     bootStep: ({ label: Music.online ? "connected to cliamp" : "connecting to cliamp", done: !Music.connecting })
 
     // Entrar em MÚSICA liga o cliamp se ele estiver desligado.

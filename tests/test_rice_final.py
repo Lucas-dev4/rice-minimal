@@ -123,4 +123,88 @@ polkit_agent = true
         self.assertEqual(seen,results)
         self.assertGreater(len(results),20)
 
+
+class Dependencies(unittest.TestCase):
+    """O lw doctor e as dependências dos módulos ativos."""
+    def setUp(self):
+        temp=tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.home=Path(temp.name)
+        self.config=self.home/'lw/config.toml'
+        self.config.parent.mkdir()
+        env=patch.dict(doctor.os.environ,{'XDG_CONFIG_HOME':str(self.home)})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def check(self,missing=()):
+        """As linhas das dependências, com só essas faltando."""
+        found=[]
+        def located(dep):
+            names=dep.get('command') or dep.get('python') or dep.get('font')
+            return '' if names in missing else '/x'
+        with patch.object(doctor,'located',side_effect=located):
+            doctor.dependencies(lambda status,name,detail='',**extra: found.append({'status':status,'name':name,'detail':detail,**extra}))
+        return found
+
+    def test_every_active_module_is_checked_required_first(self):
+        found=self.check()
+        self.assertEqual({r['status'] for r in found},{'OK'})
+        self.assertEqual(list(dict.fromkeys((r['module'],r['optional']) for r in found)),
+                         [('system',False),('system',True),('music',False),('music',True),('games',True)])
+
+    def test_module_and_name_identify_a_line(self):
+        # É a chave da tela DOCTOR; o nome sozinho se repete (wpctl, zenity).
+        found=self.check()
+        keys=[(r['module'],r['name']) for r in found]
+        self.assertEqual(len(keys),len(set(keys)))
+        self.assertLess(len({r['name'] for r in found}),len(found))
+
+    def test_a_module_turned_off_is_not_checked(self):
+        self.config.write_text('[modules]\nmusic = false\n')
+        found=self.check(missing=('cliamp','cava'))
+        self.assertEqual({r['module'] for r in found},{'system','games'})
+
+    def test_missing_required_fails_and_missing_optional_informs(self):
+        found={r['name']:r for r in self.check(missing=('pactl','cava'))}
+        self.assertEqual((found['pactl']['status'],found['cava']['status']),('FAIL','INFO'))
+        self.assertIn('o visualizador',found['cava']['detail'])
+        self.assertEqual((found['Pacotes obrigatórios']['status'],found['Pacotes obrigatórios']['detail']),('WARN','sudo pacman -S --needed libpulse'))
+        self.assertEqual((found['Pacotes opcionais']['status'],found['Pacotes opcionais']['detail']),('INFO','sudo pacman -S --needed cava'))
+
+    def test_each_package_is_asked_once(self):
+        # wpctl é opcional em SISTEMA e obrigatório em MÚSICA; zenity e ffmpeg aparecem duas vezes.
+        found=self.check(missing=('wpctl','zenity','ffmpeg','ffprobe',['ppsspp','PPSSPPSDL']))
+        lines={r['name']:r['detail'] for r in found if 'module' not in r}
+        self.assertEqual(lines,{'Pacotes obrigatórios':'sudo pacman -S --needed wireplumber',
+                                'Pacotes opcionais':'sudo pacman -S --needed ffmpeg zenity ppsspp'})
+        self.assertIn('ppsspp / PPSSPPSDL',[r['name'] for r in found])
+
+    def test_what_is_not_a_package_says_its_own_way(self):
+        found=self.check(missing=('cliamp',))
+        item=next(r for r in found if r['name'] == 'cliamp')
+        self.assertEqual(item['status'],'FAIL')
+        self.assertIn('modules/music/README.md',item['detail'])
+        self.assertEqual([r for r in found if 'module' not in r],[])
+
+    def test_each_kind_of_dependency_is_located(self):
+        self.assertTrue(doctor.located({'python':'json'}))
+        self.assertEqual(doctor.located({'python':'nao_existe_x'}),'')
+        self.assertEqual(doctor.located({'command':'nao-existe-x'}),'')
+        self.assertTrue(doctor.located({'command':['nao-existe-x','sh']}))
+        with patch.object(doctor.subprocess,'run',side_effect=FileNotFoundError('fc-list')):
+            self.assertEqual(doctor.located({'font':'X'}),'')
+        local=self.home/'.local/bin/meu-prog'
+        local.parent.mkdir(parents=True)
+        local.write_text('')
+        local.chmod(0o755)
+        with patch.object(doctor.Path,'home',return_value=self.home):
+            self.assertEqual(doctor.located({'command':'meu-prog'}),str(local))
+
+    def test_the_terminal_text_has_a_title_per_block(self):
+        text=doctor.lines([{'status':'OK','name':'Sessão','detail':''},*self.check(missing=('pactl',))])
+        self.assertEqual(text[:3],['[ OK ] Sessão','','SISTEMA — obrigatórias'])
+        for title in ('SISTEMA — opcionais','MÚSICA — obrigatórias','MÚSICA — opcionais','JOGOS — opcionais'):
+            self.assertIn(title,text)
+        self.assertEqual(text[-2:],['INSTALAR','[ WARN ] Pacotes obrigatórios — sudo pacman -S --needed libpulse'])
+
 if __name__ == '__main__': unittest.main()

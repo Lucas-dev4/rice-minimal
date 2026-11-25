@@ -25,7 +25,7 @@ class Config(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.home = Path(self.tmp.name)
         env = patch.dict(os.environ, {'HOME': str(self.home), 'XDG_CONFIG_HOME': str(self.home/'.config'),
-                                      'XDG_DATA_HOME': str(self.home/'data'), 'XDG_CACHE_HOME': str(self.home/'cache')})
+                                      'XDG_DATA_HOME': str(self.home/'data'), 'XDG_STATE_HOME': str(self.home/'.local/state'), 'XDG_CACHE_HOME': str(self.home/'cache')})
         env.start()
         self.addCleanup(env.stop)
 
@@ -120,6 +120,84 @@ class Config(unittest.TestCase):
             self.assertEqual(games.played_titles(), [])
             with self.assertRaisesRegex(ValueError, 'lista de jogos'):
                 compat.data()
+
+    # ---- [modules]: ligar e desligar ----
+    def text(self):
+        return (self.home/'.config/lw/config.toml').read_bytes().decode()
+
+    def backups(self):
+        return sorted((self.home/'.local/state/rice-minimal/lw/backups').glob('*'))
+
+    def test_the_first_choice_creates_the_file_and_needs_no_backup(self):
+        data = settings.set_module('games', False)
+        self.assertEqual(self.text(), '[modules]\ngames = false\n')
+        self.assertEqual((data['changed'], data['backup'], self.backups()), (True, None, []))
+        self.assertEqual(settings.switches(), {'system': True, 'music': True, 'games': False})
+
+    def test_only_the_line_of_the_module_changes(self):
+        for before, after in (
+                ('# meu\n[music]\ndir = "~/x" # aqui\n', '# meu\n[music]\ndir = "~/x" # aqui\n\n[modules]\ngames = false\n'),
+                ('[music]\ndir = "~/x"', '[music]\ndir = "~/x"\n\n[modules]\ngames = false\n'),
+                ('[modules] # eu\nmusic = false\n\n[music]\ndir = "~/x"\n', '[modules] # eu\ngames = false\nmusic = false\n\n[music]\ndir = "~/x"\n'),
+                ('[modules]\n  "games"  =  true  # jogos\n[games]\nretroarch = "ra"\n', '[modules]\n  "games"  =  false  # jogos\n[games]\nretroarch = "ra"\n'),
+                ('[modules]\ngames = "não"\n', '[modules]\ngames = false\n'),
+                ('[modules]', '[modules]\ngames = false'),
+                ('[modules]\r\nmusic = false\r\n', '[modules]\r\ngames = false\r\nmusic = false\r\n')):
+            with self.subTest(before=before):
+                path = self.home/'.config/lw/config.toml'
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(before.encode())
+                path.chmod(0o600)
+                data = settings.set_module('games', False)
+                self.assertEqual(self.text(), after)
+                self.assertEqual(Path(data['backup']).read_bytes().decode(), before)
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                self.assertFalse(list(path.parent.glob('.lw-*')))
+                self.assertIs(settings.switches()['games'], False)
+
+    def test_a_choice_already_made_writes_nothing(self):
+        self.assertFalse(settings.set_module('games', True)['changed'])
+        self.assertFalse((self.home/'.config/lw/config.toml').exists())
+        self.config('[modules]\ngames = false\n')
+        self.assertFalse(settings.set_module('games', False)['changed'])
+        self.assertEqual(self.backups(), [])
+
+    def test_what_cannot_be_changed_safely_is_refused_untouched(self):
+        for text in ('[modules\ngames = true\n', 'modules = { music = false }\n', 'modules.music = false\n', 'modules = 3\n',
+                     'x = """\n[modules]\ngames = true\n"""\n'):
+            with self.subTest(text=text):
+                self.config(text)
+                with self.assertRaisesRegex(ValueError, 'config.toml'):
+                    settings.set_module('games', False)
+                self.assertEqual(self.text(), text)
+        self.assertEqual(self.backups(), [])
+
+    def test_a_linked_config_stays_a_link(self):
+        real = self.home/'dotfiles.toml'
+        real.write_text('[modules]\n')
+        path = self.home/'.config/lw/config.toml'
+        path.parent.mkdir(parents=True)
+        path.symlink_to(real)
+        settings.set_module('games', False)
+        self.assertTrue(path.is_symlink())
+        self.assertEqual(real.read_text(), '[modules]\ngames = false\n')
+
+    def test_system_is_always_on(self):
+        with self.assertRaisesRegex(ValueError, 'SISTEMA é obrigatório'):
+            settings.set_module('sistema', False)
+        self.assertFalse(settings.set_module('system', True)['changed'])
+        self.config('[modules]\nsystem = false\n')
+        self.assertIs(settings.switches()['system'], True)
+        self.assertEqual(settings.problems(), ['modules.system: SISTEMA é obrigatório'])
+
+    def test_bad_choices_use_the_default_and_are_reported(self):
+        self.config('[modules]\ngames = "não"\nmusica = false\n')
+        self.assertEqual(settings.switches(), {'system': True, 'music': True, 'games': True})
+        self.assertEqual(sorted(p.split(':')[0] for p in settings.problems()), ['modules.games', 'modules.musica'])
+        self.config('modules = 1\n')
+        self.assertEqual((all(settings.switches().values()), settings.problems()), (True, ['modules: esperava uma tabela']))
+        self.config('[modules\n')
+        self.assertTrue(all(settings.switches().values()))
 
 
 if __name__ == '__main__':

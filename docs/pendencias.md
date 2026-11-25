@@ -29,3 +29,15 @@ Decisões tomadas sem confirmar, sempre pela opção mais conservadora (manter o
 - **Primeiro uso:** se a pasta `~/.local/share/lw` não existe quando o LW abre, a janela não vê o `games.json` nascer (o `FileView` de `Games.qml` não acompanha) e a biblioteca fica vazia até reabrir. Já existia; aparece numa máquina limpa (sessão 7).
 - **Jogo da Steam com Proton:** a sessão vive enquanto o `reaper` viver. Se o Wine demorar a sair depois do jogo, esse tempo conta (não testado com jogo real de Windows).
 - **Centuries Demo, 25/11:** a sessão 16:53–17:06 tem uns 5 min a mais (a Steam aberta contava antes do fix). O `games.json` não foi editado.
+
+## Sessão 6 (escolher módulos e doctor), 2026-11-25
+
+### Decidido
+
+- **Desligar MÚSICA não para o cliamp** que já toca; a Waybar ainda o pausa (clique direito).
+- **`settings.py` tem o próprio `backup`/`write`**, iguais aos do `cliamp.py`: o núcleo não depende de um módulo. Dá para o `cliamp.py` passar a usar os do `settings.py`.
+
+### Achado e não mexido
+
+- **`waypaper` e `ryujinx`** estão no repositório do CachyOS, não no do Arch: no Arch puro a linha do `pacman` falha (sessão 13).
+- **Tela DOCTOR:** `↑↓` não rola a lista quando a seleção sai da área visível. Já existia.

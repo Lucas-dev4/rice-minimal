@@ -511,24 +511,36 @@ class Backups(Envelope):
 
 class Launcher(unittest.TestCase):
     """lw gui|music|games against a fake running window (qs ipc answers)."""
-    def press(self, section, shown='', hidden='no'):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.config = Path(temp.name)/'lw/config.toml'
+        self.config.parent.mkdir()
+        # A escolha de módulos de quem roda os testes não entra aqui.
+        env = patch.dict(os.environ,{'XDG_CONFIG_HOME':temp.name})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def press(self, section, shown='', hidden='no', go='ok', code=None):
         calls = []
         def run(args, **kwargs):
             calls.append(args)
             if args[:2] == ['qs','list']:
                 return subprocess.CompletedProcess(args,0,stdout='')
             op = args[-1] if args[-2] == 'lw' else args[-2]
-            answers = {'section': shown, 'hidden': hidden}
+            answers = {'section': shown, 'hidden': hidden, 'go': go}
             if op in answers:
                 return subprocess.CompletedProcess(args,0 if shown else 1,stdout=answers[op]+'\n' if shown else '')
             return subprocess.CompletedProcess(args,0,stdout='')
         self.started = None
         def execvp(*args):
             self.started = cli.os.environ.get('LW_START_GROUP')
+            self.given = json.loads(cli.os.environ['LW_MODULES'])
         with patch.object(cli.subprocess,'run',side_effect=run), patch.object(cli.os,'execvp',side_effect=execvp) as launch, \
              patch.object(theme,'STATE',Path(tempfile.gettempdir())), patch.dict(cli.os.environ,{'XDG_RUNTIME_DIR':tempfile.mkdtemp()}):
-            self.assertEqual(cli.gui(section),0 if shown else None)
+            self.assertEqual(cli.gui(section),code if code is not None else 0 if shown else None)
         ops = [c[c.index('lw')+1:] for c in calls if 'lw' in c]
+        self.notified = [c[-1] for c in calls if c[:3] == ['noctalia','msg','notification-show']]
         return ops, launch
 
     def test_closed_window_opens_on_the_section(self):
@@ -552,6 +564,36 @@ class Launcher(unittest.TestCase):
         self.assertIn(['go','system'],ops)
         self.assertNotIn(['close'],ops)
 
+    def test_the_shortcut_of_a_module_turned_off_says_so(self):
+        self.config.write_text('[modules]\nmusic = false\n')
+        text = 'módulo MÚSICA desligado · lw modules enable musica'
+        for shown, hidden in (('',''),('system','no'),('music','yes'),('music','no')):
+            with self.subTest(shown=shown,hidden=hidden), redirect_stderr(StringIO()) as err:
+                ops, launch = self.press('music', shown=shown, hidden=hidden, code=1)
+                self.assertEqual((ops,self.notified),([['notice',text]],[text]))
+                launch.assert_not_called()
+                self.assertIn(text,err.getvalue())
+
+    def test_the_notice_does_not_need_noctalia_nor_an_open_window(self):
+        for failure in (FileNotFoundError('noctalia'),subprocess.TimeoutExpired('qs',3)):
+            with patch.object(cli.subprocess,'run',side_effect=failure), redirect_stderr(StringIO()) as err:
+                self.assertEqual(cli.warn('x'),1)
+            self.assertEqual(err.getvalue(),'lw: x\n')
+
+    def test_the_other_modules_still_open(self):
+        self.config.write_text('[modules]\nmusic = false\n')
+        ops, launch = self.press('games')
+        launch.assert_called_once()
+        self.assertEqual({m['id']:m['enabled'] for m in self.given},
+                         {'system':True,'music':False,'games':True})
+
+    def test_a_module_turned_on_with_the_window_open_asks_to_reopen(self):
+        for hidden in ('no','yes'):
+            with self.subTest(hidden=hidden), redirect_stderr(StringIO()):
+                ops, launch = self.press('music', shown='system', hidden=hidden, go='unknown', code=1)
+                self.assertEqual(self.notified,['módulo MÚSICA ligado · feche e abra o LW'])
+                launch.assert_not_called()
+
     def test_the_window_gets_the_same_module_list_as_the_command(self):
         with patch.object(cli.os,'execvp'), patch.object(cli.subprocess,'run',return_value=subprocess.CompletedProcess([],1,stdout='')), \
              patch.object(theme,'STATE',Path(tempfile.gettempdir())), patch.dict(cli.os.environ,{'XDG_RUNTIME_DIR':tempfile.mkdtemp()}):
@@ -565,6 +607,75 @@ class Launcher(unittest.TestCase):
         self.assertEqual([m['id'] for m in given],['system','music','games'])
         self.assertEqual(given[0]['screens'][0],{'name':'WALLPAPERS','file':'WallpaperScreen.qml'})
         self.assertIn('dir',given[1]['config'])
+
+
+class Modules(unittest.TestCase):
+    """lw modules list|enable|disable e os comandos de um módulo desligado."""
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.home = Path(temp.name)
+        env = patch.dict(os.environ,{'HOME':str(self.home),'XDG_CONFIG_HOME':str(self.home/'.config'),'XDG_STATE_HOME':str(self.home/'state')})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def run_cli(self, *argv):
+        out, err = StringIO(), StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            code = cli.main(list(argv))
+        return code, out.getvalue(), err.getvalue()
+
+    def call(self, *argv):
+        code, out, _ = self.run_cli(*argv,'--json')
+        return code, json.loads(out)
+
+    def test_list_shows_every_module_and_what_is_on(self):
+        self.call('modules','disable','games')
+        data = self.call('modules','list')[1]['data']
+        self.assertEqual([(m['id'],m['enabled'],m['required']) for m in data],
+                         [('system',True,True),('music',True,False),('games',False,False)])
+        out = self.run_cli('modules','list')[1].splitlines()
+        self.assertEqual([line.split() for line in out],[['ligado','sistema','SISTEMA','(obrigatório)'],
+                                                         ['ligado','musica','MÚSICA'],['desligado','jogos','JOGOS']])
+
+    def test_disable_and_enable_by_id_or_name(self):
+        code, result = self.call('modules','disable','MÚSICA')
+        self.assertEqual((code,result['ok'],result['action']),(0,True,'modules disable'))
+        self.assertEqual(result['data'],{'id':'music','name':'MÚSICA','enabled':False,'changed':True,'backup':None})
+        self.assertFalse(self.call('modules','disable','music')[1]['data']['changed'])
+        result = self.call('modules','enable','musica')[1]
+        self.assertEqual((result['data']['enabled'],result['data']['changed']),(True,True))
+        self.assertIn('music = false',Path(result['data']['backup']).read_text())
+        self.assertEqual(self.run_cli('modules','enable','musica')[1].strip(),'módulo MÚSICA já está ligado')
+        self.assertEqual(self.run_cli('modules','disable','musica')[1].strip(),'módulo MÚSICA desligado · vale na próxima abertura do LW')
+
+    def test_the_system_and_unknown_names_are_refused(self):
+        for argv, text in ((('disable','system'),'SISTEMA é obrigatório'),(('enable','nada'),'módulo desconhecido: nada')):
+            code, result = self.call('modules',*argv)
+            self.assertEqual((code,result['ok'],result['error']['code']),(1,False,'invalid'))
+            self.assertIn(text,result['error']['message'])
+        self.assertFalse((self.home/'.config').exists())
+
+    def test_the_commands_of_a_module_turned_off_are_refused_before_its_handler(self):
+        for module in ('music','games'):
+            self.call('modules','disable',module)
+        text = {'music':'módulo MÚSICA desligado · lw modules enable musica','games':'módulo JOGOS desligado · lw modules enable jogos'}
+        with patch.object(cli.importlib,'import_module') as load:
+            for command, owner in cli.modules.owners().items():
+                if owner == 'system':
+                    continue
+                with self.subTest(command=command):
+                    code, result = self.call(command,'x')
+                    self.assertEqual((code,result['ok'],result['action'],result['error']['code'],result['error']['message']),
+                                     (1,False,command,'invalid',text[owner]))
+                    code, out, err = self.run_cli(command,'x')
+                    self.assertEqual((code,out,err),(1,'','lw: '+text[owner]+'\n'))
+            load.assert_not_called()
+
+    def test_the_system_commands_go_on(self):
+        self.call('modules','disable','music')
+        with patch.object(cmd_system,'profile_get',return_value={'profile':'x'}):
+            self.assertEqual(self.call('profile','get')[1]['data'],{'profile':'x'})
 
 
 class Music(unittest.TestCase):

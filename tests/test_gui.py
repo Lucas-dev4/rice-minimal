@@ -619,6 +619,39 @@ class Sections(Window):
         self.assertEqual(self.state()['section'], 'system')
         self.assertEqual(self.warnings(), [])
 
+    def test_a_module_turned_off_is_not_in_the_window(self):
+        self.lw('modules', 'disable', 'musica')
+        for given in (True, False):      # com e sem LW_MODULES
+            with self.subTest(given=given):
+                self.env.pop('LW_MODULES', None)
+                if given:
+                    self.env['LW_MODULES'] = json.dumps(json.loads(self.lw('modules', 'list'))['data'])
+                self.open('system')
+                self.until(lambda: 'games' in self.state())
+                self.assertNotIn('online', self.state())      # o singleton de MÚSICA não nasceu
+                self.assertEqual(self.ipc('go', 'music').strip(), 'unknown')
+                self.assertEqual(self.state()['section'], 'system')
+                self.assertEqual(self.ipc('go', 'games').strip(), 'ok')
+                self.ipc('key', 'ALT+2')
+                self.assertEqual(self.state()['section'], 'games')
+                self.assertEqual(self.warnings(), [])
+                self.quit()
+        self.assertFalse((self.home/'daemon.pid').exists())
+
+    def test_a_notice_shows_in_the_footer(self):
+        self.open('system')
+        self.ipc('notice', 'módulo MÚSICA desligado · lw modules enable musica')
+        self.assertEqual(self.state()['message'], '[ !! ] módulo MÚSICA desligado · lw modules enable musica')
+
+    def test_the_shortcut_of_a_module_turned_off_warns_in_the_open_window(self):
+        self.env['LW_MODULES'] = json.dumps(json.loads(self.lw('modules', 'list'))['data'])
+        self.open('system')
+        self.lw('modules', 'disable', 'musica')
+        run = subprocess.run([sys.executable, str(ROOT/'extras/rice.py'), 'music'], env=self.env, capture_output=True, text=True)
+        self.assertEqual((run.returncode, run.stderr), (1, 'lw: módulo MÚSICA desligado · lw modules enable musica\n'))
+        self.until(lambda: 'MÚSICA desligado' in self.state()['message'])
+        self.assertEqual(self.state()['section'], 'system')
+
 
 if __name__ == '__main__':
     unittest.main()

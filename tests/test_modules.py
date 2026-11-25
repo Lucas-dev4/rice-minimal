@@ -110,6 +110,15 @@ class Contract(unittest.TestCase):
                                 'hook': system['gui']['hook'], 'screens': system['gui']['screens'],
                                 'config': {k: v['default'] for k, v in system.get('config', {}).items()}})
 
+    def test_a_module_is_found_by_id_or_by_name(self):
+        for name in ('music', 'musica', 'MÚSICA', ' Música '):
+            self.assertEqual(modules.find(name)['id'], 'music')
+        with self.assertRaisesRegex(ValueError, 'nada'):
+            modules.find('nada')
+        # Nenhum nome serve para dois módulos.
+        names = [n for m in self.found.values() for n in {m['id'], modules.plain(m['name'])}]
+        self.assertEqual(len(names), len(set(names)))
+
     def test_the_open_command_leads_to_its_module(self):
         self.assertEqual(modules.openers(), {'music': 'music', 'games': 'games'})
 

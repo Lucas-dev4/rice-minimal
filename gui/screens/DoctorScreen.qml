@@ -1,5 +1,6 @@
 // DoctorScreen.qml — tela Doctor (SISTEMA): roda "lw doctor --stream" e mostra cada checagem
-// chegando ao vivo, agrupada (sessão, programas, tema...), com contagem de OK/WARN/FAIL.
+// chegando ao vivo, agrupada (sessão, serviços, módulos...), com contagem de OK/WARN/FAIL.
+// As dependências vêm com `module` e ficam no grupo do módulo; INFO é opcional que falta, não problema.
 import QtQuick
 import Quickshell.Io
 import qs
@@ -13,21 +14,26 @@ Item {
     property Item keyTarget: null
     property var results: []
     property bool running: false
-    property var closed: ["SESSION", "SERVICES", "BINARIES", "CONFIG"]
-    property string currentName: ""
+    property var closed: groupOrder.slice()
+    property string currentKey: ""
     property string error: ""
 
-    readonly property var groupOrder: ["SESSION", "SERVICES", "BINARIES", "CONFIG"]
+    readonly property var groupOrder: ["SESSION", "SERVICES", "CONFIG"].concat(Modules.active.map(m => m.name), ["INSTALAR"])
     readonly property var hints: [["↑↓", "move"], ["←→", "grupos"], ["r", "run"]]
 
     // Em qual grupo cada checagem aparece.
-    function groupOf(name) {
+    function groupOf(item) {
+        const name = item.name;
+        if (item.module) return (Modules.active.find(m => m.id === item.module) || { name: "CONFIG" }).name;
+        if (/^Pacotes /.test(name)) return "INSTALAR";
         if (["Hyprland version", "Hyprland Lua errors", "Lua appearance include", "UWSM graphical session",
              "Wayland portals", "Persistent appearance profile"].indexOf(name) >= 0) return "SESSION";
-        if (/^[a-z]+$/.test(name)) return "BINARIES";
         if (/Waybar|Noctalia|PipeWire|NetworkManager|locker|Greeter|Lock|LOCKED/.test(name)) return "SERVICES";
         return "CONFIG";
     }
+
+    // Two modules may need the same program: the name alone does not identify a line.
+    function keyOf(item) { return (item.module || "") + "/" + item.name; }
 
     // Readable detail: JSON becomes a short summary, multi-line output one line.
     function detail(item) {
@@ -57,16 +63,17 @@ Item {
         }
         for (const g of groupOrder) {
             // By status, not identity: var lists may be copies.
-            const rows = results.filter(r => groupOf(r.name) === g && r.status !== "WARN" && r.status !== "FAIL");
+            const rows = results.filter(r => groupOf(r) === g && r.status !== "WARN" && r.status !== "FAIL");
             if (!rows.length) continue;
             const ok = rows.filter(r => r.status === "OK").length;
+            const info = rows.filter(r => r.status === "INFO").length;
             const shut = closed.indexOf(g) >= 0;
-            out.push({ group: g, label: ok + "/" + rows.length + " ok", shut: shut });
+            out.push({ group: g, label: rows.length === info ? "opcional" : ok + "/" + (rows.length - info) + " ok" + (info ? " · " + info + (info > 1 ? " opcionais faltam" : " opcional falta") : ""), shut: shut });
             if (!shut) for (const r of rows) out.push({ item: r });
         }
         return out;
     }
-    readonly property var visibleNames: entries.filter(e => e.item).map(e => e.item.name)
+    readonly property var visibleKeys: entries.filter(e => e.item).map(e => keyOf(e.item))
 
     // Roda o doctor de novo.
     function run() {
@@ -75,17 +82,17 @@ Item {
         error = "";
         running = true;
         // Every known check waits as [ .. ] until its line arrives.
-        results = results.map(r => ({ status: "RUN", name: r.name, detail: "" }));
+        results = results.map(r => Object.assign({}, r, { status: "RUN", detail: "" }));
         closed = [];
         doctor.seen = [];
         doctor.running = true;
     }
     // Move a seleção.
     function move(step) {
-        const names = visibleNames;
-        if (!names.length) return;
-        const at = names.indexOf(currentName);
-        currentName = names[Math.max(0, Math.min(names.length - 1, at < 0 ? 0 : at + step))];
+        const keys = visibleKeys;
+        if (!keys.length) return;
+        const at = keys.indexOf(currentKey);
+        currentKey = keys[Math.max(0, Math.min(keys.length - 1, at < 0 ? 0 : at + step))];
     }
 
     // Teclas da tela (setas, r rodar de novo).
@@ -110,9 +117,9 @@ Item {
             onRead: line => {
                 let item;
                 try { item = JSON.parse(line); } catch (error) { return; }
-                doctor.seen.push(item.name);
+                doctor.seen.push(root.keyOf(item));
                 const next = root.results.slice();
-                const at = next.findIndex(r => r.name === item.name);
+                const at = next.findIndex(r => root.keyOf(r) === root.keyOf(item));
                 if (at >= 0) next[at] = item; else next.push(item);
                 root.results = next;
             }
@@ -128,11 +135,12 @@ Item {
         onTriggered: {
             const code = finishTimer.code;
             // Drop checks that no longer exist; fold the groups again.
-            root.results = root.results.filter(r => doctor.seen.indexOf(r.name) >= 0);
+            root.results = root.results.filter(r => doctor.seen.indexOf(root.keyOf(r)) >= 0);
             root.running = false;
-            root.closed = root.groupOrder.slice();
-            if (root.visibleNames.indexOf(root.currentName) < 0)
-                root.currentName = root.visibleNames[0] || "";
+            // What to install stays open.
+            root.closed = root.groupOrder.filter(g => g !== "INSTALAR");
+            if (root.visibleKeys.indexOf(root.currentKey) < 0)
+                root.currentKey = root.visibleKeys[0] || "";
             if (root.results.length === 0)
                 root.error = doctorErr.text.trim() || "doctor exited " + code;
             const bad = root.issues.length;
@@ -144,7 +152,7 @@ Item {
     RiceHeader {
         id: title
         title: "DOCTOR"
-        note: root.count("OK") + "/" + root.results.length
+        note: root.count("OK") + "/" + (root.results.length - root.count("INFO"))
     }
 
     // Big counters
@@ -223,7 +231,7 @@ Item {
             required property var modelData
             readonly property bool isGroup: modelData.group !== undefined
             readonly property var item: modelData.item || null
-            readonly property bool current: !isGroup && item.name === root.currentName
+            readonly property bool current: !isGroup && root.keyOf(item) === root.currentKey
 
             width: ListView.view.width
             height: isGroup ? 30 : rowText.height + 8
@@ -285,6 +293,7 @@ Item {
                     width: 240
                     elide: Text.ElideRight
                     text: entry.item ? entry.item.name : ""
+                    color: entry.item && entry.item.status === "INFO" ? Theme.faint : Theme.text
                 }
                 RiceText {
                     id: detailText
@@ -295,7 +304,7 @@ Item {
                     wrapMode: entry.current ? Text.WrapAnywhere : Text.NoWrap
                     elide: entry.current ? Text.ElideNone : Text.ElideRight
                     maximumLineCount: entry.current ? 30 : 1
-                    color: entry.current ? Theme.fg : Theme.dim
+                    color: entry.current ? Theme.fg : entry.item && entry.item.status === "INFO" ? Theme.faint : Theme.dim
                 }
             }
             MouseArea {
@@ -304,7 +313,7 @@ Item {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onClicked: { root.currentName = entry.item.name; root.keyTarget.forceActiveFocus(); }
+                onClicked: { root.currentKey = root.keyOf(entry.item); root.keyTarget.forceActiveFocus(); }
             }
         }
     }

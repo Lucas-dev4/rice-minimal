@@ -14,7 +14,7 @@ Item {
 
     property Item keyTarget: null
     property string title: ""
-    readonly property var hints: [["clique", "abre no IGDB"], ["passe o mouse", "joguei / não quero"], ["alt 1-3", "seção"]]
+    readonly property var hints: [["clique", "abre no IGDB"], ["passe o mouse", "joguei / não quero"], [Modules.altKeys, "seção"]]
     // Esta tela não usa teclas próprias.
     function handleKey(event) { return false; }
 

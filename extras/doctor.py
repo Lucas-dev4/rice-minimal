@@ -2,20 +2,65 @@
 # doctor.py — o "lw doctor": confere sessão, serviços, programas, tema e arquivos instalados.
 # Cada checagem vira {status: OK/WARN/FAIL, name, detail}. Nunca conserta nada, só relata.
 import hashlib
+import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
 from theme import theme
+import modules
 import settings
+
+
+def located(dep):
+    """Onde está a dependência de um manifesto, ou '' se falta."""
+    if 'python' in dep:
+        spec=importlib.util.find_spec(dep['python'])
+        return (spec.origin or dep['python']) if spec else ''
+    if 'font' in dep:
+        try:
+            return subprocess.run(['fc-list',dep['font'],'file'],capture_output=True,text=True,timeout=8).stdout.split('\n')[0].strip(' :')
+        except (OSError,subprocess.SubprocessError):
+            return ''
+    # cliamp and other user tools live in ~/.local/bin, not always on the PATH.
+    path=os.environ.get('PATH','')+':'+str(Path.home()/'.local/bin')
+    names=dep['command'] if isinstance(dep['command'],list) else [dep['command']]
+    return next((found for found in (shutil.which(name,path=path) for name in names) if found),'')
+
+
+def dependencies(add):
+    """As dependências de cada módulo ativo, obrigatórias antes, e o pacman do que falta."""
+    on=settings.switches()
+    missing={False:[],True:[]}
+    for m in modules.load()[0].values():
+        if not on[m['id']]:
+            continue
+        for dep in sorted(m.get('dependency',[]),key=lambda d: d.get('optional',False)):
+            optional=dep.get('optional',False)
+            name=dep.get('command') or dep.get('python') or dep.get('font')
+            detail=place=located(dep)
+            if not place:
+                # Pacote entra na linha do pacman; AUR e manual dizem o caminho aqui.
+                way='AUR: '+dep['aur'] if 'aur' in dep else dep.get('manual','')
+                detail='falta · '+dep['why']+(' · '+way if way else '')
+                if 'package' in dep and dep['package'] not in missing[optional]:
+                    missing[optional].append(dep['package'])
+            add('OK' if place else 'INFO' if optional else 'FAIL',' / '.join(name) if isinstance(name,list) else name,detail,
+                module=m['id'],optional=optional)
+    extra=[p for p in missing[True] if p not in missing[False]]
+    if missing[False]:
+        add('WARN','Pacotes obrigatórios','sudo pacman -S --needed '+' '.join(missing[False]))
+    if extra:
+        add('INFO','Pacotes opcionais','sudo pacman -S --needed '+' '.join(extra))
 
 
 def inspect(report=None):
     """report, when given, receives each result as soon as it is known (rice doctor --stream)."""
     results=[]
-    def add(status,name,detail=''):
+    def add(status,name,detail='',**extra):
         """Guarda um resultado e, no modo --stream, já o envia para quem está ouvindo."""
-        results.append({'status':status,'name':name,'detail':str(detail)})
+        results.append({'status':status,'name':name,'detail':str(detail),**extra})
         if report:
             report(results[-1])
     def command(name,args,empty=False):
@@ -41,8 +86,6 @@ def inspect(report=None):
     command('Wayland portals',['systemctl','--user','is-active','xdg-desktop-portal.service','xdg-desktop-portal-hyprland.service'])
     command('UWSM graphical session',['systemctl','--user','is-active','graphical-session.target'])
     command('Native screen locker',['noctalia','msg','config-get','lockscreen'])
-    for app in ('matugen','waypaper','kitty','fish','nvim','qs'):
-        add('OK' if shutil.which(app) else 'FAIL',app,shutil.which(app) or 'missing executable')
     command('Kitty opacity',['kitty','+runpy','from kitty.config import load_config; o=load_config("'+str(Path.home()/'.config/kitty/kitty.conf')+'"); assert o.background_opacity == 0.85; print(o.background_opacity)'])
     command('Fish syntax',['fish','-n',Path.home()/'.config/fish/config.fish'])
     command('Neovim Lua syntax',['luac','-p',Path.home()/'.config/nvim/init.lua'])
@@ -90,7 +133,6 @@ def inspect(report=None):
     add('FAIL' if bad else 'OK','LW config','; '.join(bad) or (settings.path() if settings.path().exists() else 'defaults'))
     try:
         # Installed copies that drifted from the repository (scripts/install.py fixes them).
-        import importlib.util
         spec=importlib.util.spec_from_file_location('rice_install',theme.ROOT/'scripts/install.py')
         install=importlib.util.module_from_spec(spec)
         spec.loader.exec_module(install)
@@ -104,9 +146,20 @@ def inspect(report=None):
         add('FAIL' if bad else 'OK','Managed file integrity',', '.join(bad) or str(len(hashes))+' files match')
     except (OSError,ValueError) as exc:
         add('WARN','Managed file integrity',exc)
+    dependencies(add)
     return results
 
 
 def lines(results):
-    """Formata os resultados como texto para o terminal: "[ OK ] nome — detalhe"."""
-    return [f"[ {r['status']} ] {r['name']}"+(' — '+r['detail'] if r['detail'] else '') for r in results]
+    """Formata os resultados como texto para o terminal: "[ OK ] nome — detalhe", com um título por módulo."""
+    found=modules.load()[0]
+    out,title=[],None
+    for r in results:
+        # As checagens da sessão vêm antes dos módulos, sem título; depois deles só o que instalar.
+        block=(found[r['module']]['name']+(' — opcionais' if r['optional'] else ' — obrigatórias') if 'module' in r
+               else 'INSTALAR' if title else None)
+        if block != title:
+            out+=['',block]
+            title=block
+        out.append(f"[ {r['status']} ] {r['name']}"+(' — '+r['detail'] if r['detail'] else ''))
+    return out

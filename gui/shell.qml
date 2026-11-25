@@ -48,7 +48,7 @@ FloatingWindow {
 
     property var status: ({})
     property bool statusLoaded: false
-    readonly property var globalHints: hook.hints.length ? hook.hints : [["↑↓", "tela"], ["alt 1-3", "seção"], ["q", "fechar"]]
+    readonly property var globalHints: hook.hints.length ? hook.hints : [["↑↓", "tela"], [Modules.altKeys, "seção"], ["q", "fechar"]]
     readonly property var hints: screen.item && screen.item.hints && screen.item.hints.length ? screen.item.hints : globalHints
 
     title: "LW"
@@ -115,8 +115,14 @@ FloatingWindow {
         function reveal(): void { window.unpark(); }
         // The id of the section shown now.
         function section(): string { return window.groupKey; }
-        // IPC: vai para uma seção pelo nome (usado pelos atalhos do Hyprland).
-        function go(name: string): void { window.selectGroup(window.groups.findIndex(g => g.id === name)); }
+        // IPC: vai para uma seção pelo nome (usado pelos atalhos do Hyprland). "unknown": esta janela não a tem.
+        function go(name: string): string {
+            const index = window.groups.findIndex(g => g.id === name);
+            window.selectGroup(index);
+            return index < 0 ? "unknown" : "ok";
+        }
+        // IPC: um aviso no rodapé.
+        function notice(text: string): void { Status.say("[ !! ] " + text, Theme.yel); }
         // IPC: abre uma tela da seção atual.
         function open(index: int): void { window.select(index); }
         // IPC: mostra/esconde o painel LOG.

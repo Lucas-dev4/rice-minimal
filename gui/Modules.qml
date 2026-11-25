@@ -25,12 +25,16 @@ Singleton {
         "config": { "fullscreen": true }
     })
     readonly property var given: parse(Quickshell.env("LW_MODULES"))
-    // Cada um: id, name, folder, hook, screens e config (o `data` de `lw modules list`). Nunca vazia.
-    property var active: given.length ? given : [system]
+    // Cada um: id, name, folder, hook, screens e config (o `data` de `lw modules list`, só os ligados). Nunca vazia.
+    property var active: enabled(given).length ? enabled(given) : [system]
+    // A dica de trocar de seção, pela quantidade de módulos.
+    readonly property string altKeys: active.length > 1 ? "alt 1-" + Math.min(9, active.length) : "alt 1"
 
     // A janela abre em tela cheia (system.fullscreen).
     readonly property bool fullscreen: config("system", "fullscreen") === true
 
+    // Só os módulos ligados.
+    function enabled(list) { return list.filter(m => m.enabled !== false); }
     // O texto da variável → lista de módulos; vazia se não veio ou não presta.
     function parse(text) {
         try {
@@ -48,7 +52,7 @@ Singleton {
     }
 
     RiceCommand {
-        onSucceeded: data => { if (data.length) root.active = data; }
+        onSucceeded: data => { if (root.enabled(data).length) root.active = root.enabled(data); }
         onFailed: message => console.warn("modules:", message)
         Component.onCompleted: if (!root.given.length) call(["modules", "list", "--json"])
     }

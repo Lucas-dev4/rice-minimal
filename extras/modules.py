@@ -3,6 +3,7 @@
 # campo desconhecido é erro. Manifesto inválido fica de fora e o resto do LW abre.
 from pathlib import Path
 import tomllib
+import unicodedata
 
 FOLDER = Path(__file__).resolve().parents[1]/'modules'
 FIELDS = {'id': str, 'name': str, 'description': str, 'order': int, 'default': bool, 'required': bool,
@@ -76,6 +77,31 @@ def load(base=None):
 def openers():
     """{comando: id} dos módulos que abrem a janela pelo nome (lw music = LW em MÚSICA)."""
     return {m['commands']['open']: m['id'] for m in load()[0].values() if m.get('commands', {}).get('open')}
+
+
+def plain(text):
+    """O texto em minúsculas e sem acento: MÚSICA → musica."""
+    return ''.join(c for c in unicodedata.normalize('NFKD', text.strip().lower()) if not unicodedata.combining(c))
+
+
+def find(name):
+    """O manifesto pelo id ou pelo nome da seção (music, musica, MÚSICA)."""
+    found = load()[0]
+    for m in found.values():
+        if plain(name) in (m['id'], plain(m['name'])):
+            return m
+    raise ValueError(f'módulo desconhecido: {name} (existem: {", ".join(plain(m["name"]) for m in found.values())})')
+
+
+def off_text(module):
+    """O aviso de módulo desligado, igual no atalho e nos comandos recusados."""
+    m = load()[0][module]
+    return f'módulo {m["name"]} desligado · lw modules enable {plain(m["name"])}'
+
+
+def owners():
+    """{comando: id} dos comandos de cada módulo."""
+    return {name: m['id'] for m in load()[0].values() for name in m.get('commands', {}).get('names', [])}
 
 
 def handlers():

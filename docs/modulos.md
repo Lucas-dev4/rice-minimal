@@ -18,7 +18,7 @@ Não é um sistema de plugins. Todo módulo mora neste repositório, o conjunto 
 
 As telas e a lógica existentes **não mudam de lugar**: `gui/screens`, `gui/player`, `gui/arcade` e `extras/*.py` ficam onde estão. Mover tudo para `modules/<id>/` quebraria os imports `qs.player`/`qs.arcade`, o `sys.path` dos testes e o histórico, sem ganho visível. Módulo novo usa `gui/<id>/`.
 
-O **núcleo** é o que existe com qualquer módulo: `shell.qml`, `Theme.qml`, `Status.qml`, `gui/components/`, `extras/cli.py`, `rice.py`, `doctor.py`, `ui.py`, `theme/`, e os novos `extras/modules.py` (lê os manifestos), `extras/settings.py` (lê a config) e `gui/Modules.qml` (lista para o QML). `extras/lwbar.py` também é núcleo: só lê arquivos e mostra JOGOS e MÚSICA na Waybar.
+O **núcleo** é o que existe com qualquer módulo: `shell.qml`, `Theme.qml`, `Status.qml`, `gui/components/`, `extras/cli.py`, `rice.py`, `doctor.py`, `ui.py`, `theme/`, e os novos `extras/modules.py` (lê os manifestos), `extras/settings.py` (lê a config e grava os módulos ligados) e `gui/Modules.qml` (lista para o QML). `extras/lwbar.py` também é núcleo: só lê arquivos e mostra JOGOS e MÚSICA na Waybar.
 
 ## O manifesto
 
@@ -102,7 +102,7 @@ def register(actions, common):
 - **Fluxo** (várias linhas JSON, sem envelope): `set_defaults(run=..., stream=True)`; a função imprime e devolve o código de saída. Já são assim `wallpaper thumbs`, `emu pad-watch`, `doctor --stream`, `bt` e `download`.
 - `cli.py` importa só o handler dono do comando pedido. `cli.COMMANDS` vem dos manifestos: os `names` e o `open`, que também só pode ter um dono.
 - Na GUI, `RiceCommand` roda com `Theme.rice` (`setsid --fork --wait`): a ação termina mesmo se o LW fechar, mas um sinal não chega nela. O que precisa parar (download, buscas) usa `program: Theme.lw`, sem o `setsid`.
-- Comando de módulo desligado: `{"ok": false}`, código `invalid`, mensagem `módulo JOGOS desligado; ligue com: lw modules enable games`. O vigia de sessão (`games.py watch`) roda direto, então não morre se JOGOS for desligado no meio.
+- Comando de módulo desligado: `{"ok": false}`, código `invalid`, mensagem `módulo JOGOS desligado · lw modules enable jogos`. O vigia de sessão (`games.py watch`) roda direto, então não morre se JOGOS for desligado no meio.
 - Do núcleo, sempre disponíveis: `gui`, `doctor`, `modules` e os `lock-*` antigos do `rice.py`.
 
 ### Config
@@ -120,7 +120,7 @@ dir = "~/Áudio"
 - O padrão existe só no manifesto. Arquivo ou chave ausente = padrão. O tipo é o do padrão (lista e tabela são de textos; texto vazio não vale), e `~/` no começo vira a pasta pessoal (também em listas).
 - `settings.get('music', 'dir')` no Python; `Modules.config("music", "dir")` no QML.
 - Arquivo quebrado ou tipo errado: vale o padrão e o `lw doctor` mostra FAIL. O LW sempre abre.
-- `lw modules enable|disable` muda só a linha do módulo em `[modules]`: backup, temp + rename, e o resultado precisa passar no `tomllib` antes de substituir.
+- `lw modules enable|disable NOME` aceita o id ou o nome da seção sem acento (`music`, `musica`, `MÚSICA`) e muda só a linha do módulo em `[modules]`: backup em `~/.local/state/rice-minimal/lw/backups`, temp + rename, e antes de substituir o `tomllib` confere que nada mais mudou (senão recusa, e o arquivo fica como estava). Módulo obrigatório não desliga; `system = false` à mão é ignorado e o doctor mostra FAIL, como um id desconhecido.
 - **Segredo não entra aqui** (a config é entregue ao QML por variável de ambiente). `~/.config/lw/igdb.json` continua à parte.
 - JOGOS já aceita `~/.local/share/lw/games-config.json`. Ordem: `config.toml`, depois esse arquivo, depois o padrão. Os textos da janela só veem o `config.toml` e o padrão.
 
@@ -130,14 +130,16 @@ dir = "~/Áudio"
 
 ## Como o shell.qml descobre os módulos
 
-1. `lw gui` lê os manifestos e a config e abre o Quickshell com `LW_MODULES`: o mesmo JSON do `data` de `lw modules list --json` (id, nome, pasta, gancho, telas e config já resolvida), na ordem da barra lateral.
-2. `gui/Modules.qml` lê a variável ao nascer. Sem ela (`qs -p gui`, como no `scripts/music-check.sh`), `Modules.active` começa com SISTEMA, que é obrigatório, e os outros entram quando `lw modules list --json` responde; a lista nunca fica vazia. A cópia de SISTEMA no `Modules.qml` é igual ao manifesto, e um teste confere.
+1. `lw gui` lê os manifestos e a config e abre o Quickshell com `LW_MODULES`: o mesmo JSON do `data` de `lw modules list --json` (id, nome, pasta, gancho, telas, config já resolvida, `enabled` e `required`), com todos os módulos na ordem da barra lateral.
+2. `gui/Modules.qml` lê a variável ao nascer; `Modules.active` são os que têm `enabled`. Sem ela (`qs -p gui`, como no `scripts/music-check.sh`), `Modules.active` começa com SISTEMA, que é obrigatório, e os outros entram quando `lw modules list --json` responde; a lista nunca fica vazia. A cópia de SISTEMA no `Modules.qml` é igual ao manifesto, e um teste confere.
 3. `shell.qml` troca a lista fixa `groups` por `Modules.active`; `lastScreen` vira um mapa por id; `Alt+1…9` segue a posição.
 4. Para cada módulo ativo com `hook`, um `Loader` carrega o gancho.
 
 Usar a variável evita abrir a janela vazia: o `lw gui` já é Python e já passa `LW_START_GROUP` assim. Ligar ou desligar um módulo vale na **próxima abertura** do LW.
 
-`lw gui <id>` ou `lw music` de módulo desligado não abre nada e sai com o erro acima.
+`lw music` de módulo desligado não abre nada: sai com o erro acima, que aparece como notificação do Noctalia e, com o LW aberto, no rodapé (IPC `notice`). Módulo ligado com o LW já aberto: a janela ainda não o tem, o IPC `go` responde `unknown` e o aviso é `módulo MÚSICA ligado · feche e abra o LW`.
+
+Com o LW aberto, a seção recém-desligada continua à vista até fechar, mas os comandos dela já são recusados. Desligar não para o que está rodando (o cliamp, uma sessão de jogo).
 
 **A única linha que um módulo novo acrescenta ao núcleo** é `import qs.<pasta>` no `shell.qml`. O Quickshell só indexa pastas importadas de forma estática: testei carregar uma tela por caminho sem esse import e ela falha (`Vizinho is not a type`); pôr o import só na própria tela também falha (`module is not installed`). Import não executa nada: no mesmo teste, um singleton nunca usado não foi criado. Logo, com JOGOS desligado, `Games` não nasce, desde que só o módulo fale com ele.
 
@@ -205,10 +207,10 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 | opcional ausente | `INFO`, com o `why` (não conta como problema) |
 | manifesto inválido | `FAIL`; o módulo não aparece, o resto do LW abre |
 
-- Cada item mantém `status`, `name`, `detail` e ganha `module`. A tela DOCTOR agrupa por `module` quando ele vier; `INFO` fica apagado e fora de ATTENTION.
-- No fim, até dois itens, com os pacotes de todos os módulos sem repetição, obrigatórios e opcionais separados: `sudo pacman -S --needed …`. AUR e manual saem cada um com sua frase. O LW só escreve o comando, nunca roda.
+- As obrigatórias vêm antes. Cada item mantém `status`, `name`, `detail` e ganha `module` e `optional`; o que identifica a linha é `module` + `name`, porque dois módulos podem pedir o mesmo programa. A tela DOCTOR agrupa por `module` quando ele vier; `INFO` fica apagado e fora de ATTENTION.
+- No fim, até dois itens, com os pacotes de todos os módulos sem repetição, obrigatórios (`WARN`) e opcionais (`INFO`) separados: `sudo pacman -S --needed …`; pacote que está nos dois fica só no primeiro. AUR e manual dizem o caminho no `detail` da própria dependência. O LW só escreve o comando, nunca roda.
 - Formato de saída inalterado: lista JSON pura, `--stream` linha a linha, código 1 se houver FAIL.
-- A lista fixa `('matugen','waypaper','kitty','fish','nvim','qs')` do `doctor.py` vai para o manifesto de SISTEMA, que como obrigatório também guarda as dependências do núcleo.
+- A lista fixa `('matugen','waypaper','kitty','fish','nvim','qs')` que era do `doctor.py` está no manifesto de SISTEMA, que como obrigatório também guarda as dependências do núcleo.
 
 ## Os três módulos de hoje
 
