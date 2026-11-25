@@ -10,6 +10,8 @@ Process {
     signal succeeded(var data, var warnings)
     signal failed(string message)
 
+    // Theme.lw for a call that a signal must reach (cancel).
+    property var program: Theme.rice
     property int pending: 0
     property int code: 0
 
@@ -17,7 +19,7 @@ Process {
     function call(args) {
         if (running)
             return;
-        command = Theme.rice.concat(args);
+        command = program.concat(args);
         pending = 3;
         running = true;
     }

@@ -1,14 +1,13 @@
-// LibraryScreen.qml — tela BIBLIOTECA (MÚSICA): todas as músicas de ~/Músicas com busca por
-// título, artista, álbum, gênero e letra (dados de extras/library.py scan).
+// LibraryScreen.qml — tela BIBLIOTECA (MÚSICA): todas as músicas da pasta (music.dir) com busca por
+// título, artista, álbum, gênero e letra (dados de `lw library scan`).
 import QtQuick
 import Quickshell
-import Quickshell.Io
 import qs
 import qs.components
 
-// LW // LIBRARY: every file under ~/Músicas, searched by its tags (title, artist, album,
+// LW // LIBRARY: every file under music.dir, searched by its tags (title, artist, album,
 // genre, year) and lyrics, grouped by artist. cliamp's own search does not look inside
-// local files, so the index comes from extras/library.py (ffprobe, cached by mtime).
+// local files, so the index comes from `lw library scan` (ffprobe, cached by mtime).
 Item {
     id: root
 
@@ -92,26 +91,21 @@ Item {
     function scan() {
         if (scanner.running) return;
         loading = true;
-        scanner.running = true;
+        scanner.call(["library", "scan", "--json"]);
     }
     Component.onCompleted: scan()
 
-    Process {
+    RiceCommand {
         id: scanner
-        command: ["/usr/bin/python3", Quickshell.shellDir + "/../extras/library.py", "scan"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                root.loading = false;
-                let d = {};
-                try { d = JSON.parse(text); } catch (error) { root.error = "índice inválido"; return; }
-                if (!d.ok) { root.error = d.error || "falha ao ler a biblioteca"; return; }
-                root.error = "";
-                // Grouped by the main artist (the folder name), then by title.
-                for (const t of d.tracks) t.group = (t.artist || "Desconhecido").split(",")[0].trim();
-                root.tracks = d.tracks.sort((a, b) => a.group.localeCompare(b.group, "pt", { sensitivity: "base" })
-                                                     || a.title.localeCompare(b.title, "pt", { sensitivity: "base" }));
-                root.filter();
-            }
+        onFailed: message => { root.loading = false; root.error = message; }
+        onSucceeded: data => {
+            root.loading = false;
+            root.error = "";
+            // Grouped by the main artist (the folder name), then by title.
+            for (const t of data.tracks) t.group = (t.artist || "Desconhecido").split(",")[0].trim();
+            root.tracks = data.tracks.sort((a, b) => a.group.localeCompare(b.group, "pt", { sensitivity: "base" })
+                                                  || a.title.localeCompare(b.title, "pt", { sensitivity: "base" }));
+            root.filter();
         }
     }
 
@@ -240,7 +234,7 @@ Item {
             RiceText {
                 anchors.centerIn: parent
                 visible: results.count === 0
-                text: root.loading ? "[ .. ] lendo as tags de ~/Músicas…" : root.error ? "[ !! ] " + root.error : "nada com \"" + box.text + "\""
+                text: root.loading ? "[ .. ] lendo as tags de " + Music.dirShown + "…" : root.error ? "[ !! ] " + root.error : "nada com \"" + box.text + "\""
                 color: root.error ? Theme.red : root.loading ? Theme.accent : Theme.faint
             }
         }
@@ -307,7 +301,7 @@ Item {
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 4
             readonly property int artists: new Set(root.tracks.map(t => t.artist)).size
-            text: (box.text ? results.count + " de " : "") + root.tracks.length + " músicas · " + artists + " artistas · ~/Músicas"
+            text: (box.text ? results.count + " de " : "") + root.tracks.length + " músicas · " + artists + " artistas · " + Music.dirShown
             color: Theme.dim
         }
         AccentButton {

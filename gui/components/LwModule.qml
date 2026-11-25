@@ -1,11 +1,16 @@
 import QtQuick
 
 // LwModule.qml — o gancho base: o que um módulo põe na janela fora das telas dele (docs/modulos.md).
-// Todo campo tem um padrão neutro; o módulo preenche só o que usa. O shell.qml já lê sidebar,
-// footerLeft, context*, idleText, hints e bootStep; os outros ele passa a ler quando MÚSICA e JOGOS
-// saírem de lá (sessões 4 e 5).
+// Nenhum campo é obrigatório: todos têm um padrão neutro, e o módulo preenche só o que usa.
+// O shell.qml já lê tudo, menos started(), que entra com JOGOS (sessão 5).
 Item {
     visible: false
+
+    // ---- o shell.qml preenche; o módulo só lê
+    property bool active: false              // a seção deste módulo está aberta
+    property int current: 0                  // a tela dele, pela ordem do manifesto
+    property bool parked: false              // janela escondida (Ctrl+J)
+    property Item keyTarget: null            // quem recebe o foco do teclado depois de um clique
 
     // ---- barra lateral e tela
     property string summary: ""              // linha da seção fechada
@@ -23,14 +28,17 @@ Item {
     property var hints: []                   // vazio: as dicas comuns da janela
     property var bootStep: null              // { label, done } no boot
 
+    // Pede uma tela da própria seção (só vale com ela aberta).
+    signal openScreen(int index)
+
     // Clique na ponta direita do rodapé.
     function contextClicked() {}
     // A janela abriu.
     function started() {}
     // Entrou na seção.
     function entered() {}
-    // Saiu da seção.
-    function left() {}
+    // Saiu da seção (não é "left": esse nome já é uma âncora do Item).
+    function exited() {}
     // A janela está fechando (active: nesta seção).
     function closing(active) {}
     // Uma tela do módulo ficou pronta.
@@ -39,7 +47,7 @@ Item {
     function overlayKey(event) { return false; }
     function key(event) { return false; }
     function backgroundKey(event) { return false; }
-    // IPC dos testes.
+    // IPC dos testes; act devolve true quando conhece a ação.
     function state() { return ({}); }
     function act(op, arg) { return false; }
 }

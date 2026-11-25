@@ -19,6 +19,8 @@ Singleton {
     // Quickshell kills its child processes on exit, ignoring any signal handling.
     // The fork keeps a change running if this window closes halfway through.
     readonly property var rice: ["setsid", "--fork", "--wait", "/usr/bin/python3", Quickshell.shellDir + "/../extras/rice.py"]
+    // Without the fork, for what must stop with a signal: searches and downloads.
+    readonly property var lw: ["/usr/bin/python3", Quickshell.shellDir + "/../extras/rice.py"]
     readonly property string statePath: Quickshell.env("RICE_THEME_STATE")
         || Quickshell.env("HOME") + "/.local/state/rice-minimal/theme"
     // GUI-only preferences (favorites, shortcut descriptions); never read by the backend.

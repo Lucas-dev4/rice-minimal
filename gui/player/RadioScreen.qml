@@ -1,8 +1,6 @@
 // RadioScreen.qml — tela RÁDIO (MÚSICA): busca estações no radio-browser.info e as salvas do cliamp
-// (extras/radio.py).
+// (`lw radio`).
 import QtQuick
-import Quickshell
-import Quickshell.Io
 import qs
 import qs.components
 
@@ -24,12 +22,12 @@ Item {
     property string server: ""
     property int cursor: 0
     readonly property var selected: results[cursor] || null
-    readonly property var helper: ["/usr/bin/python3", Quickshell.shellDir + "/../extras/radio.py"]
 
-    // Roda radio.py com esses argumentos.
-    function run(args, done) {
-        const proc = runner.createObject(root, { args: args, done: done });
-        proc.running = true;
+    // Roda `lw radio` com esses argumentos; done(ok, dados ou {error}). stoppable: a busca, que
+    // um sinal precisa alcançar.
+    function run(args, done, stoppable) {
+        const proc = runner.createObject(root, { program: stoppable ? Theme.lw : Theme.rice, done: done });
+        proc.call(["radio"].concat(args, ["--json"]));
         return proc;
     }
     property var searching: null
@@ -38,7 +36,7 @@ Item {
         error = "";
         if (searching) searching.signal(15);
         const args = ["search"];
-        if (box.text.trim()) args.push("--name", box.text.trim());
+        if (box.text.trim()) args.push("--name=" + box.text.trim());
         if (tag) args.push("--tag", tag);
         searching = run(args, (ok, data) => {
             searching = null;
@@ -47,7 +45,7 @@ Item {
             server = data.server;
             cursor = 0;
             view.positionViewAtBeginning();
-        });
+        }, true);
     }
     // Lê as estações salvas.
     function loadSaved() { run(["saved"], (ok, data) => { if (ok) saved = data.stations; }); }
@@ -60,7 +58,7 @@ Item {
     // Salva uma estação no radios.toml.
     function save(station) {
         if (!station) return;
-        run(["add", "--name", station.name, "--url", station.url], (ok, data) => {
+        run(["add", "--name=" + station.name, "--url=" + station.url], (ok, data) => {
             Status.say(ok ? "[ + ] " + station.name + " salva em radios.toml" : "[ !! ] " + data.error, ok ? Theme.ok : Theme.red);
             if (ok) loadSaved();
         });
@@ -86,18 +84,11 @@ Item {
 
     Component {
         id: runner
-        Process {
+        RiceCommand {
             id: proc
-            property var args: []
             property var done: null
-            command: root.helper.concat(args)
-            stdout: StdioCollector { id: out }
-            onExited: code => {
-                let data = {};
-                try { data = JSON.parse(out.text); } catch (error) { data = { error: "resposta inválida do helper" }; }
-                if (proc.done) proc.done(code === 0 && data.ok, data);
-                proc.destroy();
-            }
+            onSucceeded: data => { if (done) done(true, data); proc.destroy(); }
+            onFailed: message => { if (done) done(false, { error: message }); proc.destroy(); }
         }
     }
 

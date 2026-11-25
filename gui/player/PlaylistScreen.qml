@@ -88,9 +88,9 @@ Item {
     // The system file chooser (zenity, GTK): several files at once, audio only.
     Process {
         id: picker
-        // Opens in ~/Músicas, cliamp's initial_directory in the rice config.
+        // Opens in music.dir, the same folder as cliamp's initial_directory.
         command: ["zenity", "--file-selection", "--multiple", "--separator=\n", "--title=LW — adicionar à fila",
-                  "--filename=" + Quickshell.env("HOME") + "/Músicas/",
+                  "--filename=" + Music.dir + "/",
                   "--file-filter=Áudio | *.mp3 *.flac *.ogg *.opus *.m4a *.aac *.wav *.wv *.ape *.aiff *.alac *.wma",
                   "--file-filter=Tudo | *"]
         stdout: StdioCollector {

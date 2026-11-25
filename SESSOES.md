@@ -25,7 +25,7 @@ Siga docs/modulos.md. Crie a leitura de ~/.config/lw/config.toml (tomllib, padr�
 Extraia SISTEMA como módulo segundo docs/modulos.md (manifesto, telas, subcomandos). O comportamento visível não muda. README curto do módulo (o que faz, dependências, comandos). Testes passando, commit.
 ```
 
-## [ ] 4 — Módulo MÚSICA
+## [x] 4 — Módulo MÚSICA
 ```
 Mesmo que a sessão 3, para MÚSICA (cliamp, rádio, online, biblioteca). Comportamento igual, README do módulo, testes, commit.
 ```

@@ -46,7 +46,7 @@ screens = [
 
 [commands]
 handler = "cmd_music"           # extras/cmd_music.py
-names = ["library", "organize", "radio", "download", "cliamp"]
+names = ["library", "organize", "radio", "online", "download", "cliamp"]
 open = "music"                  # `lw music` = `lw gui music` (opcional)
 
 [[dependency]]
@@ -99,8 +99,9 @@ def register(actions, common):
 ```
 
 - `run(args)` devolve `data` ou `(data, warnings)`. Quem monta o envelope e trata o erro é o `cli.py`.
-- **Fluxo** (várias linhas JSON, sem envelope): `set_defaults(run=..., stream=True)`; a função imprime e devolve o código de saída. Já são assim `wallpaper thumbs`, `emu pad-watch` e `doctor --stream`.
-- `cli.py` importa só o handler dono do comando pedido. `cli.COMMANDS` passa a vir dos manifestos.
+- **Fluxo** (várias linhas JSON, sem envelope): `set_defaults(run=..., stream=True)`; a função imprime e devolve o código de saída. Já são assim `wallpaper thumbs`, `emu pad-watch`, `doctor --stream`, `bt` e `download`.
+- `cli.py` importa só o handler dono do comando pedido. `cli.COMMANDS` vem dos manifestos: os `names` e o `open`, que também só pode ter um dono.
+- Na GUI, `RiceCommand` roda com `Theme.rice` (`setsid --fork --wait`): a ação termina mesmo se o LW fechar, mas um sinal não chega nela. O que precisa parar (download, buscas) usa `program: Theme.lw`, sem o `setsid`.
 - Comando de módulo desligado: `{"ok": false}`, código `invalid`, mensagem `módulo JOGOS desligado; ligue com: lw modules enable games`. O vigia de sessão (`games.py watch`) roda direto, então não morre se JOGOS for desligado no meio.
 - Do núcleo, sempre disponíveis: `gui`, `doctor`, `modules` e os `lock-*` antigos do `rice.py`.
 
@@ -144,24 +145,44 @@ Usar a variável evita abrir a janela vazia: o `lw gui` já é Python e já pass
 
 Hoje o `shell.qml` cita `Music` e `Games` em toda parte. Filtrar `groups` esconderia as telas, mas ligaria o cliamp e o scan do mesmo jeito. O gancho tira isso de lá. O tipo base `gui/components/LwModule.qml` tem todos os campos com um padrão neutro; cada módulo preenche o que usa:
 
-| Campo | Para quê | Hoje no shell.qml |
-|---|---|---|
-| `summary` | linha da seção fechada | faixa tocando; jogo em sessão |
-| `sidebar` (Component) | bloco de baixo da barra lateral | CURRENT; mini player e VOL; fontes e SESSÃO |
-| `header` (Component) | cabeçalho comum das telas | `musicHeader` |
-| `ready`, `gate` (Component) | o que mostrar no lugar da tela | cliamp offline / START |
-| `overlay` (Component) | camada sobre a janela | `GameSheet`, `InstallSheet`, `LaunchScreen`, `DropArea` |
-| `footerLeft` (Component), `context`, `contextClickable`, `contextClicked()` | rodapé; `contextClickable` é `false` por padrão | SYNC ALL; saída do cliamp; último scan; LOG |
-| `idleText`, `hints` | mensagem e dicas padrão | `typed.full`, `globalHints` |
-| `bootStep` | linha do boot | `BootScreen.steps` |
-| `started()` | janela abriu | `Games.recover()` |
-| `entered()`, `left()` | entrou/saiu da seção | `enterGroup()`, fechar as fichas |
-| `closing(active)` | janela fechando | `quit()`: parar ou só salvar a sessão |
-| `screenLoaded(item)` | tela pronta | `levels` do espectro; sinais `open`/`launch`/`installer` |
-| `overlayKey(event)` | tecla antes da tela | fichas abertas; `Enter` no START |
-| `key(event)` | tecla da seção aberta, depois da tela | `n`, `p`, setas, volume… |
-| `backgroundKey(event)` | tecla quando outra seção está aberta | `Espaço` toca/pausa em qualquer lugar |
-| `state()`, `act(op, arg)` | IPC dos testes | `state`, `act`, `openSheet`, `installer` |
+**Nenhum campo é obrigatório.** O gancho em si é opcional, e um módulo simples pode ter o `LwModule` vazio (ou nem ter gancho): a seção abre as telas do manifesto e o resto fica neutro. Os únicos que andam juntos estão na coluna "se usar".
+
+Preenchidos pelo `shell.qml`; o módulo só lê, nunca escreve:
+
+| Campo | Valor |
+|---|---|
+| `active` | a seção deste módulo está aberta |
+| `current` | a tela dele, pela ordem do manifesto (cada seção lembra a sua) |
+| `parked` | janela escondida (`Ctrl+J`) |
+| `keyTarget` | quem recebe o foco do teclado depois de um clique |
+
+Opcionais, com o padrão neutro:
+
+| Campo | Para quê | Padrão neutro | Se usar |
+|---|---|---|---|
+| `summary` | linha da seção fechada | `""`: sem linha | |
+| `sidebar` (Component) | bloco de baixo da barra lateral | `null`: vazio | |
+| `header` (Component) | cabeçalho comum das telas | `null`: cada tela desenha o seu | a raiz precisa ter `height` |
+| `ready` | falso: esconde a tela e mostra o `gate` | `true` | preencha `gate` |
+| `gate` (Component) | o que mostrar no lugar da tela | `null` | preencha `ready` |
+| `overlay` (Component) | camada sobre a janela | `null` | |
+| `footerLeft` (Component) | bloco à esquerda do rodapé | `null` | |
+| `context` | ponta direita do rodapé | `"—"` | |
+| `contextClickable`, `contextClicked()` | clique nessa ponta | `false`, não faz nada | os dois juntos |
+| `idleText` | mensagem quando nada acontece | `""` | |
+| `hints` | dicas padrão da seção | `[]`: as dicas da janela | |
+| `bootStep` | linha do boot, `{ label, done }` | `null`: "reading profile" | `done` precisa virar `true` |
+| `openScreen(index)` (sinal) | o módulo pede uma tela da própria seção | ninguém emite | só vale com a seção aberta |
+| `started()` | janela abriu | não faz nada | o shell passa a chamar na sessão 5 |
+| `entered()`, `exited()` | entrou/saiu da seção | não fazem nada | |
+| `closing(active)` | janela fechando (`active`: nesta seção) | não faz nada | |
+| `screenLoaded(item)` | tela do módulo pronta | não faz nada | |
+| `overlayKey(event)` | tecla antes da tela | `false`: não usou | confira `active` |
+| `key(event)` | tecla da seção aberta, depois da tela | `false` | |
+| `backgroundKey(event)` | tecla quando ninguém mais usou | `false` | |
+| `state()`, `act(op, arg)` | IPC dos testes | `{}`, `false`: não conhece a ação | |
+
+Quem recebe o quê: `overlayKey`, `backgroundKey`, `closing`, `state` e `act` vão a **todos** os ganchos, na ordem da barra lateral (o primeiro que responde `true` encerra); `key`, `screenLoaded`, `entered` e `exited`, só ao da seção. O gancho que carrega depois da janela recebe `entered` e `screenLoaded` ao chegar. `exited` não se chama `left` porque esse nome já é uma âncora do `Item` e a chamada falha.
 
 O gancho não enxerga o `shell.qml`. O que os dois precisam ver passa pelo `Status.qml`: `logOpen` (painel LOG aberto) e `logLine` (última linha do log), `wallpaper` e `profile` (do `lw status`, que o shell chama porque o boot e as cores do terminal dependem dele) e `error`, uma falha que fica no rodapé, acima de qualquer mensagem, até a ação rodar de novo (SYNC ALL).
 
@@ -203,8 +224,8 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 ### MÚSICA: `modules/music/`
 
 - `order = 20`. Telas e manifesto no exemplo acima.
-- **Comandos** (`cmd_music`), hoje scripts que a GUI chama direto: `library scan|lookup|apply`, `organize plan|apply|move`, `radio search|saved|add`, `download` (fluxo, `ytdl.py`); e `cliamp sync`, que já nasceu no `lw`.
-- **Gancho**: `summary`, `sidebar`, `header`, `ready`/`gate`, `overlay` (soltar arquivos), `context`, `bootStep`, `entered`, `closing`, `key`, `backgroundKey`, `screenLoaded`, `act`.
+- **Comandos** (`cmd_music`): `library scan|lookup|apply`, `organize plan|apply|move`, `radio search|saved|add`, `online status|search` (yt-dlp), `download` (fluxo, `ytdl.py`) e `cliamp sync`; `open = "music"`.
+- **Gancho**: `summary`, `sidebar`, `header`, `ready`/`gate`, `overlay` (soltar arquivos), `context`, `idleText`, `hints`, `bootStep`, `entered`, `closing`, `screenLoaded`, `overlayKey` (START), `key`, `backgroundKey`, `state`, `act`.
 - **Singletons**: `Music`, `Spectrum`, `Downloads` (continuam em `gui/`).
 - **Obrigatórias**: `cliamp` (manual) · `wpctl` wireplumber · `pactl` libpulse.
 - **Opcionais**: `cava` (visualizador) · `ffmpeg`/`ffprobe` ffmpeg (LIBRARY, detalhes, download) · `yt-dlp` (ONLINE) · `playerctl` (capa) · `zenity` (escolher arquivos) · `gio` glib2 (lixeira).
@@ -215,7 +236,7 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 - `order = 30`.
 - **Telas** (`gui/arcade`): BIBLIOTECA, BACKLOG, DESEMPENHO, EMULADORES.
 - **Comandos** (`cmd_games`): `compat`, `emu` (já existem) e `game` (hoje `games.py` direto): `scan`, `list`, `add`, `set`, `launch`, `stop`, `arrange`, `meta`, `installers`, `install`…; `open = "games"`.
-- **Gancho**: `summary`, `sidebar`, `overlay` (fichas e tela de lançamento), `context`, `bootStep`, `started`, `entered`, `left`, `overlayKey`, `screenLoaded`, `act`.
+- **Gancho**: `summary`, `sidebar`, `overlay` (fichas e tela de lançamento), `context`, `bootStep`, `started`, `entered`, `exited`, `overlayKey`, `screenLoaded`, `act`.
 - **Singleton**: `Games`.
 - **Obrigatórias**: nenhuma; a lista abre vazia.
 - **Opcionais**: `wine` · `umu-run` umu-launcher (Proton) · `gamemoderun` gamemode · `mangohud` · `gamescope` · `steam` · `retroarch` · `dolphin-emu` · `ppsspp` · `ryujinx` · `lspci` pciutils · `zenity`.
@@ -247,7 +268,8 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 
 O código de hoje não cumpre a regra ao pé da letra. O contrato aceita só estas exceções, sempre com o comando declarado em `[[dependency]]`:
 
-- **Fluxo ao vivo do player e do áudio**: `cliamp`, `cava`, `pactl`, `wpctl`, `noctalia` (volume), `playerctl`, `ffprobe` em `Music.qml`, `Spectrum.qml` e no painel de saída. Passar cada evento pelo Python atrasaria a tela.
+- **Fluxo ao vivo do player e do áudio**: `cliamp`, `cava`, `pactl`, `wpctl`, `noctalia` (volume), `playerctl`, `ffprobe` em `Music.qml`, `Spectrum.qml` e no formato da saída (`MusicModule.qml`). Passar cada evento pelo Python atrasaria a tela.
+- **Ligar e desligar o cliamp** (`sh -c` em `Music.qml`): quais arquivos da sessão ainda existem, e o SIGTERM pelo `cliamp.sock.pid`, que sai enquanto a janela fecha.
 - **Diálogo e área de transferência**: `zenity`, `wl-copy`.
 - **Gravar atalho**: o submapa do `hyprctl` em SHORTCUTS.
 - **Preferências só visuais** em `~/.local/state/rice-minimal/gui/`.

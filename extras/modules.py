@@ -73,6 +73,11 @@ def load(base=None):
     return {m['id']: m for m in found}, errors
 
 
+def openers():
+    """{comando: id} dos módulos que abrem a janela pelo nome (lw music = LW em MÚSICA)."""
+    return {m['commands']['open']: m['id'] for m in load()[0].values() if m.get('commands', {}).get('open')}
+
+
 def handlers():
     """{comando: handler} dos módulos que têm comandos (extras/<handler>.py)."""
     return {name: m['commands']['handler'] for m in load()[0].values() if m.get('commands', {}).get('handler')

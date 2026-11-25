@@ -83,6 +83,7 @@ class Contract(unittest.TestCase):
 
     def test_no_command_has_two_owners(self):
         names = [n for m in self.found.values() for n in m.get('commands', {}).get('names', [])]
+        names += [m['commands']['open'] for m in self.found.values() if 'open' in m.get('commands', {})]
         self.assertEqual(len(names), len(set(names)))
         self.assertEqual(set(names) & {'gui', 'doctor', 'modules'}, set())
 
@@ -108,6 +109,31 @@ class Contract(unittest.TestCase):
         self.assertEqual(seed, {'id': 'system', 'name': system['name'], 'folder': system['gui']['folder'],
                                 'hook': system['gui']['hook'], 'screens': system['gui']['screens'],
                                 'config': {k: v['default'] for k, v in system.get('config', {}).items()}})
+
+    def test_the_open_command_leads_to_its_module(self):
+        self.assertEqual(modules.openers(), {'music': 'music'})
+
+    def test_the_window_does_not_know_music(self):
+        shell = (ROOT/'gui/shell.qml').read_text()
+        self.assertEqual(re.findall(r'\b(?:Music|Spectrum|Downloads|inMusic)\b', shell), [])
+
+    def test_the_music_screens_have_no_logic_of_their_own(self):
+        # Nada chama os scripts direto nem escreve a pasta das músicas fixa.
+        for path in (ROOT/'gui').glob('**/*.qml'):
+            text = path.read_text()
+            self.assertNotRegex(text, r'extras/(library|organize|radio|ytdl)\.py', path.name)
+            self.assertNotIn('"yt-dlp", "', text, path.name)
+            self.assertNotIn('Músicas', text, path.name)
+
+    def test_every_hook_field_is_documented_and_exists(self):
+        base = (ROOT/'gui/components/LwModule.qml').read_text()
+        found = set(re.findall(r'(?m)^    (?:property \w+|signal|function) (\w+)', base))
+        doc = (ROOT/'docs/modulos.md').read_text()
+        table = doc.split('**Nenhum campo é obrigatório.**', 1)[1].split('Quem recebe o quê', 1)[0]
+        named = set()
+        for row in re.findall(r'(?m)^\| (`[^|]+?) \|', table):
+            named |= set(re.findall(r'`(\w+)', row))
+        self.assertEqual(found, named)
 
 
 if __name__ == '__main__':

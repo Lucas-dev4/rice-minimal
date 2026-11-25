@@ -17,8 +17,10 @@ import settings
 
 # Comando → handler (extras/cmd_<id>.py) do módulo dono, pelos manifestos.
 HANDLERS = modules.handlers()
-# Do núcleo: gui e modules. MÚSICA e JOGOS ainda não têm handler (docs/modulos.md, sessões 4 e 5).
-COMMANDS = {'gui','modules','music','games','compat','emu','cliamp',*HANDLERS}
+# Comando → módulo em que ele abre a janela (lw music).
+OPENERS = modules.openers()
+# Do núcleo: gui e modules. JOGOS ainda não tem handler (docs/modulos.md, sessão 5).
+COMMANDS = {'gui','modules','games','compat','emu',*OPENERS,*HANDLERS}
 
 
 def modules_list():
@@ -109,11 +111,6 @@ def kill_instances(pids):
             pass
 
 
-def music():
-    """lw music = abrir o LW em MÚSICA."""
-    return gui('music')
-
-
 def games():
     """lw games = abrir o LW em JOGOS."""
     return gui('games')
@@ -135,15 +132,14 @@ def main(argv):
     common.add_argument('--json',action='store_true')
     actions=parser.add_subparsers(dest='action',required=True)
     actions.add_parser('gui')
-    actions.add_parser('music')
+    for name in OPENERS:
+        actions.add_parser(name)
     actions.add_parser('games')
     actions.add_parser('modules').add_subparsers(dest='operation',required=True).add_parser('list',parents=[common])
     # Jogos x hardware desta máquina (extras/compat.py).
     compat_cmd=actions.add_parser('compat').add_subparsers(dest='operation',required=True)
     for operation in ('scan','check'):
         compat_cmd.add_parser(operation,parents=[common])
-    # Pasta das músicas no cliamp (extras/cliamp.py).
-    actions.add_parser('cliamp').add_subparsers(dest='operation',required=True).add_parser('sync',parents=[common])
     # Emuladores e controle (extras/emulators.py).
     emu=actions.add_parser('emu').add_subparsers(dest='operation',required=True)
     emu.add_parser('list',parents=[common])
@@ -173,8 +169,8 @@ def main(argv):
         return 0
     if args.action == 'gui':
         return gui()
-    if args.action == 'music':
-        return music()
+    if args.action in OPENERS:
+        return gui(OPENERS[args.action])
     if args.action == 'games':
         return games()
     if getattr(args,'stream',False):
@@ -192,9 +188,6 @@ def main(argv):
         elif name == 'compat check':
             import compat
             data=compat.check()
-        elif name == 'cliamp sync':
-            import cliamp
-            data,warnings=cliamp.sync()
         else:
             import emulators
             if name == 'emu list': data=emulators.listing()

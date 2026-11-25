@@ -2,11 +2,13 @@
 # Os padrões daqui valem quando ~/.config/lw/config.toml não diz outra coisa.
 id = "music"
 name = "MÚSICA"
+description = "Toca, organiza e baixa músicas pelo cliamp."
 order = 20
 default = true
 
 [gui]
 folder = "player"
+hook = "MusicModule.qml"
 screens = [
     { name = "NOW PLAYING", file = "NowScreen.qml" },
     { name = "PLAYLIST",    file = "PlaylistScreen.qml" },
@@ -16,6 +18,73 @@ screens = [
     { name = "ONLINE",      file = "OnlineScreen.qml" },
 ]
 
+[commands]
+handler = "cmd_music"
+names = ["library", "organize", "radio", "online", "download", "cliamp"]
+open = "music"
+
+[[dependency]]
+command = "cliamp"
+manual = "fora dos repositórios; ver modules/music/README.md"
+why = "é o player"
+
+[[dependency]]
+command = "wpctl"
+package = "wireplumber"
+why = "lê e muda o volume do sistema"
+
+[[dependency]]
+command = "pactl"
+package = "libpulse"
+why = "avisa quando o volume muda e diz o formato da saída"
+
+[[dependency]]
+command = "cava"
+package = "cava"
+optional = true
+why = "o visualizador"
+
+[[dependency]]
+command = "ffprobe"
+package = "ffmpeg"
+optional = true
+why = "as tags em LIBRARY, o formato da faixa e a organização dos downloads"
+
+[[dependency]]
+command = "ffmpeg"
+package = "ffmpeg"
+optional = true
+why = "converter o que se baixa em ONLINE e gravar tags"
+
+[[dependency]]
+command = "yt-dlp"
+package = "yt-dlp"
+optional = true
+why = "busca e download do YouTube na tela ONLINE"
+
+[[dependency]]
+command = "playerctl"
+package = "playerctl"
+optional = true
+why = "a capa da faixa"
+
+[[dependency]]
+command = "zenity"
+package = "zenity"
+optional = true
+why = "escolher arquivos em PLAYLIST (tecla o)"
+
+[[dependency]]
+command = "gio"
+package = "glib2"
+optional = true
+why = "manda para a lixeira o arquivo antigo quando se gravam tags"
+
 [config.dir]
 default = "~/Músicas"
 description = "Pasta das músicas; o initial_directory do cliamp é escrito a partir dela"
+
+[[shortcut]]
+keys = "SUPER + M"
+command = "lw music"
+description = "LW em MÚSICA"

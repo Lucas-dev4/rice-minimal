@@ -3,11 +3,10 @@
 // playlist) na busca lista o que tem nele; b baixa a música, B a playlist inteira, x cancela.
 // O que baixa vai sozinho para a pasta de gênero do artista; g escolhe a pasta de um artista novo.
 import QtQuick
-import Quickshell.Io
 import qs
 import qs.components
 
-// LW // ONLINE: YouTube through yt-dlp (`ytsearch`, no account) plus cliamp's own
+// LW // ONLINE: YouTube through `lw online search` (yt-dlp, no account) plus cliamp's own
 // searchable online providers (SoundCloud with `[soundcloud] enabled = true`, YouTube with
 // an account…, whatever `provider.list` says) through its v2 IPC. ⏎ plays the result now,
 // `a` puts it next in the queue; cliamp resolves YouTube links with yt-dlp itself.
@@ -78,10 +77,7 @@ Item {
         if (link || provider === "ytdlp") {
             if (link && !hasYtdlp) { searching = false; error = "links precisam do yt-dlp (sudo pacman -S yt-dlp)"; return; }
             ytSearch.mine = mine;
-            ytSearch.link = link ? query : "";
-            ytSearch.command = ["yt-dlp", "--flat-playlist", "--no-warnings", "-J", link ? query : "ytsearch25:" + query];
-            ytSearch.running = true;
-            ytGuard.restart();
+            ytSearch.call(["online", "search", "--json", "--", query]);
             return;
         }
         Music.call("provider.search", { provider: provider, query: query, limit: 30 }, result => {
@@ -107,7 +103,7 @@ Item {
         Music.playTrack(track);
         Status.say("[ ▶ ] " + label(track), Theme.ok);
     }
-    // Baixa um resultado (MP3 em ~/Músicas/Downloads), pelo Downloads.qml.
+    // Baixa um resultado (MP3 em Downloads, na pasta das músicas), pelo Downloads.qml.
     function download(track) {
         if (!track) return;
         if (!/^https?:\/\//.test(track.path || "")) { Status.say("[ -- ] esse resultado não tem link para baixar", Theme.dim); return; }
@@ -174,45 +170,32 @@ Item {
     // Test hook (music IPC `query`).
     function query(text) { box.text = text; search(); }
 
-    Process {
+    RiceCommand {
         id: ytCheck
-        command: ["sh", "-c", "command -v yt-dlp"]
-        running: true
-        onExited: code => { root.hasYtdlp = code === 0; root.listed = false; root.loadProviders(); }
+        // Também responde (ou falha) sem yt-dlp: a lista de fontes sai de um jeito ou de outro.
+        function listed(found) { root.hasYtdlp = found; root.listed = false; root.loadProviders(); }
+        onSucceeded: data => listed(data.ytdlp)
+        onFailed: message => listed(false)
+        Component.onCompleted: call(["online", "status", "--json"])
     }
-    Process {
+    RiceCommand {
         id: ytSearch
         property int mine: 0
-        property string link: ""
-        stdout: StdioCollector { id: ytOut }
-        stderr: StdioCollector { id: ytErr }
-        onExited: code => {
-            ytGuard.stop();
+        program: Theme.lw
+        onSucceeded: data => {
             if (mine !== root.seq) return;
             root.searching = false;
-            let data = null;
-            try { data = JSON.parse(ytOut.text); } catch (error) {}
-            if (code !== 0 || !data) {
-                root.error = (ytErr.text.trim().split("\n").pop() || "yt-dlp falhou (" + code + ")");
-                root.results = [];
-                return;
-            }
-            // A playlist (ou busca) traz entries; o link de uma música só, o próprio vídeo.
-            const link = ytSearch.link;
-            const entries = data.entries ? data.entries : (link ? [Object.assign({}, data, { url: data.webpage_url || link })] : []);
-            root.results = entries.filter(e => e && e.url).map(e => ({
-                title: e.title || e.url, artist: e.artist || e.channel || e.uploader || "",
-                path: e.url, duration_secs: e.duration || 0, stream: true }));
-            if (link && data.entries)
-                root.playlist = { title: data.title || "Playlist", url: data.webpage_url || link };
+            root.results = data.results;
+            if (data.playlist) root.playlist = data.playlist;
             root.cursor = 0;
             view.positionViewAtBeginning();
         }
-    }
-    Timer {
-        id: ytGuard
-        interval: 30000
-        onTriggered: if (ytSearch.running) { ytSearch.signal(15); root.searching = false; root.error = "o YouTube não respondeu em 30 s"; }
+        onFailed: message => {
+            if (mine !== root.seq) return;
+            root.searching = false;
+            root.error = message;
+            root.results = [];
+        }
     }
     Component.onCompleted: { loadProviders(); Downloads.organize(); }
     Connections {

@@ -12,11 +12,13 @@
 """
 # ytdl.py — baixa músicas e playlists do YouTube pelo yt-dlp para a aba ONLINE do LW.
 # Grava em ~/Músicas/Downloads (playlist numa pasta própria) em MP3 com tags e capa,
-# e conta o progresso em linhas JSON para a tela (gui/player/OnlineScreen.qml).
+# e conta o progresso em linhas JSON para a tela (gui/player/OnlineScreen.qml). A busca da tela
+# (lw online search) também é daqui.
 import argparse
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -25,6 +27,8 @@ import settings
 
 # Linhas que o yt-dlp imprime para este script (o resto da saída é ignorado).
 TAG = 'LW\t'
+# Segundos que a busca espera pelo YouTube.
+SEARCH_LIMIT = 30
 # Capa quadrada: corta o centro da miniatura 16:9 do vídeo. O yt-dlp separa os argumentos
 # do --ppa como um shell, por isso as aspas duplas em volta (as vírgulas ficam no crop).
 SQUARE = 'crop="\'if(gt(ih,iw),iw,ih)\':\'if(gt(iw,ih),ih,iw)\'"'
@@ -84,6 +88,42 @@ def parse(line):
     if line.startswith('ERROR:'):
         return {'event': 'error', 'message': line[6:].strip()}
     return None
+
+
+def installed():
+    """True se o yt-dlp está no PATH."""
+    return shutil.which('yt-dlp') is not None
+
+
+def search(query):
+    """Busca no YouTube, ou lista o que tem num link (música ou playlist), sem baixar nada."""
+    query = query.strip()
+    if not query:
+        raise ValueError('busca vazia')
+    link = re.fullmatch(r'https?://\S+', query) is not None
+    if not installed():
+        raise FileNotFoundError('yt-dlp não está instalado: sudo pacman -S yt-dlp')
+    try:
+        out = subprocess.run(['yt-dlp', '--flat-playlist', '--no-warnings', '-J', query if link else 'ytsearch25:' + query],
+                             capture_output=True, text=True, timeout=SEARCH_LIMIT)
+    except subprocess.TimeoutExpired as exc:
+        raise TimeoutError(f'o YouTube não respondeu em {SEARCH_LIMIT} s') from exc
+    try:
+        data = json.loads(out.stdout) if out.returncode == 0 else None
+    except ValueError:
+        data = None
+    if not isinstance(data, dict):
+        raise RuntimeError(out.stderr.strip().split('\n')[-1] or f'yt-dlp falhou ({out.returncode})')
+    entries = data.get('entries')
+    many = entries is not None
+    # A playlist (ou busca) traz entries; o link de uma música só, o próprio vídeo.
+    if not many:
+        entries = [dict(data, url=data.get('webpage_url') or query)] if link else []
+    results = [{'title': e.get('title') or e['url'], 'artist': e.get('artist') or e.get('channel') or e.get('uploader') or '',
+                'path': e['url'], 'duration_secs': e.get('duration') or 0, 'stream': True}
+               for e in entries if e and e.get('url')]
+    playlist = {'title': data.get('title') or 'Playlist', 'url': data.get('webpage_url') or query} if link and many else None
+    return {'link': link, 'results': results, 'playlist': playlist}
 
 
 def emit(event):

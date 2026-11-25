@@ -11,7 +11,7 @@
   radio.py add --name NAME --url URL
       Appends one [[station]] to radios.toml; the result must still parse.
 """
-# radio.py — rádios da aba RÁDIO do LW (gui/player/RadioScreen.qml chama este script).
+# radio.py — rádios da aba RÁDIO do LW (gui/player/RadioScreen.qml, por `lw radio`).
 # Busca no radio-browser.info e lê/grava as estações salvas do cliamp em radios.toml.
 import argparse
 import json

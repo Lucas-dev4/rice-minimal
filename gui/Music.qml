@@ -5,6 +5,7 @@ pragma Singleton
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import qs.components
 
 // The one place that talks to cliamp (v2 IPC, `cliamp remote`). Everything that plays
 // goes through cliamp; this only mirrors its state and sends it commands.
@@ -99,6 +100,13 @@ Singleton {
     }
     // Nome do arquivo sem pasta e sem extensão.
     function fileName(path) { return String(path || "").split("/").pop().replace(/\.[^.]+$/, ""); }
+
+    // A pasta das músicas (music.dir); dirShown é ela com "~".
+    readonly property string dir: String(Modules.config("music", "dir") || "").replace(/(.)\/+$/, "$1")
+    readonly property string dirShown: {
+        const home = Quickshell.env("HOME");
+        return dir.startsWith(home + "/") ? "~" + dir.slice(home.length) : dir;
+    }
 
     // ---- commands -----------------------------------------------------------
     // op: a v2 operation; params: object. done(result) on success. limit: ms before giving
@@ -240,18 +248,16 @@ Singleton {
     // e devolve a pasta. Com o cliamp parado, ele não regrava a config por cima.
     function syncFolder(saved) {
         folderSync.saved = saved;
-        folderSync.running = true;
+        folderSync.call(["cliamp", "sync", "--json"]);
     }
-    Process {
+    RiceCommand {
         id: folderSync
         property var saved: null
-        command: ["/usr/bin/python3", Quickshell.shellDir + "/../extras/rice.py", "cliamp", "sync", "--json"]
-        stdout: StdioCollector { id: folderOut }
-        onExited: {
-            let reply = {};
-            try { reply = JSON.parse(folderOut.text); } catch (error) { reply = { error: { message: "resposta inválida do lw" } }; }
-            if (!reply.ok) root.failed("pasta das músicas", reply.error.message);
-            root.start(saved, reply.ok && reply.data.exists ? reply.data.dir : "");
+        program: Theme.lw
+        onSucceeded: data => root.start(saved, data.exists ? data.dir : "")
+        onFailed: message => {
+            root.failed("pasta das músicas", message);
+            root.start(saved, "");
         }
     }
     // Ao fechar o LW em MÚSICA: salva a sessão e desliga o cliamp.

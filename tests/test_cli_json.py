@@ -14,6 +14,7 @@ from io import StringIO
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'extras'))
 import cli
+import cmd_music
 import cmd_system
 from theme import theme
 
@@ -553,6 +554,116 @@ class Launcher(unittest.TestCase):
         self.assertEqual([m['id'] for m in given],['system','music','games'])
         self.assertEqual(given[0]['screens'][0],{'name':'WALLPAPERS','file':'WallpaperScreen.qml'})
         self.assertIn('dir',given[1]['config'])
+
+
+class Music(unittest.TestCase):
+    """library, organize, radio, online e download: a lógica dos scripts no envelope do lw."""
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.home = Path(temp.name)
+        self.music = self.home/'Áudio'
+        (self.music/'Rap').mkdir(parents=True)
+        (self.music/'Downloads').mkdir()
+        (self.home/'.config/lw').mkdir(parents=True)
+        (self.home/'.config/lw/config.toml').write_text('[music]\ndir = "~/Áudio"\n')
+        env = patch.dict(os.environ,{'HOME':str(self.home),'XDG_CONFIG_HOME':str(self.home/'.config'),
+                                     'XDG_CACHE_HOME':str(self.home/'cache'),'XDG_DATA_HOME':str(self.home/'data')})
+        env.start()
+        self.addCleanup(env.stop)
+
+    def run_cli(self, *argv):
+        out = StringIO()
+        with redirect_stdout(out):
+            code = cli.main(list(argv))
+        return code, json.loads(out.getvalue())
+
+    def ytdlp(self, body):
+        """Um yt-dlp falso na frente do PATH."""
+        folder = self.home/'bin'
+        folder.mkdir()
+        (folder/'yt-dlp').write_text('#!/bin/sh\n'+body)
+        (folder/'yt-dlp').chmod(0o755)
+        path = patch.dict(os.environ,{'PATH':f'{folder}:{os.environ["PATH"]}'})
+        path.start()
+        self.addCleanup(path.stop)
+
+    def test_library_scan_reads_music_dir_and_root_wins(self):
+        code, result = self.run_cli('library','scan','--json')
+        self.assertEqual((code,result['action'],result['data']),(0,'library scan',{'root':str(self.music),'tracks':[],'read':0}))
+        self.assertEqual(self.run_cli('library','scan','--root',str(self.home),'--json')[1]['data']['root'],str(self.home))
+
+    def test_library_lookup_and_apply_pass_their_files(self):
+        with patch.object(cmd_music.library,'lookup',return_value={'plan':'p'}) as lookup:
+            self.assertEqual(self.run_cli('library','lookup','--out','p','--json')[1]['data'],{'plan':'p'})
+        lookup.assert_called_once_with(str(self.music),'p')
+        code, result = self.run_cli('library','apply','--plan',str(self.home/'nada'),'--json')
+        self.assertEqual((code,result['ok'],result['error']['code']),(1,False,'not_found'))
+
+    def test_organize_gives_the_plan_moves_and_explains_refusals(self):
+        with patch.object(cmd_music.organize,'read_tags',return_value=('','')):
+            for name in ('Rap/WLO - Um.mp3','Downloads/WLO - Dois.mp3','Downloads/Novo - Três.mp3'):
+                (self.music/name).write_text('')
+            plan = self.run_cli('organize','plan','--json')[1]
+            self.assertEqual((plan['action'],sorted(plan['data'])),('organize plan',['folders','moves','unknown']))
+            done = self.run_cli('organize','apply','--json')[1]['data']
+            self.assertEqual(([m['folder'] for m in done['moved']],done['skipped'],[u['artist'] for u in done['unknown']]),(['Rap'],[],['Novo']))
+            new = self.music/'Downloads/Novo - Três.mp3'
+            code, result = self.run_cli('organize','move',str(new),'Nada','--json')
+            self.assertEqual((code,result['error']['code'],result['error']['message']),(1,'invalid','pasta desconhecida: Nada'))
+            self.assertEqual(self.run_cli('organize','move','--json','--',str(new),'Rap')[1]['data']['moved'][0]['folder'],'Rap')
+        self.assertTrue((self.music/'Rap/Novo - Três.mp3').is_file())
+
+    def test_organize_without_the_folder_says_so(self):
+        code, result = self.run_cli('organize','apply','--root',str(self.home/'x'),'--json')
+        self.assertEqual((code,result['error']['code'],result['error']['message']),
+                         (1,'not_found','pasta de música não existe: '+str(self.home/'x')))
+
+    def test_radio_saved_add_and_search(self):
+        self.assertEqual(self.run_cli('radio','saved','--json')[1]['data']['stations'],[])
+        self.assertEqual(self.run_cli('radio','add','--name=-A-','--url=http://a/b','--json')[1]['data']['added'],{'name':'-A-','url':'http://a/b'})
+        code, result = self.run_cli('radio','add','--name','A','--url','http://a/b','--json')
+        self.assertEqual((code,result['error']['message']),(1,'já está salva: A'))
+        with patch.object(cmd_music.radio,'search',return_value={'server':'s','stations':[]}) as search:
+            self.run_cli('radio','search','--tag','jazz','--limit','9999','--json')
+        search.assert_called_once_with('','jazz',500)
+
+    def test_online_search_by_text_link_and_playlist(self):
+        self.ytdlp('for a; do q=$a; done; case "$q" in ytsearch25:*) echo \'{"entries":[{"title":"T","channel":"C","url":"u","duration":61},{"title":"sem url"},null]}\' ;;'
+                   ' *list*) echo \'{"title":"L","entries":[{"url":"p1"}]}\' ;; *) echo \'{"title":"V","artist":"A","webpage_url":"w","url":"cdn"}\' ;; esac\n')
+        self.assertEqual(self.run_cli('online','status','--json')[1]['data'],{'ytdlp':True})
+        self.assertEqual(self.run_cli('online','search','--json','--','-oi')[1]['data'],{'link':False,'playlist':None,
+                         'results':[{'title':'T','artist':'C','path':'u','duration_secs':61,'stream':True}]})
+        one = self.run_cli('online','search','https://y/v','--json')[1]['data']
+        self.assertEqual((one['link'],one['playlist'],one['results'][0]['path'],one['results'][0]['artist']),(True,None,'w','A'))
+        many = self.run_cli('online','search','https://y/?list=1','--json')[1]['data']
+        self.assertEqual((many['playlist'],many['results'][0]['title']),({'title':'L','url':'https://y/?list=1'},'p1'))
+
+    def test_online_search_says_why_it_failed(self):
+        self.ytdlp('echo "aviso" >&2; echo "ERROR: quebrou" >&2; exit 1\n')
+        code, result = self.run_cli('online','search','x','--json')
+        self.assertEqual((code,result['error']['code'],result['error']['message']),(1,'failed','ERROR: quebrou'))
+        self.assertEqual(self.run_cli('online','search',' ','--json')[1]['error']['code'],'invalid')
+        (self.home/'bin/yt-dlp').write_text('#!/bin/sh\nexec sleep 5\n')
+        with patch.object(cmd_music.ytdl,'SEARCH_LIMIT',0.2):
+            self.assertEqual(self.run_cli('online','search','x','--json')[1]['error']['code'],'busy')
+        with patch.object(cmd_music.ytdl,'installed',return_value=False):
+            self.assertEqual(self.run_cli('online','status','--json')[1]['data'],{'ytdlp':False})
+            self.assertEqual(self.run_cli('online','search','x','--json')[1]['error']['code'],'not_found')
+
+    def test_download_streams_events_without_envelope(self):
+        with patch.object(cmd_music.ytdl,'download',return_value=0) as download:
+            self.assertEqual(cli.main(['download','https://y/v','--playlist']),0)
+        download.assert_called_once_with('https://y/v',str(self.music),True)
+        out = StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(cli.main(['download','naoelink']),1)
+        self.assertEqual([json.loads(l)['event'] for l in out.getvalue().splitlines()],['end'])
+
+    def test_lw_music_opens_the_window_on_music(self):
+        with patch.object(cli,'gui',return_value=0) as gui:
+            self.assertEqual(cli.main(['music']),0)
+        gui.assert_called_once_with('music')
 
 
 class CliampSync(unittest.TestCase):

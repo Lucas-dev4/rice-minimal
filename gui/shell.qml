@@ -18,7 +18,6 @@ import qs.arcade
 // LW — one window for the whole system: SISTEMA (wallpapers, shortcuts, profiles…),
 // MÚSICA (cliamp) and JOGOS (library, backlog, play sessions). Opened by `lw gui`,
 // `lw music` and `lw games` (Super+BackSpace / Super+M / Super+G) on that section.
-// Closing it on MÚSICA stops the music; elsewhere music and a game session go on.
 // Look and behaviour follow docs/lw-prototype.html; all tokens live in Theme.qml.
 FloatingWindow {
     id: window
@@ -38,13 +37,13 @@ FloatingWindow {
     readonly property LwModule hook: hookOf(groupKey)
     // O gancho de um módulo; o neutro se ele não tem (ou ainda não carregou).
     function hookOf(id) { return hooks[id] || neutral; }
-    readonly property bool inMusic: groupKey === "music"
+    // Os ganchos carregados, na ordem da barra lateral.
+    function allHooks() { return groups.map(g => hooks[g.id]).filter(h => h); }
     readonly property bool inGames: groupKey === "games"
 
     property var status: ({})
     property bool statusLoaded: false
-    readonly property var globalHints: inMusic ? [["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"], ["alt 1-3", "seção"]]
-                                               : hook.hints.length ? hook.hints : [["↑↓", "tela"], ["alt 1-3", "seção"], ["q", "fechar"]]
+    readonly property var globalHints: hook.hints.length ? hook.hints : [["↑↓", "tela"], ["alt 1-3", "seção"], ["q", "fechar"]]
     readonly property var hints: screen.item && screen.item.hints && screen.item.hints.length ? screen.item.hints : globalHints
 
     title: "LW"
@@ -64,10 +63,9 @@ FloatingWindow {
     // True se a tecla é Ctrl+J.
     function isPark(event) { return event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier); }
 
-    // Closing on MÚSICA stops cliamp (its session is saved: it comes back paused there);
-    // closing on SISTEMA or JOGOS leaves it playing and only saves the session.
+    // Each module decides what closing does to it (MÚSICA: stop the music or only save the session).
     function quit() {
-        if (inMusic) Music.closeSession(); else Music.saveSession();
+        for (const id in hooks) if (hooks[id]) hooks[id].closing(id === groupKey);
         Qt.quit();
     }
 
@@ -85,11 +83,17 @@ FloatingWindow {
         groupKey = groups[index].id;
         enterGroup();
     }
-    // MÚSICA starts cliamp when it is off; JOGOS scans the libraries once per window.
+    // The section the hooks were last told about (its hook may still be loading).
+    property string enteredKey: ""
+    // JOGOS scans the libraries once per window.
     property bool scanned: false
-    // Ao entrar numa seção: MÚSICA liga o cliamp, JOGOS faz o scan de jogos.
+    // Avisa os ganchos da troca de seção; JOGOS faz o scan de jogos.
     function enterGroup() {
-        if (inMusic) Music.wanted = true;
+        if (enteredKey !== groupKey) {
+            hookOf(enteredKey).exited();
+            enteredKey = groupKey;
+            hookOf(groupKey).entered();
+        }
         if (inGames && !scanned) { scanned = true; Games.scan(true); }
     }
     // Fecha a ficha e inicia o jogo.
@@ -136,44 +140,18 @@ FloatingWindow {
         function openSheet(id: string): string { if (id) sheet.openGame(id); else sheet.close(); return "ok"; }
         // IPC: abre a tela INSTALAR de JOGOS.
         function installer(): void { window.selectGroup(window.groups.findIndex(g => g.id === "games")); installSheet.openSheet(); }
-        // Scriptable state and actions (scripts/music-check.sh, tests).
+        // Scriptable state and actions (scripts/music-check.sh, tests): the hooks add theirs.
         function state(): string {
-            return JSON.stringify({
-                section: window.groupKey, view: window.current, screen: window.screens[window.current].name,
-                online: Music.online, status: Music.status, title: Music.title, artist: Music.artist,
-                album: Music.album, position: Math.round(Music.position * 10) / 10, duration: Music.duration,
-                live: Music.live, volume: Music.volumePercent, volumeDb: Music.volumeDb, muted: Music.muted,
-                shuffle: Music.shuffle, repeat: Music.repeat, index: Music.currentIndex,
-                playlist: Music.playlist.map(t => t.title || Music.fileName(t.path)),
-                eq: Music.eqBands, error: Music.lastError,
+            return JSON.stringify(Object.assign({
+                section: window.groupKey, view: window.current, screen: window.screens[window.current].name
+            }, ...window.allHooks().map(h => h.state()), {
                 games: Games.games.length, scanning: Games.scanning, session: Games.session, message: Status.message
-            });
+            }));
         }
-        // IPC: executa uma ação de música pelo nome (testes).
+        // IPC: executa uma ação pelo nome (testes); o primeiro gancho que a conhece responde.
         function act(op: string, arg: string): string {
-            const n = parseFloat(arg);
-            switch (op) {
-            case "toggle": Music.toggle(); break;
-            case "next": Music.next(); break;
-            case "prev": Music.previous(); break;
-            case "seek": Music.seekTo(n); break;
-            case "seekby": Music.seekBy(n); break;
-            case "volume": Music.setVolumePercent(n); break;
-            case "mute": Music.toggleMute(); break;
-            case "shuffle": Music.setShuffle(!Music.shuffle); break;
-            case "repeat": Music.cycleRepeat(); break;
-            case "play": Music.playIndex(n); break;
-            case "move": Music.moveTrack(parseInt(arg.split(",")[0]), parseInt(arg.split(",")[1])); break;
-            case "remove": Music.removeTrack(n); break;
-            case "add": Music.addPath(arg); break;
-            case "band": Music.setBand(parseInt(arg.split(",")[0]), parseFloat(arg.split(",")[1])); break;
-            case "preset": Music.setPreset(arg); break;
-            case "start": Music.startCliamp(); break;
-            case "stop": Music.closeSession(); break;
-            case "quit": window.quit(); break;
-            case "bad": Music.call("queue.play", { index: 999 }); break;
-            default: return "unknown " + op;
-            }
+            if (op === "quit") window.quit();
+            else if (!window.allHooks().some(h => h.act(op, arg))) return "unknown " + op;
             return "ok";
         }
     }
@@ -194,6 +172,16 @@ FloatingWindow {
         Component.onCompleted: call(["status", "--json"])
     }
 
+    // Um gancho ficou pronto: recebe o que só o shell sabe e, se a seção dele já está aberta, é avisado.
+    function addHook(id, item) {
+        item.keyTarget = keys;
+        item.active = Qt.binding(() => window.groupKey === id);
+        item.current = Qt.binding(() => window.lastScreen[id] || 0);
+        item.parked = Qt.binding(() => window.parked);
+        hooks = Object.assign({}, hooks, { [id]: item });
+        if (enteredKey === id) item.entered();
+        if (groupKey === id && screen.status === Loader.Ready) item.screenLoaded(screen.item);
+    }
     // The modules' hooks stay alive with the window.
     LwModule { id: neutral }
     Repeater {
@@ -202,7 +190,12 @@ FloatingWindow {
             required property var modelData
             visible: false
             source: modelData.hook ? modelData.folder + "/" + modelData.hook : ""
-            onLoaded: window.hooks = Object.assign({}, window.hooks, { [modelData.id]: item })
+            onLoaded: window.addHook(modelData.id, item)
+            Connections {
+                target: item
+                ignoreUnknownSignals: true
+                function onOpenScreen(index) { if (window.groupKey === modelData.id) window.select(index); }
+            }
         }
     }
     // Without LW_MODULES the starting section may arrive late.
@@ -228,18 +221,7 @@ FloatingWindow {
         function onDarkChanged() { statusCommand.call(["status", "--json"]); }
     }
 
-    // Short status-bar messages for what cliamp and the games do.
-    property string lastPath: ""
-    Connections {
-        target: Music
-        function onFailed(op, message) { Status.say("[ !! ] " + op + ": " + message, Theme.red); }
-        function onChanged() {
-            const path = Music.track ? Music.track.path : "";
-            if (path && path !== window.lastPath && window.lastPath !== "")
-                Status.say("[ ▶ ] " + Music.title + (Music.artist ? " — " + Music.artist : ""), Theme.ok);
-            window.lastPath = path || window.lastPath;
-        }
-    }
+    // Short status-bar messages for what the games do.
     Connections {
         target: Games
         function onFailed(message) { Status.say("[ !! ] " + message, Theme.red); }
@@ -254,7 +236,8 @@ FloatingWindow {
         Keys.onPressed: event => window.handle(event)
     }
 
-    // Keyboard: overlays, then the screen, then the section keys, then the window keys.
+    // Keyboard: overlays, then the screen, then the section keys, then the window keys, then
+    // the keys a module answers from any section.
     // Test hook: `qs ipc -p gui call lw key l` reaches only this window, never the focused one.
     function handle(event) {
         // Not while SHORTCUTS records a combination: Ctrl+J is a combination too.
@@ -263,70 +246,22 @@ FloatingWindow {
         if (launchScreen.shown) { launchScreen.handleKey(event); event.accepted = true; return; }
         if (installSheet.shown) { installSheet.handleKey(event); event.accepted = true; return; }
         if (sheet.shown) { if (sheet.handleKey(event)) event.accepted = true; return; }
-        const t = event.text, digit = parseInt(t);
+        if (allHooks().some(h => h.overlayKey(event))) { event.accepted = true; return; }
+        const digit = parseInt(event.text);
         // Alt+1/2/3: the sections, by position. Checked before the screen so no screen eats it.
         if ((event.modifiers & Qt.AltModifier) && event.key >= Qt.Key_1 && event.key < Qt.Key_1 + Math.min(9, groups.length)) {
             selectGroup(event.key - Qt.Key_1);
             event.accepted = true;
             return;
         }
-        // MÚSICA without cliamp: only START.
-        if (inMusic && !Music.online && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
-            Music.startCliamp();
-            event.accepted = true;
-            return;
-        }
         if (screen.item && screen.item.handleKey && screen.item.handleKey(event)) { event.accepted = true; return; }
+        if (hook.key(event)) { event.accepted = true; return; }
         if (digit >= 1 && digit <= screens.length) select(digit - 1);
         else if (event.key === Qt.Key_Q || event.key === Qt.Key_Escape) quit();
-        else if (event.key === Qt.Key_Down && !inMusic) select(current + 1);
-        else if (event.key === Qt.Key_Up && !inMusic) select(current - 1);
-        else if (event.key === Qt.Key_Space && Music.online) Music.toggle();
-        else if (!inMusic) return;
-        else if (t === "R") select(3);
-        // o opens files from any music view: they land in the playlist.
-        else if (t === "o" && Music.online) { select(1); Qt.callLater(() => { if (screen.item && screen.item.openFiles) screen.item.openFiles(); }); }
-        else if (!Music.online) return;
-        else if (t === "n") Music.next();
-        else if (t === "p") Music.previous();
-        else if (event.key === Qt.Key_Left) Music.seekBy(-5);
-        else if (event.key === Qt.Key_Right) Music.seekBy(5);
-        // ABNT2 sends "=" for the + key without Shift.
-        else if (t === "+" || t === "=") Music.volumeStep(5);
-        else if (t === "-") Music.volumeStep(-5);
-        else if (t === "m") Music.toggleMute();
-        else if (t === "s") Music.setShuffle(!Music.shuffle);
-        else if (t === "r") Music.cycleRepeat();
-        else return;
+        else if (event.key === Qt.Key_Down) select(current + 1);
+        else if (event.key === Qt.Key_Up) select(current - 1);
+        else if (!allHooks().some(h => h.backgroundKey(event))) return;
         event.accepted = true;
-    }
-
-    // The spectrum comes from the shared Spectrum singleton (cava on cliamp's stream).
-    readonly property var spectrum: Spectrum.levels
-    readonly property string spectrumSource: Spectrum.source
-
-    // Output format of cliamp's stream, read from PipeWire (pulse API): "44.1 kHz · 2ch".
-    property string output: ""
-    Process {
-        id: sinkInputs
-        command: ["pactl", "-f", "json", "list", "sink-inputs"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let list = [];
-                try { list = JSON.parse(text); } catch (error) { return; }
-                const mine = list.find(s => /cliamp/i.test((s.properties || {})["application.process.binary"] || "")
-                                       || /cliamp/i.test((s.properties || {})["application.name"] || ""));
-                const spec = mine ? /(\d+)ch (\d+)Hz/.exec(mine.sample_specification || "") : null;
-                window.output = spec ? (parseInt(spec[2]) / 1000).toFixed(1).replace(/\.0$/, "") + " kHz · " + spec[1] + "ch" : "";
-            }
-        }
-    }
-    Timer {
-        interval: 4000
-        repeat: true
-        triggeredOnStart: true
-        running: Music.online && window.inMusic
-        onTriggered: if (!sinkInputs.running) sinkInputs.running = true
     }
 
     // Segundos → "m:ss" ou "h:mm:ss".
@@ -407,11 +342,9 @@ FloatingWindow {
                             font.pixelSize: Theme.small
                             color: Theme.dim
                             bottomPadding: 8
-                            text: section.modelData.id === "music"
-                                ? (Music.online && Music.track ? "<font color='" + (Music.playing ? Theme.ok : Theme.yel) + "'>" + (Music.playing ? "▶" : "❚❚") + "</font> " + Music.title : "")
-                                : section.modelData.id === "games"
+                            text: section.modelData.id === "games"
                                 ? (Games.session ? "<font color='" + Theme.ok + "'>● " + window.elapsed(Games.sessionSeconds) + "</font> " + (Games.sessionGame ? Games.sessionGame.title : "") : "")
-                                : ""
+                                : window.hookOf(section.modelData.id).summary
                         }
 
                         // Open: its screens, with the active band.
@@ -448,7 +381,7 @@ FloatingWindow {
             }
 
             // ---- bottom block: what the open section is about ---------------------
-            // From the module's hook; MÚSICA and JOGOS are still drawn below.
+            // From the module's hook; JOGOS is still drawn below.
             Repeater {
                 model: ScriptModel { values: window.groups; objectProp: "id" }
                 Loader {
@@ -459,106 +392,6 @@ FloatingWindow {
                     x: 22
                     width: parent.width - 44
                     sourceComponent: window.hookOf(modelData.id).sidebar
-                }
-            }
-
-            // MÚSICA: where the queue comes from, the mini player and VOL.
-            Column {
-                visible: window.inMusic
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 18
-                x: 22
-                width: parent.width - 44
-                spacing: 2
-                Label { x: 0; text: "SOURCES"; bottomPadding: 4 }
-                Repeater {
-                    model: [["local files", "local"], ["radio", "radio"], ["streaming", "stream"]]
-                    Item {
-                        required property var modelData
-                        readonly property int count: Music.playlist.filter(t => Music.sourceOf(t.path) === modelData[1]).length
-                        readonly property bool on: Music.online && Music.track !== null && Music.sourceOf(Music.track.path) === modelData[1]
-                        width: parent.width
-                        height: srcName.implicitHeight + 2
-                        RiceText {
-                            id: srcName
-                            textFormat: Text.StyledText
-                            text: (parent.on ? "<font color='" + Theme.ok + "'>●</font> " : "<font color='" + Theme.faint + "'>○</font> ") + parent.modelData[0]
-                            color: parent.on ? Theme.fg : Theme.dim
-                        }
-                        RiceText { anchors.right: parent.right; text: Music.online ? parent.count : "–"; color: Theme.faint }
-                    }
-                }
-                Item { width: 1; height: 14 }
-                // Mini player: dimmed while NOW PLAYING shows the same thing in full.
-                Column {
-                    width: parent.width
-                    spacing: 2
-                    opacity: window.current === 0 ? 0.25 : 1
-                    Behavior on opacity { NumberAnimation { duration: Theme.tMed; easing.type: Theme.ease } }
-                    Visualizer {
-                        width: parent.width
-                        height: 34
-                        count: 28
-                        compact: true
-                        levels: window.spectrum
-                        idle: !Music.playing || window.spectrum.length === 0
-                        // Under NOW PLAYING the big one runs: hold this one still.
-                        running: window.inMusic && window.current !== 0 && Music.online && !window.parked
-                    }
-                    Item { width: 1; height: 4 }
-                    RiceText { width: parent.width; elide: Text.ElideRight; text: Music.online ? (Music.title || "—") : "—"; color: Theme.fg }
-                    RiceText {
-                        width: parent.width
-                        elide: Text.ElideRight
-                        text: Music.online ? [Music.artist, Music.album].filter(x => x).join(" · ") : "cliamp offline"
-                        color: Theme.dim
-                        font.pixelSize: Theme.small
-                    }
-                    Item { width: 1; height: 4 }
-                    Rectangle {
-                        width: parent.width
-                        height: 2
-                        color: Theme.line
-                        Rectangle {
-                            height: parent.height
-                            width: Music.live ? parent.width : Music.duration > 0 ? parent.width * Math.min(1, Music.position / Music.duration) : 0
-                            color: Music.live ? Theme.blue : Theme.accent
-                        }
-                    }
-                }
-                Item { width: 1; height: 14 }
-                // VOL ▮▮▮▮▮▮▮▮▯▯▯▯ 75%: click sets it, the wheel moves 5%.
-                Item {
-                    id: vol
-                    width: parent.width
-                    height: volText.implicitHeight
-                    readonly property int cells: 12
-                    readonly property int filled: Math.round(Math.min(100, Music.volumePercent) / 100 * cells)
-                    // The system volume is there even when cliamp is not.
-                    readonly property bool live: Music.online || Music.systemVolume
-                    RiceText { id: volText; text: "VOL"; color: Theme.dim; font.pixelSize: Theme.small }
-                    RiceText {
-                        id: volBar
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        text: Music.muted || !vol.live ? "▯".repeat(vol.cells) : "▮".repeat(vol.filled) + "▯".repeat(vol.cells - vol.filled)
-                        color: Music.muted || !vol.live ? Theme.faint : Theme.accent
-                        font.pixelSize: Theme.small
-                        font.letterSpacing: -1
-                    }
-                    RiceText {
-                        anchors.right: parent.right
-                        text: !vol.live ? "–" : Music.muted ? "MUTE" : Music.volumePercent + "%"
-                        color: Theme.dim
-                        font.pixelSize: Theme.small
-                    }
-                    MouseArea {
-                        anchors.fill: volBar
-                        anchors.margins: -4
-                        enabled: vol.live
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: mouse => { Music.setVolumePercent(Math.round(mouse.x / width * 20) * 5); keys.forceActiveFocus(); }
-                        onWheel: wheel => Music.volumeStep(wheel.angleDelta.y > 0 ? 5 : -5)
-                    }
                 }
             }
 
@@ -620,40 +453,26 @@ FloatingWindow {
             anchors.topMargin: 22
             anchors.bottomMargin: 14
 
-            // MÚSICA has one header for all its screens: the screen, cliamp's state and,
-            // on NOW PLAYING, the visualizer modes. The other screens draw their own.
-            RiceHeader {
-                id: musicHeader
-                visible: window.inMusic
-                title: window.screens[window.current].name
-                note: Music.online ? Music.status.toUpperCase() : "OFFLINE"
-                noteColor: Music.playing ? Theme.ok : Music.status === "paused" ? Theme.yel : Theme.dim
-                Repeater {
-                    model: window.inMusic && window.current === 0 && Music.online && screen.item && screen.item.modes ? screen.item.modes : []
-                    Chip {
-                        required property string modelData
-                        label: modelData
-                        on: screen.item && screen.item.mode === modelData
-                        onClicked: { screen.item.setMode(modelData); keys.forceActiveFocus(); }
-                    }
-                }
+            // A module may have one header for all its screens; the other screens draw their own.
+            Loader {
+                id: header
+                width: parent.width
+                sourceComponent: window.hook.header
             }
 
             Loader {
                 id: screen
-                anchors.top: window.inMusic ? musicHeader.bottom : parent.top
-                anchors.topMargin: window.inMusic ? 14 : 0
+                anchors.top: parent.top
+                // Not header.bottom: an empty Loader keeps the height of its last item.
+                anchors.topMargin: header.item ? header.item.height + 14 : 0
                 anchors.bottom: parent.bottom
                 width: parent.width
-                visible: !window.inMusic || Music.online
+                visible: window.hook.ready
                 source: window.groups[window.group].folder + "/" + window.screens[window.current].file
                 onLoaded: {
                     if (item.title !== undefined) item.title = window.screens[window.current].name;
                     if (item.keyTarget !== undefined) item.keyTarget = keys;
-                    if (item.levels !== undefined) {
-                        item.levels = Qt.binding(() => window.spectrum);
-                        item.levelSource = Qt.binding(() => window.spectrumSource);
-                    }
+                    window.hookOf(window.groupKey).screenLoaded(item);
                     // Each screen enters with a short fade.
                     item.opacity = Theme.motion ? 0 : 1;
                     enter.restart();
@@ -668,38 +487,11 @@ FloatingWindow {
                 }
             }
 
-            // MÚSICA with cliamp off: say so and offer to start it headless.
-            Column {
+            // What the module shows while its screens cannot work (MÚSICA with cliamp off).
+            Loader {
                 anchors.centerIn: screen
-                visible: window.inMusic && !Music.online
-                spacing: 14
-                RiceText {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    text: Music.connecting ? "[ .. ] conectando ao cliamp" : "[ -- ] cliamp offline"
-                    color: Music.connecting ? Theme.accent : Theme.dim
-                    font.pixelSize: 16
-                }
-                AccentButton {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    visible: !Music.connecting
-                    label: "START ⏎"
-                    onClicked: Music.startCliamp()
-                }
-                RiceText {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    visible: !Music.connecting
-                    text: "liga o cliamp sem janela: volta pausado onde parou, ou abre ~/Músicas"
-                    color: Theme.faint
-                    font.pixelSize: Theme.small
-                }
-                // Only the errors that START cannot fix by itself.
-                RiceText {
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    visible: !Music.connecting && /não encontrado/.test(Music.lastError)
-                    text: "[ !! ] " + Music.lastError
-                    color: Theme.red
-                    font.pixelSize: Theme.small
-                }
+                visible: !window.hook.ready
+                sourceComponent: window.hook.gate
             }
         }
 
@@ -747,14 +539,13 @@ FloatingWindow {
                 textFormat: Text.StyledText
                 label: window.hints.map(h => "<font color='" + Theme.dim + "'>" + h[0] + "</font> " + h[1]).join("&nbsp;&nbsp;&nbsp;")
             }
-            // The section's own end of the bar: the log, cliamp's output format, the last scan.
+            // The section's own end of the bar: the log, the audio format, the last scan.
             StatusBlock {
                 id: contextBlock
                 anchors.right: parent.right
                 separator: false
                 clickable: window.hook.contextClickable
-                label: window.inMusic ? (window.output || "—")
-                     : window.inGames ? (Games.scanning ? "scan…" : Games.lastScan ? "scan: " + Games.lastScan.total + " · " + Games.lastScan.new + " novos" : "—")
+                label: window.inGames ? (Games.scanning ? "scan…" : Games.lastScan ? "scan: " + Games.lastScan.total + " · " + Games.lastScan.new + " novos" : "—")
                      : window.hook.context
                 onClicked: window.hook.contextClicked()
             }
@@ -769,28 +560,15 @@ FloatingWindow {
             z: 20
         }
 
-        // Audio files dropped on MÚSICA join cliamp's queue.
-        DropArea {
-            id: drop
-            anchors.fill: parent
-            enabled: window.inMusic && Music.online
-            keys: ["text/uri-list"]
-            onDropped: event => {
-                const files = event.urls.map(u => decodeURIComponent(String(u).replace(/^file:\/\//, "")))
-                    .filter(f => /\.(mp3|flac|ogg|opus|m4a|aac|wav|wv|ape|aiff?|alac|wma)$/i.test(f));
-                for (const f of files) Music.addPath(f);
-                Status.say(files.length ? "[ + ] " + files.length + " arquivo(s) na fila" : "[ !! ] nenhum arquivo de áudio", files.length ? Theme.ok : Theme.red);
+        // The modules' layers over the window (MÚSICA: dropping files).
+        Repeater {
+            model: ScriptModel { values: window.groups; objectProp: "id" }
+            Loader {
+                required property var modelData
+                anchors.fill: parent
+                z: 40
+                sourceComponent: window.hookOf(modelData.id).overlay
             }
-        }
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 10
-            visible: drop.containsDrag
-            z: 40
-            color: Qt.alpha(Theme.bg, 0.85)
-            border.width: 2
-            border.color: Theme.accent
-            RiceText { anchors.centerIn: parent; text: "solte os arquivos de áudio"; color: Theme.accent; font.pixelSize: 16; font.letterSpacing: 1 }
         }
 
         GameSheet {
@@ -825,9 +603,9 @@ FloatingWindow {
             steps: [
                 { label: "loading palette " + (window.status.generation || ""), done: Object.keys(Theme.dark).length > 0 && window.statusLoaded },
                 { label: "reading action log", done: log.loaded },
-                !window.inMusic && !window.inGames && window.hook.bootStep ? window.hook.bootStep :
-                { label: window.inMusic ? (Music.online ? "connected to cliamp" : "connecting to cliamp") : window.inGames ? "reading games.json: " + Games.games.length + " games" : "reading profile: " + (Theme.profile || "?"),
-                  done: window.inMusic ? !Music.connecting : window.inGames ? Games.loaded : Theme.profile !== "" },
+                !window.inGames && window.hook.bootStep ? window.hook.bootStep :
+                { label: window.inGames ? "reading games.json: " + Games.games.length + " games" : "reading profile: " + (Theme.profile || "?"),
+                  done: window.inGames ? Games.loaded : Theme.profile !== "" },
                 { label: "loading " + window.screens[window.current].name.toLowerCase(), done: screen.status === Loader.Ready },
                 { label: "starting LW", done: true }
             ]
@@ -876,7 +654,6 @@ FloatingWindow {
         readonly property string full: Status.error ? "[ FAIL ] " + Status.error
             : Status.busy ? progress.text
             : Status.message ? Status.message
-            : window.inMusic && !Music.online ? "[ -- ] cliamp offline"
             : window.hook.idleText
         property int count: 0
         // One line only: log details may contain newlines.
