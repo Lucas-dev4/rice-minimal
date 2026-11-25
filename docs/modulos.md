@@ -130,7 +130,7 @@ dir = "~/Áudio"
 ## Como o shell.qml descobre os módulos
 
 1. `lw gui` lê os manifestos e a config e abre o Quickshell com `LW_MODULES`: o mesmo JSON do `data` de `lw modules list --json` (id, nome, pasta, gancho, telas e config já resolvida), na ordem da barra lateral.
-2. `gui/Modules.qml` lê a variável ao nascer. Sem ela (`qs -p gui`, como no `scripts/music-check.sh`), chama `lw modules list --json`.
+2. `gui/Modules.qml` lê a variável ao nascer. Sem ela (`qs -p gui`, como no `scripts/music-check.sh`), `Modules.active` começa com SISTEMA, que é obrigatório, e os outros entram quando `lw modules list --json` responde; a lista nunca fica vazia. A cópia de SISTEMA no `Modules.qml` é igual ao manifesto, e um teste confere.
 3. `shell.qml` troca a lista fixa `groups` por `Modules.active`; `lastScreen` vira um mapa por id; `Alt+1…9` segue a posição.
 4. Para cada módulo ativo com `hook`, um `Loader` carrega o gancho.
 
@@ -151,7 +151,7 @@ Hoje o `shell.qml` cita `Music` e `Games` em toda parte. Filtrar `groups` escond
 | `header` (Component) | cabeçalho comum das telas | `musicHeader` |
 | `ready`, `gate` (Component) | o que mostrar no lugar da tela | cliamp offline / START |
 | `overlay` (Component) | camada sobre a janela | `GameSheet`, `InstallSheet`, `LaunchScreen`, `DropArea` |
-| `footerLeft` (Component), `context`, `contextClicked()` | rodapé | SYNC ALL; saída do cliamp; último scan; LOG |
+| `footerLeft` (Component), `context`, `contextClickable`, `contextClicked()` | rodapé; `contextClickable` é `false` por padrão | SYNC ALL; saída do cliamp; último scan; LOG |
 | `idleText`, `hints` | mensagem e dicas padrão | `typed.full`, `globalHints` |
 | `bootStep` | linha do boot | `BootScreen.steps` |
 | `started()` | janela abriu | `Games.recover()` |
@@ -162,6 +162,10 @@ Hoje o `shell.qml` cita `Music` e `Games` em toda parte. Filtrar `groups` escond
 | `key(event)` | tecla da seção aberta, depois da tela | `n`, `p`, setas, volume… |
 | `backgroundKey(event)` | tecla quando outra seção está aberta | `Espaço` toca/pausa em qualquer lugar |
 | `state()`, `act(op, arg)` | IPC dos testes | `state`, `act`, `openSheet`, `installer` |
+
+O gancho não enxerga o `shell.qml`. O que os dois precisam ver passa pelo `Status.qml`: `logOpen` (painel LOG aberto) e `logLine` (última linha do log), `wallpaper` e `profile` (do `lw status`, que o shell chama porque o boot e as cores do terminal dependem dele) e `error`, uma falha que fica no rodapé, acima de qualquer mensagem, até a ação rodar de novo (SYNC ALL).
+
+O gancho nasce com a janela e vive até ela fechar; `sidebar` e `footerLeft` também, só alternando `visible`. O `bootStep` neutro é "reading profile".
 
 Ordem das teclas, igual à de hoje: `Ctrl+J` → boot → `overlayKey` → `Alt+n` → tela → `key` → `1…n`, `q`/`Esc`, `↑↓` → `backgroundKey`. Os nomes do IPC não mudam; `state` continua um objeto plano (soma dos módulos), para o `music-check.sh` seguir funcionando.
 
@@ -235,9 +239,9 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 ## O que muda nas sessões
 
 - **2**: nasce com `extras/settings.py`, `extras/modules.py` e os três `module.toml` só com `id`, `name` e `[config]`, porque os padrões moram no manifesto.
-- **3**: cria o gancho base, `Modules.qml`, `LW_MODULES` e `cmd_system`. As funções de SISTEMA saem de `cli.py`; em `tests/test_cli_json.py` mudam só os alvos dos mocks (`cli.thumb_path` → `cmd_system.thumb_path`), nunca o que é verificado. Até a 5, MÚSICA e JOGOS ainda citados no `shell.qml` são esperados.
+- **3**: cria o gancho base, `Modules.qml`, `LW_MODULES` e `cmd_system`. As funções de SISTEMA saem de `cli.py`; em `tests/test_cli_json.py` mudam só os alvos dos mocks (`cli.thumb_path` → `cmd_system.thumb_path`), nunca o que é verificado. Nasce também o `lw modules list`, que o `Modules.qml` usa, e MÚSICA e JOGOS ganham `order`, `default` e `[gui]` sem `hook`; comandos e dependências deles ficam para a 4 e a 5. O `shell.qml` lê do gancho só o que SISTEMA usa (`sidebar`, `footerLeft`, `context*`, `idleText`, `hints`, `bootStep`); os outros campos já existem na base. Até a 5, MÚSICA e JOGOS ainda citados no `shell.qml` são esperados.
 - **4 e 5**: os scripts chamados direto pela GUI (`library.py`, `organize.py`, `radio.py`, `ytdl.py`, `games.py`) passam para `lw`. O JSON deles é plano (`{"ok", …campos}`) e o do `lw` tem `data`, então `Games.qml`, `Downloads.qml` e as telas mudam a leitura. Vão junto os `sh -c` de lógica: `command -v` em `OnlineScreen.qml` e `GameSheet.qml`, e a busca de prefixos em `LibraryView.qml`.
-- **6**: `lw modules`, filtro de ativos e o novo doctor.
+- **6**: `lw modules enable|disable`, filtro de ativos e o novo doctor.
 
 ## Exceções à regra "a GUI não tem lógica"
 

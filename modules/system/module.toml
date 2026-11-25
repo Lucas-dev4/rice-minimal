@@ -1,3 +1,110 @@
 # Manifesto do módulo SISTEMA (contrato em docs/modulos.md).
+# É obrigatório, então guarda também as dependências do núcleo do LW.
 id = "system"
 name = "SISTEMA"
+description = "Wallpaper, paleta, atalhos, perfil, bloqueio, login, backups e diagnóstico."
+order = 10
+default = true
+required = true
+
+[gui]
+folder = "screens"
+hook = "SystemModule.qml"
+screens = [
+    { name = "WALLPAPERS", file = "WallpaperScreen.qml" },
+    { name = "SHORTCUTS",  file = "ShortcutsScreen.qml" },
+    { name = "PROFILES",   file = "ProfilesScreen.qml" },
+    { name = "PALETTE",    file = "PaletteScreen.qml" },
+    { name = "DOCTOR",     file = "DoctorScreen.qml" },
+    { name = "BACKUPS",    file = "BackupsScreen.qml" },
+    { name = "LOCK",       file = "LockScreen.qml" },
+    { name = "GREETER",    file = "GreeterScreen.qml" },
+]
+
+[commands]
+handler = "cmd_system"
+names = ["status", "wallpaper", "palette", "profile", "greeter", "sync", "shortcuts", "backups", "lock", "bt"]
+
+[[dependency]]
+command = "qs"
+package = "quickshell"
+why = "é a janela do LW"
+
+[[dependency]]
+command = "hyprctl"
+package = "hyprland"
+why = "é a sessão: atalhos, animações e monitores"
+
+[[dependency]]
+command = "noctalia"
+package = "noctalia"
+why = "troca o wallpaper, bloqueia a tela e recebe o tema"
+
+[[dependency]]
+command = "matugen"
+package = "matugen"
+why = "gera a paleta a partir do wallpaper"
+
+[[dependency]]
+command = "waypaper"
+package = "waypaper"
+why = "guarda a pasta e o wallpaper escolhido"
+
+[[dependency]]
+command = "kitty"
+package = "kitty"
+why = "é o terminal que recebe as cores"
+
+[[dependency]]
+command = "fish"
+package = "fish"
+why = "é o shell que recebe as cores"
+
+[[dependency]]
+command = "nvim"
+package = "neovim"
+why = "é o editor que recebe as cores"
+
+[[dependency]]
+command = "luac"
+package = "lua"
+why = "confere o arquivo de atalhos antes de gravar"
+
+[[dependency]]
+python = "PIL"
+package = "python-pillow"
+why = "faz as miniaturas e lê as cores do wallpaper"
+
+[[dependency]]
+font = "JetBrainsMono Nerd Font Mono"
+package = "ttf-jetbrains-mono-nerd"
+why = "é a fonte da janela"
+
+[[dependency]]
+command = "waybar"
+package = "waybar"
+optional = true
+why = "a barra com as cores do tema"
+
+[[dependency]]
+command = "wpctl"
+package = "wireplumber"
+optional = true
+why = "a checagem de áudio do doctor"
+
+[[dependency]]
+command = "wl-copy"
+package = "wl-clipboard"
+optional = true
+why = "copiar cor em PALETTE e comando em BACKUPS"
+
+[[dependency]]
+command = "bluetoothctl"
+package = "bluez-utils"
+optional = true
+why = "o menu de Bluetooth (lw bt)"
+
+[[shortcut]]
+keys = "SUPER + BackSpace"
+command = "lw gui"
+description = "LW em SISTEMA"

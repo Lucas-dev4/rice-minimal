@@ -2,6 +2,17 @@
 # Os padrões daqui valem quando ~/.config/lw/config.toml não diz outra coisa.
 id = "games"
 name = "JOGOS"
+order = 30
+default = true
+
+[gui]
+folder = "arcade"
+screens = [
+    { name = "BIBLIOTECA", file = "LibraryView.qml" },
+    { name = "BACKLOG",    file = "BacklogView.qml" },
+    { name = "DESEMPENHO", file = "StatsView.qml" },
+    { name = "EMULADORES", file = "EmulatorsView.qml" },
+]
 
 [config.rom_dirs]
 default = ["~/ROMs", "~/Jogos/ROMs"]

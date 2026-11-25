@@ -15,6 +15,13 @@ Singleton {
     property int stamp: 0
     // The applied wallpaper, for previews (set by the shell from `rice status`).
     property string wallpaper: ""
+    // The profile the backend reported, until Theme reads its own.
+    property string profile: ""
+    // A failure that stays until its action runs again (SYNC ALL).
+    property string error: ""
+    // The LOG panel: shown or not, and its last line (written by the shell).
+    property bool logOpen: false
+    property string logLine: ""
 
     // Mostra uma mensagem no rodapé (cor opcional).
     function say(text, tint) {

@@ -1,4 +1,8 @@
 # Testes dos manifestos dos módulos (extras/modules.py, contrato em docs/modulos.md).
+import argparse
+import importlib
+import json
+import re
 import sys
 import tempfile
 import unittest
@@ -6,6 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'extras'))
 import modules  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class Manifests(unittest.TestCase):
@@ -51,6 +57,57 @@ class Manifests(unittest.TestCase):
         self.manifest('a', 'id = "a"\nname = "A"\norder = 30\n')
         self.manifest('b', 'id = "b"\nname = "B"\norder = 10\n')
         self.assertEqual(list(modules.load(self.base)[0]), ['b', 'a'])
+
+
+class Contract(unittest.TestCase):
+    """O que cada manifesto do repositório declara existe de verdade."""
+    def setUp(self):
+        self.found = modules.load()[0]
+
+    def test_the_screens_and_the_hook_exist_and_the_folder_is_imported(self):
+        shell = (ROOT/'gui/shell.qml').read_text()
+        for m in self.found.values():
+            folder = m['gui']['folder']
+            files = [s['file'] for s in m['gui']['screens']] + ([m['gui']['hook']] if 'hook' in m['gui'] else [])
+            for name in files:
+                self.assertTrue((ROOT/'gui'/folder/name).is_file(), f'{m["id"]}: {name}')
+            self.assertRegex(shell, rf'(?m)^import qs\.{folder}$')
+
+    def test_the_handler_registers_exactly_the_declared_names(self):
+        for m in self.found.values():
+            if 'commands' not in m:
+                continue
+            actions = argparse.ArgumentParser().add_subparsers(dest='action')
+            importlib.import_module(m['commands']['handler']).register(actions, argparse.ArgumentParser(add_help=False))
+            self.assertEqual(sorted(actions.choices), sorted(m['commands']['names']))
+
+    def test_no_command_has_two_owners(self):
+        names = [n for m in self.found.values() for n in m.get('commands', {}).get('names', [])]
+        self.assertEqual(len(names), len(set(names)))
+        self.assertEqual(set(names) & {'gui', 'doctor', 'modules'}, set())
+
+    def test_the_declared_shortcuts_are_in_the_lua(self):
+        lua = (ROOT/'config/hypr/rice-integration.lua').read_text()
+        for m in self.found.values():
+            for s in m.get('shortcut', []):
+                self.assertRegex(lua, rf'hl\.bind\("{re.escape(s["keys"])}", .*/{re.escape(s["command"])}"\)')
+
+    def test_each_dependency_has_one_check_and_one_way_out(self):
+        for m in self.found.values():
+            for d in m.get('dependency', []):
+                self.assertEqual(sum(k in d for k in ('command', 'python', 'font')), 1, d)
+                self.assertEqual(sum(k in d for k in ('package', 'aur', 'manual')), 1, d)
+                self.assertTrue(d.get('why'), d)
+
+    def test_the_window_starts_with_the_system_of_the_manifest(self):
+        # gui/Modules.qml mostra SISTEMA antes de o "lw modules list" responder.
+        text = (ROOT/'gui/Modules.qml').read_text()
+        seed = json.loads(re.search(r'property var system: \((\{.*?\n    \})\)', text, re.S).group(1))
+        system = self.found['system']
+        self.assertTrue(system['required'])
+        self.assertEqual(seed, {'id': 'system', 'name': system['name'], 'folder': system['gui']['folder'],
+                                'hook': system['gui']['hook'], 'screens': system['gui']['screens'],
+                                'config': {k: v['default'] for k, v in system.get('config', {}).items()}})
 
 
 if __name__ == '__main__':

@@ -2,6 +2,19 @@
 # Os padrões daqui valem quando ~/.config/lw/config.toml não diz outra coisa.
 id = "music"
 name = "MÚSICA"
+order = 20
+default = true
+
+[gui]
+folder = "player"
+screens = [
+    { name = "NOW PLAYING", file = "NowScreen.qml" },
+    { name = "PLAYLIST",    file = "PlaylistScreen.qml" },
+    { name = "EQUALIZER",   file = "EqScreen.qml" },
+    { name = "RADIO",       file = "RadioScreen.qml" },
+    { name = "LIBRARY",     file = "LibraryScreen.qml" },
+    { name = "ONLINE",      file = "OnlineScreen.qml" },
+]
 
 [config.dir]
 default = "~/Músicas"

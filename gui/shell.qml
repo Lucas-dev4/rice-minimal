@@ -4,12 +4,14 @@ import Quickshell
 import Quickshell.Io
 import qs
 import qs.components
-// Indexes the folders whose files are used here or loaded by path.
+// Indexes the folders whose files are used here or loaded by path: one line per module.
+import qs.screens
 import qs.player
 import qs.arcade
 
-// shell.qml — a janela principal do LW (Quickshell). Barra lateral com as três seções
-// (SISTEMA, MÚSICA, JOGOS), a área da tela escolhida, o rodapé de status e o painel LOG.
+// shell.qml — a janela principal do LW (Quickshell). Barra lateral com as seções, que são os
+// módulos ativos (Modules.qml; hoje SISTEMA, MÚSICA, JOGOS), a área da tela escolhida, o rodapé
+// de status e o painel LOG. O que é só de um módulo fica no gancho dele (components/LwModule.qml).
 // Cada tela fica num arquivo: screens/ (SISTEMA), player/ (MÚSICA) e arcade/ (JOGOS).
 // Os atalhos do Hyprland chegam aqui pelo IPC "lw" (bloco IpcHandler abaixo).
 //
@@ -21,46 +23,28 @@ import qs.arcade
 FloatingWindow {
     id: window
 
-    readonly property var groups: [
-        { key: "system", label: "SISTEMA", screens: [
-            { name: "WALLPAPERS", source: "screens/WallpaperScreen.qml" },
-            { name: "SHORTCUTS", source: "screens/ShortcutsScreen.qml" },
-            { name: "PROFILES", source: "screens/ProfilesScreen.qml" },
-            { name: "PALETTE", source: "screens/PaletteScreen.qml" },
-            { name: "DOCTOR", source: "screens/DoctorScreen.qml" },
-            { name: "BACKUPS", source: "screens/BackupsScreen.qml" },
-            { name: "LOCK", source: "screens/LockScreen.qml" },
-            { name: "GREETER", source: "screens/GreeterScreen.qml" }
-        ] },
-        { key: "music", label: "MÚSICA", screens: [
-            { name: "NOW PLAYING", source: "player/NowScreen.qml" },
-            { name: "PLAYLIST", source: "player/PlaylistScreen.qml" },
-            { name: "EQUALIZER", source: "player/EqScreen.qml" },
-            { name: "RADIO", source: "player/RadioScreen.qml" },
-            { name: "LIBRARY", source: "player/LibraryScreen.qml" },
-            { name: "ONLINE", source: "player/OnlineScreen.qml" }
-        ] },
-        { key: "games", label: "JOGOS", screens: [
-            { name: "BIBLIOTECA", source: "arcade/LibraryView.qml" },
-            { name: "BACKLOG", source: "arcade/BacklogView.qml" },
-            { name: "DESEMPENHO", source: "arcade/StatsView.qml" },
-            { name: "EMULADORES", source: "arcade/EmulatorsView.qml" }
-        ] }
-    ]
+    // The active modules, in sidebar order (Modules.qml).
+    readonly property var groups: Modules.active
     // The section and, inside it, the screen; each section remembers its last screen.
-    property int group: Math.max(0, groups.findIndex(g => g.key === Quickshell.env("LW_START_GROUP")))
-    property var lastScreen: [0, 0, 0]
-    readonly property int current: lastScreen[group]
+    // Until the person picks one, it follows LW_START_GROUP, even if that module arrives later.
+    readonly property string start: Quickshell.env("LW_START_GROUP") || ""
+    property string groupKey: groups.some(g => g.id === start) ? start : groups[0].id
+    readonly property int group: Math.max(0, groups.findIndex(g => g.id === groupKey))
+    property var lastScreen: ({})
+    readonly property int current: lastScreen[groupKey] || 0
     readonly property var screens: groups[group].screens
-    readonly property string groupKey: groups[group].key
+    // What each module puts on the window outside its screens (components/LwModule.qml), by id.
+    property var hooks: ({})
+    readonly property LwModule hook: hookOf(groupKey)
+    // O gancho de um módulo; o neutro se ele não tem (ou ainda não carregou).
+    function hookOf(id) { return hooks[id] || neutral; }
     readonly property bool inMusic: groupKey === "music"
     readonly property bool inGames: groupKey === "games"
 
     property var status: ({})
     property bool statusLoaded: false
-    property string syncError: ""
     readonly property var globalHints: inMusic ? [["spc", "play"], ["n/p", "faixa"], ["←→", "seek"], ["+-", "vol"], ["alt 1-3", "seção"]]
-                                               : [["↑↓", "tela"], ["alt 1-3", "seção"], ["q", "fechar"]]
+                                               : hook.hints.length ? hook.hints : [["↑↓", "tela"], ["alt 1-3", "seção"], ["q", "fechar"]]
     readonly property var hints: screen.item && screen.item.hints && screen.item.hints.length ? screen.item.hints : globalHints
 
     title: "LW"
@@ -89,16 +73,16 @@ FloatingWindow {
 
     // Abre a tela de número index dentro da seção atual.
     function select(index) {
-        const next = lastScreen.slice();
-        next[group] = Math.max(0, Math.min(screens.length - 1, index));
+        const next = Object.assign({}, lastScreen);
+        next[groupKey] = Math.max(0, Math.min(screens.length - 1, index));
         lastScreen = next;
     }
-    // Troca de seção: 0 SISTEMA, 1 MÚSICA, 2 JOGOS (Alt+1/2/3).
+    // Troca de seção pela posição na barra lateral (Alt+1/2/3).
     function selectGroup(index) {
         if (index < 0 || index >= groups.length || index === group) return;
         sheet.close();
         installSheet.close();
-        group = index;
+        groupKey = groups[index].id;
         enterGroup();
     }
     // MÚSICA starts cliamp when it is off; JOGOS scans the libraries once per window.
@@ -121,11 +105,11 @@ FloatingWindow {
         // The section shown now: system, music or games.
         function section(): string { return window.groupKey; }
         // IPC: vai para uma seção pelo nome (usado pelos atalhos Super+BackSpace/M/G).
-        function go(name: string): void { window.selectGroup(window.groups.findIndex(g => g.key === name)); }
+        function go(name: string): void { window.selectGroup(window.groups.findIndex(g => g.id === name)); }
         // IPC: abre uma tela da seção atual.
         function open(index: int): void { window.select(index); }
         // IPC: mostra/esconde o painel LOG.
-        function toggleLog(): void { log.visible = !log.visible; }
+        function toggleLog(): void { Status.logOpen = !Status.logOpen; }
         // IPC: salva um print da janela (testes).
         function shot(path: string): void { content.grabToImage(result => result.saveToFile(path)); }
         // IPC: simula uma tecla (testes automáticos).
@@ -151,7 +135,7 @@ FloatingWindow {
         // IPC: abre a ficha de um jogo (vazio fecha).
         function openSheet(id: string): string { if (id) sheet.openGame(id); else sheet.close(); return "ok"; }
         // IPC: abre a tela INSTALAR de JOGOS.
-        function installer(): void { window.selectGroup(2); installSheet.openSheet(); }
+        function installer(): void { window.selectGroup(window.groups.findIndex(g => g.id === "games")); installSheet.openSheet(); }
         // Scriptable state and actions (scripts/music-check.sh, tests).
         function state(): string {
             return JSON.stringify({
@@ -201,6 +185,7 @@ FloatingWindow {
             window.statusLoaded = true;
             Theme.terminal = data.terminal;
             Status.wallpaper = data.wallpaper ? (data.wallpaper.effective || "") : "";
+            Status.profile = data.profile || "";
         }
         onFailed: message => {
             window.statusLoaded = true;
@@ -209,10 +194,23 @@ FloatingWindow {
         Component.onCompleted: call(["status", "--json"])
     }
 
-    RiceCommand {
-        id: syncCommand
-        onFailed: message => window.syncError = message
+    // The modules' hooks stay alive with the window.
+    LwModule { id: neutral }
+    Repeater {
+        model: ScriptModel { values: window.groups; objectProp: "id" }
+        Loader {
+            required property var modelData
+            visible: false
+            source: modelData.hook ? modelData.folder + "/" + modelData.hook : ""
+            onLoaded: window.hooks = Object.assign({}, window.hooks, { [modelData.id]: item })
+        }
     }
+    // Without LW_MODULES the starting section may arrive late.
+    Connections {
+        target: Modules
+        function onActiveChanged() { Qt.callLater(window.enterGroup); }
+    }
+    Binding { target: Status; property: "logLine"; value: log.lastLine }
 
     Connections {
         target: log
@@ -266,8 +264,8 @@ FloatingWindow {
         if (installSheet.shown) { installSheet.handleKey(event); event.accepted = true; return; }
         if (sheet.shown) { if (sheet.handleKey(event)) event.accepted = true; return; }
         const t = event.text, digit = parseInt(t);
-        // Alt+1/2/3: SISTEMA, MÚSICA, JOGOS. Checked before the screen so no screen eats it.
-        if ((event.modifiers & Qt.AltModifier) && event.key >= Qt.Key_1 && event.key <= Qt.Key_3) {
+        // Alt+1/2/3: the sections, by position. Checked before the screen so no screen eats it.
+        if ((event.modifiers & Qt.AltModifier) && event.key >= Qt.Key_1 && event.key < Qt.Key_1 + Math.min(9, groups.length)) {
             selectGroup(event.key - Qt.Key_1);
             event.accepted = true;
             return;
@@ -331,7 +329,6 @@ FloatingWindow {
         onTriggered: if (!sinkInputs.running) sinkInputs.running = true
     }
 
-    readonly property string wallpaper: status.wallpaper ? (status.wallpaper.effective || "") : ""
     // Segundos → "m:ss" ou "h:mm:ss".
     function elapsed(t) {
         return (t >= 3600 ? Math.floor(t / 3600) + ":" + String(Math.floor(t % 3600 / 60)).padStart(2, "0") : Math.floor(t / 60)) + ":" + String(t % 60).padStart(2, "0");
@@ -355,7 +352,7 @@ FloatingWindow {
 
             component Label: RiceText { x: 22; color: Theme.faint; font.pixelSize: Theme.small; font.letterSpacing: 1.5 }
 
-            // The three sections; the open one lists its screens, the others say what they hold.
+            // The sections; the open one lists its screens, the others say what they hold.
             Column {
                 id: nav
                 anchors.top: logo.bottom
@@ -376,7 +373,7 @@ FloatingWindow {
                             RiceText {
                                 x: 22
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: section.modelData.label
+                                text: section.modelData.name
                                 color: section.open ? Theme.fg : headMouse.containsMouse ? Theme.fg : Theme.faint
                                 font.pixelSize: Theme.small
                                 font.letterSpacing: 1.5
@@ -410,9 +407,9 @@ FloatingWindow {
                             font.pixelSize: Theme.small
                             color: Theme.dim
                             bottomPadding: 8
-                            text: section.modelData.key === "music"
+                            text: section.modelData.id === "music"
                                 ? (Music.online && Music.track ? "<font color='" + (Music.playing ? Theme.ok : Theme.yel) + "'>" + (Music.playing ? "▶" : "❚❚") + "</font> " + Music.title : "")
-                                : section.modelData.key === "games"
+                                : section.modelData.id === "games"
                                 ? (Games.session ? "<font color='" + Theme.ok + "'>● " + window.elapsed(Games.sessionSeconds) + "</font> " + (Games.sessionGame ? Games.sessionGame.title : "") : "")
                                 : ""
                         }
@@ -451,67 +448,17 @@ FloatingWindow {
             }
 
             // ---- bottom block: what the open section is about ---------------------
-            // SISTEMA: CURRENT, the wallpaper, palette and profile applied now.
-            Column {
-                visible: window.groupKey === "system"
-                anchors.bottom: parent.bottom
-                anchors.bottomMargin: 18
-                x: 22
-                width: parent.width - 44
-                spacing: 6
-                Label { x: 0; text: "CURRENT"; bottomPadding: 2 }
-                Rectangle {
-                    width: parent.width
-                    height: Math.round(width * 10 / 16)
-                    color: Theme.raise
-                    border.width: 1
-                    border.color: Theme.line2
-                    Image {
-                        anchors.fill: parent
-                        anchors.margins: 1
-                        source: window.wallpaper ? "file://" + window.wallpaper : ""
-                        sourceSize.width: 380
-                        fillMode: Image.PreserveAspectCrop
-                        asynchronous: true
-                        clip: true
-                    }
-                    Rectangle {
-                        x: 6
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 5
-                        width: Math.min(parent.width - 12, wallName.implicitWidth + 10)
-                        height: wallName.implicitHeight
-                        color: Qt.alpha(Theme.bg, 0.8)
-                        visible: wallName.text !== ""
-                        RiceText {
-                            id: wallName
-                            x: 5
-                            width: parent.width - 10
-                            elide: Text.ElideRight
-                            font.pixelSize: 10
-                            text: window.wallpaper.split("/").pop().replace(/\.[^.]+$/, "")
-                        }
-                    }
-                }
-                Row {
-                    width: parent.width
-                    spacing: 3
-                    Repeater {
-                        model: [Theme.accent, Theme.red, Theme.yel, Theme.ok, Theme.cyan, Theme.blue]
-                        Rectangle {
-                            required property color modelData
-                            width: (parent.width - 15) / 6
-                            height: 14
-                            color: modelData
-                            Behavior on color { ColorAnimation { duration: Theme.tMed } }
-                        }
-                    }
-                }
-                Item {
-                    width: parent.width
-                    height: profileLabel.implicitHeight + 4
-                    RiceText { id: profileLabel; y: 4; text: "profile"; color: Theme.dim }
-                    RiceText { y: 4; anchors.right: parent.right; text: Theme.profile || window.status.profile || "--" }
+            // From the module's hook; MÚSICA and JOGOS are still drawn below.
+            Repeater {
+                model: ScriptModel { values: window.groups; objectProp: "id" }
+                Loader {
+                    required property var modelData
+                    visible: window.groupKey === modelData.id
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 18
+                    x: 22
+                    width: parent.width - 44
+                    sourceComponent: window.hookOf(modelData.id).sidebar
                 }
             }
 
@@ -699,7 +646,7 @@ FloatingWindow {
                 anchors.bottom: parent.bottom
                 width: parent.width
                 visible: !window.inMusic || Music.online
-                source: window.screens[window.current].source
+                source: window.groups[window.group].folder + "/" + window.screens[window.current].file
                 onLoaded: {
                     if (item.title !== undefined) item.title = window.screens[window.current].name;
                     if (item.keyTarget !== undefined) item.keyTarget = keys;
@@ -768,13 +715,13 @@ FloatingWindow {
             Row {
                 id: leftBlocks
                 height: parent.height
-                StatusBlock {
-                    visible: window.groupKey === "system"
-                    label: syncCommand.running ? "SYNCING" : "SYNC ALL"
-                    clickable: !syncCommand.running
-                    onClicked: {
-                        window.syncError = "";
-                        syncCommand.call(["sync", "--json"]);
+                Repeater {
+                    model: ScriptModel { values: window.groups; objectProp: "id" }
+                    Loader {
+                        required property var modelData
+                        visible: window.groupKey === modelData.id
+                        height: parent.height
+                        sourceComponent: window.hookOf(modelData.id).footerLeft
                     }
                 }
                 StatusBlock {
@@ -787,7 +734,7 @@ FloatingWindow {
                 anchors.left: leftBlocks.right
                 anchors.right: hintBlock.left
                 label: typed.shown
-                textColor: window.syncError ? Theme.red : Status.busy ? Theme.accent
+                textColor: Status.error ? Theme.red : Status.busy ? Theme.accent
                          : Status.message ? Status.color : Theme.statusColor(log.lastStatus)
                 separator: false
                 elide: true
@@ -805,11 +752,11 @@ FloatingWindow {
                 id: contextBlock
                 anchors.right: parent.right
                 separator: false
-                clickable: window.groupKey === "system"
+                clickable: window.hook.contextClickable
                 label: window.inMusic ? (window.output || "—")
                      : window.inGames ? (Games.scanning ? "scan…" : Games.lastScan ? "scan: " + Games.lastScan.total + " · " + Games.lastScan.new + " novos" : "—")
-                     : log.visible ? "LOG v" : "LOG ^"
-                onClicked: log.visible = !log.visible
+                     : window.hook.context
+                onClicked: window.hook.contextClicked()
             }
         }
 
@@ -818,7 +765,7 @@ FloatingWindow {
             anchors.bottom: footer.top
             width: parent.width
             height: 260
-            visible: false
+            visible: Status.logOpen
             z: 20
         }
 
@@ -878,6 +825,7 @@ FloatingWindow {
             steps: [
                 { label: "loading palette " + (window.status.generation || ""), done: Object.keys(Theme.dark).length > 0 && window.statusLoaded },
                 { label: "reading action log", done: log.loaded },
+                !window.inMusic && !window.inGames && window.hook.bootStep ? window.hook.bootStep :
                 { label: window.inMusic ? (Music.online ? "connected to cliamp" : "connecting to cliamp") : window.inGames ? "reading games.json: " + Games.games.length + " games" : "reading profile: " + (Theme.profile || "?"),
                   done: window.inMusic ? !Music.connecting : window.inGames ? Games.loaded : Theme.profile !== "" },
                 { label: "loading " + window.screens[window.current].name.toLowerCase(), done: screen.status === Loader.Ready },
@@ -925,11 +873,11 @@ FloatingWindow {
     // The message is typed out, one character every 12 ms.
     QtObject {
         id: typed
-        readonly property string full: window.syncError ? "[ FAIL ] " + window.syncError
+        readonly property string full: Status.error ? "[ FAIL ] " + Status.error
             : Status.busy ? progress.text
             : Status.message ? Status.message
             : window.inMusic && !Music.online ? "[ -- ] cliamp offline"
-            : window.groupKey === "system" ? log.lastLine : ""
+            : window.hook.idleText
         property int count: 0
         // One line only: log details may contain newlines.
         readonly property string flat: full.replace(/\s*\n\s*/g, " ")

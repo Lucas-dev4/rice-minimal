@@ -71,3 +71,9 @@ def load(base=None):
             errors.append(text if text.startswith(path.parent.name + ':') else f'{path.parent.name}: {text}')
     found.sort(key=lambda m: (m.get('order', 0), m['id']))
     return {m['id']: m for m in found}, errors
+
+
+def handlers():
+    """{comando: handler} dos módulos que têm comandos (extras/<handler>.py)."""
+    return {name: m['commands']['handler'] for m in load()[0].values() if m.get('commands', {}).get('handler')
+            for name in m['commands'].get('names', [])}

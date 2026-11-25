@@ -15,12 +15,12 @@ Rode a suíte de testes (python3 -m unittest discover -s tests -q) e crie docs/B
 Leia README.md, extras/cli.py, gui/shell.qml e gui/Theme.qml. Proponha em docs/modulos.md o contrato de um módulo do LW: o que ele declara (nome, descrição, dependências de pacote/comando, telas QML, subcomandos lw, chaves de config, atalhos), onde os arquivos ficam, como o shell.qml descobre os módulos ativos e como `lw doctor` lê as dependências. Mostre como SISTEMA, MÚSICA e JOGOS se encaixam. Mantenha simples: um manifesto TOML por módulo, sem sistema de plugins genérico. Pare e me mostre antes de commitar.
 ```
 
-## [ ] 2 — Tirar o que é pessoal do código
+## [x] 2 — Tirar o que é pessoal do código
 ```
 Siga docs/modulos.md. Crie a leitura de ~/.config/lw/config.toml (tomllib, padrão = valor atual quando o arquivo ou a chave não existir). Mova para lá os caminhos e listas pessoais (pastas de música, ROMs, emuladores, downloads, lista de jogos já jogados etc.). Liste antes o que vai mover e espere meu ok. Inclua também: config/fish/config.fish só faz source do cachyos-config.fish se o arquivo existir. Testes passando, commit.
 ```
 
-## [ ] 3 — Módulo SISTEMA
+## [x] 3 — Módulo SISTEMA
 ```
 Extraia SISTEMA como módulo segundo docs/modulos.md (manifesto, telas, subcomandos). O comportamento visível não muda. README curto do módulo (o que faz, dependências, comandos). Testes passando, commit.
 ```

@@ -14,6 +14,7 @@ from io import StringIO
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'extras'))
 import cli
+import cmd_system
 from theme import theme
 
 
@@ -69,7 +70,7 @@ class Wallpapers(Envelope):
         Image.new('RGB',(1000,500),'red').save(self.image)
         self.other = self.folder/'broken.png'
         self.other.write_text('not an image')
-        cache = patch.object(cli,'THUMBS',self.state/'thumbs')
+        cache = patch.object(cmd_system,'THUMBS',self.state/'thumbs')
         cache.start()
         self.addCleanup(cache.stop)
         walls = patch.object(theme,'images',return_value=[self.image,self.other])
@@ -104,18 +105,18 @@ class Wallpapers(Envelope):
         self.assertEqual(len(first),2)
         self.assertIn('error',first[1])
         with Image.open(first[0]['thumb']) as thumb:
-            self.assertEqual(thumb.size,(cli.THUMB_SIZE,200))
+            self.assertEqual(thumb.size,(cmd_system.THUMB_SIZE,200))
         self.assertEqual([line['path'] for line in self.thumbs()],[str(self.other)])
         self.assertEqual(list((self.state/'thumbs').glob('*.tmp')),[])
 
     def test_changed_image_gets_new_thumb(self):
-        before = cli.thumb_path(self.image)
+        before = cmd_system.thumb_path(self.image)
         os.utime(self.image,(1,1))
-        self.assertNotEqual(cli.thumb_path(self.image),before)
+        self.assertNotEqual(cmd_system.thumb_path(self.image),before)
 
     def apply(self, result, effective):
         with patch.object(theme,'apply_choice',return_value=result) as choice, patch.object(theme,'current_wallpaper',return_value=effective), \
-             patch.object(cli.signal,'signal') as block:
+             patch.object(cmd_system.signal,'signal') as block:
             outcome = self.run_cli('wallpaper','apply',str(self.image),'--json')
         return outcome, choice, block
 
@@ -125,7 +126,7 @@ class Wallpapers(Envelope):
         self.assertEqual(result['warnings'],[])
         self.assertEqual(result['data']['effective'],str(self.image))
         choice.assert_called_once_with(self.image)
-        block.assert_any_call(cli.signal.SIGTERM,cli.signal.SIG_IGN)
+        block.assert_any_call(cmd_system.signal.SIGTERM,cmd_system.signal.SIG_IGN)
 
     def test_apply_warns_on_kept_palette_and_other_image(self):
         self.assertEqual(len(self.apply('kept-last-palette',self.other)[0][1]['warnings']),2)
@@ -162,13 +163,13 @@ class Palette(Envelope):
         restore.assert_not_called()
 
     def test_restore_syncs_greeter_and_warns_about_other_wallpaper(self):
-        with patch.object(theme,'restore_previous',return_value='palette-b'), patch.object(theme,'sync_greeter') as sync, patch.object(cli.signal,'signal'):
+        with patch.object(theme,'restore_previous',return_value='palette-b'), patch.object(theme,'sync_greeter') as sync, patch.object(cmd_system.signal,'signal'):
             result = self.run_cli('palette','restore','--json')[1]
         sync.assert_called_once()
         self.assertEqual(len(result['warnings']),1)
 
     def test_regenerate_warns_and_skips_greeter_when_palette_was_kept(self):
-        with patch.object(theme,'regenerate',return_value='kept-last-palette'), patch.object(theme,'sync_greeter') as sync, patch.object(cli.signal,'signal'):
+        with patch.object(theme,'regenerate',return_value='kept-last-palette'), patch.object(theme,'sync_greeter') as sync, patch.object(cmd_system.signal,'signal'):
             result = self.run_cli('palette','regenerate','--json')[1]
         self.assertTrue(result['ok'])
         self.assertEqual(len(result['warnings']),1)
@@ -194,10 +195,10 @@ class Palette(Envelope):
         self.assertNotEqual(theme.fingerprint(image),old)
 
     def test_regenerate_with_scheme_saves_it_or_rolls_it_back(self):
-        with patch.object(theme,'regenerate',return_value='matugen 4.2 / scheme-vibrant / dark'), patch.object(theme,'sync_greeter'), patch.object(cli.signal,'signal'):
+        with patch.object(theme,'regenerate',return_value='matugen 4.2 / scheme-vibrant / dark'), patch.object(theme,'sync_greeter'), patch.object(cmd_system.signal,'signal'):
             self.assertTrue(self.run_cli('palette','regenerate','--scheme','vibrant','--json')[1]['ok'])
         self.assertEqual(theme.scheme(),'scheme-vibrant')
-        with patch.object(theme,'regenerate',return_value='kept-last-palette'), patch.object(theme,'sync_greeter'), patch.object(cli.signal,'signal'):
+        with patch.object(theme,'regenerate',return_value='kept-last-palette'), patch.object(theme,'sync_greeter'), patch.object(cmd_system.signal,'signal'):
             self.run_cli('palette','regenerate','--scheme','expressive','--json')
         self.assertEqual(theme.scheme(),'scheme-vibrant')
 
@@ -209,7 +210,7 @@ class Profile(Envelope):
             (self.state/'previous-profile').write_text(previous+'\n')
 
     def test_differences_come_from_the_files_that_apply_the_profiles(self):
-        rows = {r['setting']:r for r in cli.profile_differences()}
+        rows = {r['setting']:r for r in cmd_system.profile_differences()}
         self.assertEqual(rows['hyprland animations']['refined'],'on')
         self.assertEqual(rows['workspace switch']['minimal'],'instant')
         self.assertRegex(rows['workspace switch']['refined'],r'^slide \d+ ms$')
@@ -220,17 +221,17 @@ class Profile(Envelope):
 
     def test_active_profile_keeps_history(self):
         self.set_profile('refined','minimal')
-        with patch.object(cli.profiles,'switch') as switch:
+        with patch.object(cmd_system.profiles,'switch') as switch:
             data = self.run_cli('profile','set','refined','--json')[1]['data']
         switch.assert_not_called()
         self.assertEqual((data['changed'],data['previous']),(False,'minimal'))
 
     def test_switch_survives_gui_closing(self):
         self.set_profile('refined')
-        with patch.object(cli.profiles,'switch') as switch, patch.object(cli.signal,'signal') as block:
+        with patch.object(cmd_system.profiles,'switch') as switch, patch.object(cmd_system.signal,'signal') as block:
             self.assertTrue(self.run_cli('profile','set','minimal','--json')[1]['data']['changed'])
         switch.assert_called_once_with('minimal')
-        block.assert_any_call(cli.signal.SIGTERM,cli.signal.SIG_IGN)
+        block.assert_any_call(cmd_system.signal.SIGTERM,cmd_system.signal.SIG_IGN)
 
     def test_restore_without_history_is_a_clean_error(self):
         self.set_profile('refined')
@@ -246,19 +247,19 @@ class Greeter(Envelope):
         self.assertFalse((self.state/'greeter-sync').exists())
 
     def test_manual_sync_failure_is_reported(self):
-        with patch.object(theme,'sync_greeter',return_value='failed') as sync, patch.object(cli.signal,'signal'):
+        with patch.object(theme,'sync_greeter',return_value='failed') as sync, patch.object(cmd_system.signal,'signal'):
             code, result = self.run_cli('greeter','sync','--json')
         sync.assert_called_once_with(force=True)
         self.assertEqual((code,result['ok']),(1,False))
 
     def test_sync_warnings_list_the_steps_that_were_not_ok(self):
         steps = [{'step':'palette','status':'OK','detail':'x'},{'step':'greeter','status':'WARN','detail':'failed'}]
-        with patch.object(theme,'sync_all',return_value=steps), patch.object(cli.signal,'signal'):
+        with patch.object(theme,'sync_all',return_value=steps), patch.object(cmd_system.signal,'signal'):
             result = self.run_cli('sync','--json')[1]
         self.assertEqual(result['warnings'],['greeter: failed'])
 
     def test_busy_lock_has_its_own_error_code(self):
-        with patch.object(theme,'sync_all',side_effect=TimeoutError('busy')), patch.object(cli.signal,'signal'):
+        with patch.object(theme,'sync_all',side_effect=TimeoutError('busy')), patch.object(cmd_system.signal,'signal'):
             self.assertEqual(self.run_cli('sync','--json')[1]['error']['code'],'busy')
 
 
@@ -278,7 +279,7 @@ hl.bind(mainMod .. " + Z",    hl.dsp.exec_cmd("hyprctl kill"), { locked = true }
         super().setUp()
         self.file = self.state/'binds.lua'
         self.file.write_text(self.TEXT)
-        hypr = patch.object(cli.shortcuts,'live_conflict',return_value=False)
+        hypr = patch.object(cmd_system.shortcuts,'live_conflict',return_value=False)
         self.conflict = hypr.start()
         self.addCleanup(hypr.stop)
 
@@ -334,8 +335,8 @@ hl.bind(mainMod .. " + Z",    hl.dsp.exec_cmd("hyprctl kill"), { locked = true }
         self.assertEqual(self.file.read_text(),self.TEXT)
 
     def test_display_puts_super_first_and_keeps_key_spelling(self):
-        self.assertEqual(cli.shortcuts.display_key('mainMod .. " + SHIFT + mouse_up"'),'SUPER + SHIFT + mouse_up')
-        self.assertEqual(cli.shortcuts.display_key('mainMod .. " + ALT + BackSpace"'),'SUPER + ALT + BackSpace')
+        self.assertEqual(cmd_system.shortcuts.display_key('mainMod .. " + SHIFT + mouse_up"'),'SUPER + SHIFT + mouse_up')
+        self.assertEqual(cmd_system.shortcuts.display_key('mainMod .. " + ALT + BackSpace"'),'SUPER + ALT + BackSpace')
 
     def test_editing_the_displayed_text_never_doubles_super(self):
         self.change(4,'--key','SHIFT + SUPER + mouse_up')
@@ -367,17 +368,17 @@ class LiveConflict(unittest.TestCase):
         return subprocess.CompletedProcess([],0,stdout=json.dumps(list(binds)))
 
     def test_same_key_needs_same_modifiers(self):
-        with patch.object(cli.shortcuts.subprocess,'run',return_value=self.active({'modmask':64,'key':'BackSpace','keycode':0})):
-            self.assertTrue(cli.shortcuts.live_conflict(('SUPER','BACKSPACE')))
-            self.assertFalse(cli.shortcuts.live_conflict(('ALT','SUPER','BACKSPACE')))
+        with patch.object(cmd_system.shortcuts.subprocess,'run',return_value=self.active({'modmask':64,'key':'BackSpace','keycode':0})):
+            self.assertTrue(cmd_system.shortcuts.live_conflict(('SUPER','BACKSPACE')))
+            self.assertFalse(cmd_system.shortcuts.live_conflict(('ALT','SUPER','BACKSPACE')))
 
     def test_number_row_binds_are_matched_by_keycode(self):
-        with patch.object(cli.shortcuts.subprocess,'run',return_value=self.active({'modmask':64,'key':'','keycode':10})):
-            self.assertTrue(cli.shortcuts.live_conflict(('SUPER','1')))
+        with patch.object(cmd_system.shortcuts.subprocess,'run',return_value=self.active({'modmask':64,'key':'','keycode':10})):
+            self.assertTrue(cmd_system.shortcuts.live_conflict(('SUPER','1')))
 
     def test_no_session_means_no_live_conflict(self):
-        with patch.object(cli.shortcuts.subprocess,'run',side_effect=FileNotFoundError):
-            self.assertFalse(cli.shortcuts.live_conflict(('SUPER','Q')))
+        with patch.object(cmd_system.shortcuts.subprocess,'run',side_effect=FileNotFoundError):
+            self.assertFalse(cmd_system.shortcuts.live_conflict(('SUPER','Q')))
 
 
 class Lock(Envelope):
@@ -398,37 +399,37 @@ class Lock(Envelope):
         os.utime(path,(1000-age,1000-age))
 
     def test_real_lock_commands_need_explicit_confirmation(self):
-        with patch.object(cli.lockscreen,'run_trial') as trial, patch.object(cli.lockscreen,'activate') as activate:
+        with patch.object(cmd_system.lockscreen,'run_trial') as trial, patch.object(cmd_system.lockscreen,'activate') as activate:
             self.assertFalse(self.run_cli('lock','trial','--json')[1]['ok'])
             self.assertFalse(self.run_cli('lock','activate','--json')[1]['ok'])
         trial.assert_not_called()
         activate.assert_not_called()
 
     def test_trial_survives_gui_closing_and_logs_failure(self):
-        with patch.object(cli.lockscreen,'run_trial',side_effect=RuntimeError('Lock was not confirmed')), patch.object(cli.signal,'signal') as block:
+        with patch.object(cmd_system.lockscreen,'run_trial',side_effect=RuntimeError('Lock was not confirmed')), patch.object(cmd_system.signal,'signal') as block:
             code, result = self.run_cli('lock','trial','--confirm','--json')
         self.assertEqual((code,result['ok']),(1,False))
-        block.assert_any_call(cli.signal.SIGTERM,cli.signal.SIG_IGN)
+        block.assert_any_call(cmd_system.signal.SIGTERM,cmd_system.signal.SIG_IGN)
         self.assertIn('Lock was not confirmed',(self.state/'actions.jsonl').read_text())
 
     def test_trial_is_valid_only_for_the_layout_it_saw(self):
         self.stamp('lock-displays.json',20)
         self.stamp('lock-tested',10)
-        self.assertTrue(cli.lockscreen.tested())
+        self.assertTrue(cmd_system.lockscreen.tested())
         self.stamp('lock-displays.json',5)
-        self.assertFalse(cli.lockscreen.tested())
+        self.assertFalse(cmd_system.lockscreen.tested())
         with self.assertRaises(RuntimeError):
-            cli.lockscreen.activate()
+            cmd_system.lockscreen.activate()
 
     def test_same_monitors_keep_the_trial_and_new_ones_invalidate_it(self):
         self.stamp('lock-displays.json',20)
         self.stamp('lock-tested',10)
         with patch.object(theme,'command',side_effect=self.command):
-            cli.lockscreen.capture_displays()
-            self.assertTrue(cli.lockscreen.tested())
+            cmd_system.lockscreen.capture_displays()
+            self.assertTrue(cmd_system.lockscreen.tested())
             self.monitors = [{'name':'DP-1','width':2560,'height':1440,'scale':1}]
-            cli.lockscreen.capture_displays()
-        self.assertFalse(cli.lockscreen.tested())
+            cmd_system.lockscreen.capture_displays()
+        self.assertFalse(cmd_system.lockscreen.tested())
 
     def test_status_reads_candidate_and_session(self):
         with patch.object(theme,'command',side_effect=self.command):
@@ -439,7 +440,7 @@ class Lock(Envelope):
         for level in ('10','50','57','90'):
             with patch.object(sys,'stderr',StringIO()), self.assertRaises(SystemExit):
                 cli.main(['lock','dim',level])
-        with patch.object(cli.lockscreen,'set_dim',return_value=.65) as set_dim:
+        with patch.object(cmd_system.lockscreen,'set_dim',return_value=.65) as set_dim:
             self.assertTrue(self.run_cli('lock','dim','65','--json')[1]['ok'])
         set_dim.assert_called_once_with(.65)
 
@@ -538,6 +539,21 @@ class Launcher(unittest.TestCase):
         self.assertIn(['reveal'],ops)
         self.assertIn(['go','system'],ops)
         self.assertNotIn(['close'],ops)
+
+    def test_the_window_gets_the_same_module_list_as_the_command(self):
+        with patch.object(cli.os,'execvp'), patch.object(cli.subprocess,'run',return_value=subprocess.CompletedProcess([],1,stdout='')), \
+             patch.object(theme,'STATE',Path(tempfile.gettempdir())), patch.dict(cli.os.environ,{'XDG_RUNTIME_DIR':tempfile.mkdtemp()}):
+            cli.gui('system')
+            given = json.loads(cli.os.environ['LW_MODULES'])
+        out = StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(cli.main(['modules','list','--json']),0)
+        result = json.loads(out.getvalue())
+        self.assertEqual((result['ok'],result['action'],result['data']),(True,'modules list',given))
+        self.assertEqual([m['id'] for m in given],['system','music','games'])
+        self.assertEqual(given[0]['screens'][0],{'name':'WALLPAPERS','file':'WallpaperScreen.qml'})
+        self.assertIn('dir',given[1]['config'])
+
 
 class CliampSync(unittest.TestCase):
     """lw cliamp sync: music.dir manda no initial_directory do cliamp."""
