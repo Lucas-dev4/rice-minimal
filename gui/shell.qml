@@ -54,6 +54,9 @@ FloatingWindow {
     title: "LW"
     implicitWidth: 1220
     implicitHeight: 780
+    // system.fullscreen: a janela pede tela cheia ao compositor. Fora dela valem o tamanho e a
+    // posição da regra do Hyprland (config/hypr/rice-integration.lua).
+    fullscreen: Modules.fullscreen
     color: "transparent"
     // See-through like the terminal (RICE_GUI_OPACITY overrides; 1 = solid).
     Component.onCompleted: { Theme.alpha = Number(Quickshell.env("RICE_GUI_OPACITY") || 0.85); enterGroup(); }
@@ -61,10 +64,12 @@ FloatingWindow {
     // Ctrl+J hides the window without closing it: the modules keep running. The same Super
     // shortcut brings it back (`lw` asks `hidden` first).
     property bool parked: false
+    // Como a janela estava ao ser escondida: ela renasce ao voltar, e o compositor não lembra.
+    property bool parkedFull: false
     // Ctrl+J: esconde a janela sem parar nada.
-    function park() { parked = true; visible = false; }
-    // Mostra de novo a janela escondida.
-    function unpark() { visible = true; parked = false; keys.forceActiveFocus(); }
+    function park() { parkedFull = fullscreen; parked = true; visible = false; }
+    // Mostra de novo a janela escondida (só o IPC pode pedir isso com ela à vista).
+    function unpark() { if (parked) fullscreen = parkedFull; visible = true; parked = false; keys.forceActiveFocus(); }
     // True se a tecla é Ctrl+J.
     function isPark(event) { return event.key === Qt.Key_J && (event.modifiers & Qt.ControlModifier); }
 
@@ -144,7 +149,7 @@ FloatingWindow {
         // Scriptable state and actions (scripts/music-check.sh, tests): the hooks add theirs.
         function state(): string {
             return JSON.stringify(Object.assign({
-                section: window.groupKey, view: window.current, screen: window.shown.name, typing: !keys.focus
+                section: window.groupKey, view: window.current, screen: window.shown.name, typing: !keys.focus, fullscreen: window.fullscreen
             }, ...window.allHooks().map(h => h.state()), { message: Status.message }));
         }
         // IPC: executa uma ação pelo nome (testes).

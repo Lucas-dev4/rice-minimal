@@ -53,4 +53,9 @@ Todos aceitam `--json`, menos `bt` e `wallpaper thumbs`.
 
 - Telas e gancho: `gui/screens/` (`SystemModule.qml`)
 - Comandos: `extras/cmd_system.py`; a lógica continua em `extras/theme/`, `shortcuts.py`, `lockscreen.py`, `backups.py` e `bluetooth.py`
-- Config: nenhuma chave por enquanto
+- Config, em `~/.config/lw/config.toml` (vale na próxima abertura do LW):
+
+```toml
+[system]
+fullscreen = true     # o padrão; false abre a janela flutuante
+```

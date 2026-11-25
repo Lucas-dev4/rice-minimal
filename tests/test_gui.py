@@ -561,6 +561,25 @@ class Sections(Window):
                     self.assertEqual((state['section'], state['screen']), (m['id'], m['screens'][-1]['name']))
         self.assertEqual(self.warnings(), [])
 
+    def test_the_window_is_fullscreen_unless_the_config_says_no(self):
+        conf = self.home/'.config/lw/config.toml'
+        conf.parent.mkdir(parents=True)
+        for text, full in (('', True), ('[system]\nfullscreen = false\n', False), ('[system]\nfullscreen = "não"\n', True)):
+            conf.write_text(text)
+            for given in (True, False):      # com e sem LW_MODULES
+                with self.subTest(text=text, given=given):
+                    self.env.pop('LW_MODULES', None)
+                    if given:
+                        self.env['LW_MODULES'] = json.dumps(json.loads(self.lw('modules', 'list'))['data'])
+                    self.open('system')
+                    self.until(lambda: self.state().get('fullscreen') is full and 'games' in self.state())
+                    # Esconder (Ctrl+J) e voltar não muda.
+                    self.ipc('key', 'CONTROL+j')
+                    self.until(lambda: self.ipc('hidden').strip() == 'yes')
+                    self.ipc('reveal')
+                    self.assertIs(self.state()['fullscreen'], full)
+                    self.quit()
+
     def test_the_keyboard_leaves_the_field_of_the_old_section(self):
         self.open('system')
         self.until(lambda: self.state().get('scanning') is False and 'online' in self.state())
@@ -577,7 +596,7 @@ class Sections(Window):
         self.env['LW_MODULES'] = json.dumps([m for m in data if m['id'] == 'system'])
         self.open('system')
         time.sleep(1)
-        self.assertEqual(sorted(self.state()), ['message', 'screen', 'section', 'typing', 'view'])
+        self.assertEqual(sorted(self.state()), ['fullscreen', 'message', 'screen', 'section', 'typing', 'view'])
         self.ipc('go', 'games')
         self.assertEqual(self.ipc('openSheet', 'x').strip(), 'unknown openSheet')
         self.ipc('installer')

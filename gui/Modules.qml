@@ -22,11 +22,14 @@ Singleton {
             { "name": "LOCK", "file": "LockScreen.qml" },
             { "name": "GREETER", "file": "GreeterScreen.qml" }
         ],
-        "config": {}
+        "config": { "fullscreen": true }
     })
     readonly property var given: parse(Quickshell.env("LW_MODULES"))
     // Cada um: id, name, folder, hook, screens e config (o `data` de `lw modules list`). Nunca vazia.
     property var active: given.length ? given : [system]
+
+    // A janela abre em tela cheia (system.fullscreen).
+    readonly property bool fullscreen: config("system", "fullscreen") === true
 
     // O texto da variável → lista de módulos; vazia se não veio ou não presta.
     function parse(text) {

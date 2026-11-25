@@ -104,6 +104,10 @@ package = "bluez-utils"
 optional = true
 why = "o menu de Bluetooth (lw bt)"
 
+[config.fullscreen]
+default = true
+description = "Abre o LW em tela cheia; false: janela flutuante"
+
 [[shortcut]]
 keys = "SUPER + BackSpace"
 command = "lw gui"

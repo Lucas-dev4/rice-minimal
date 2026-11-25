@@ -220,7 +220,7 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 - **Gancho**: `sidebar` (CURRENT), `footerLeft` (SYNC ALL), `context` (LOG), `idleText`.
 - **Obrigatórias**: `qs` quickshell · `hyprctl` hyprland · `noctalia` · `matugen` · `waypaper` · `kitty` · `fish` · `nvim` neovim · `luac` lua · `PIL` python-pillow · fonte ttf-jetbrains-mono-nerd.
 - **Opcionais**: `waybar` · `wpctl` wireplumber · `wl-copy` wl-clipboard · `bluetoothctl` bluez-utils.
-- **Config**: nada no começo.
+- **Config**: `fullscreen` (abre em tela cheia; `false`: janela flutuante).
 - **Atalhos**: `SUPER + BackSpace` (`lw gui`).
 
 ### MÚSICA: `modules/music/`
