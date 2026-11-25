@@ -22,9 +22,9 @@ LwModule {
 
     // Entrar em MÚSICA liga o cliamp se ele estiver desligado.
     function entered() { Music.wanted = true; }
-    // Fechar em MÚSICA desliga o cliamp (a sessão fica salva e volta pausada), e o que o LW ligou
-    // desliga em qualquer seção; um que já estava ligado só tem a sessão salva e continua tocando.
-    function closing(active) { Music.closeSession(active); }
+    // Fechar em MÚSICA desliga o cliamp (a sessão fica salva e volta pausada); fechar de outra seção
+    // só salva a sessão e deixa tocar.
+    function closing(active) { if (active) Music.closeSession(); else Music.saveSession(); }
     // O espectro vem do Spectrum (cava no áudio do cliamp); só as telas que pedem recebem.
     function screenLoaded(item) {
         screenItem = item;
@@ -102,7 +102,7 @@ LwModule {
         case "band": Music.setBand(parseInt(arg.split(",")[0]), parseFloat(arg.split(",")[1])); break;
         case "preset": Music.setPreset(arg); break;
         case "start": Music.startCliamp(); break;
-        case "stop": Music.closeSession(true); break;
+        case "stop": Music.closeSession(); break;
         case "bad": Music.call("queue.play", { index: 999 }); break;
         default: return false;
         }

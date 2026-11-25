@@ -35,7 +35,9 @@ elif not up.exists():
 elif args[:2] == ['remote', 'events']:
     print(json.dumps({{'event': 'runtime.state', 'data': {{'state': 'paused', 'playlist_revision': 1, 'duration': 60,
           'position': 0, 'volume': -50, 'track': {{'path': {song!r}, 'title': 'A'}}}}}}), flush=True)
-    time.sleep(60)
+    # Sai com a janela.
+    window = os.getppid()
+    while os.getppid() == window: time.sleep(0.2)
 elif args[:2] == ['remote', 'call']:
     op, params = args[2], json.loads(args[4])
     with open(here/'calls.txt', 'a') as out: out.write(op + '\\n')
@@ -149,24 +151,42 @@ class Window(unittest.TestCase):
 
 
 class ClosingMusic(Window):
-    """O cliamp que o LW ligou sempre desliga com ele, com a sessão salva."""
-    def closes_before_the_answer(self, section):
+    """Fechar em MÚSICA desliga o cliamp e salva a sessão; fechar de outra seção só salva."""
+    def test_before_cliamp_answers(self):
         before = self.save_session()
         (self.home/'delay').write_text('30')
         self.open('music')
         pid = self.daemon()
-        if section != 'music':
-            self.ipc('go', section)
         self.assertIs(self.state()['online'], False)
         self.quit()
         self.until(lambda: not self.alive(pid), 5)
         self.assertEqual(self.session.read_text(), before)
 
-    def test_before_cliamp_answers(self):
-        self.closes_before_the_answer('music')
+    def test_after_the_answer(self):
+        self.resumed()
+        self.leaves(alive=False)
 
-    def test_before_cliamp_answers_from_another_section(self):
-        self.closes_before_the_answer('system')
+    def test_outside_music_it_keeps_playing(self):
+        for section in ('system', 'games'):
+            with self.subTest(section=section):
+                self.resumed()
+                self.ipc('go', section)
+                self.leaves(alive=True)
+                self.stop_daemon()
+                for name in ('up', 'calls.txt', 'daemon.pid'):
+                    (self.home/name).unlink()
+
+    def test_outside_music_before_the_answer_it_stays_on(self):
+        before = self.save_session()
+        (self.home/'delay').write_text('30')
+        self.open('music')
+        pid = self.daemon()
+        self.ipc('go', 'system')
+        self.assertIs(self.state()['online'], False)
+        self.quit()
+        time.sleep(1)
+        self.assertTrue(self.alive(pid))
+        self.assertEqual(self.session.read_text(), before)
 
     def test_right_after_opening(self):
         # Fechar no meio do START (antes de o cliamp nascer) também não deixa nenhum.
@@ -180,24 +200,39 @@ class ClosingMusic(Window):
 
     def test_the_session_survives_closing_while_cliamp_goes_back_to_it(self):
         # No meio da volta o cliamp está no começo da fila e mudo: isso não é a sessão.
-        before = self.save_session()
         (self.home/'resume').write_text('3')
-        self.open('music')
-        pid = self.daemon()
-        self.until(lambda: 'queue.play' in self.calls())
-        self.quit()
-        self.until(lambda: not self.alive(pid), 5)
-        self.assertEqual(self.session.read_text(), before)
+        for section in ('music', 'system'):
+            with self.subTest(section=section):
+                before = self.save_session()
+                self.open('music')
+                pid = self.daemon()
+                self.until(lambda: 'queue.play' in self.calls())
+                self.ipc('go', section)
+                self.quit()
+                if section == 'music':
+                    self.until(lambda: not self.alive(pid), 5)
+                self.assertEqual(self.session.read_text(), before)
+                self.stop_daemon()
+                for name in ('up', 'calls.txt', 'daemon.pid'):
+                    (self.home/name).unlink()
 
-    def test_after_the_answer_from_another_section(self):
+    def resumed(self):
+        """Abre em MÚSICA e espera o cliamp voltar para a sessão salva."""
         self.save_session()
         self.open('music')
-        pid = self.daemon()
+        self.daemon()
         self.until(lambda: self.calls().count('volume') == 2)
         time.sleep(0.3)
-        self.ipc('go', 'system')
+
+    def leaves(self, alive):
+        """Fecha e confere o cliamp e a sessão, que agora é a do cliamp (posição 0)."""
+        pid = self.daemon()
         self.quit()
-        self.until(lambda: not self.alive(pid), 5)
+        if alive:
+            time.sleep(1)
+            self.assertTrue(self.alive(pid))
+        else:
+            self.until(lambda: not self.alive(pid), 5)
         saved = json.loads(self.session.read_text())
         self.assertEqual((saved['paths'], saved['position']), ([str(self.song)], 0))
 

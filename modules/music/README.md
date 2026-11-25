@@ -15,7 +15,7 @@ Abre com `Super+M` ou `lw music`.
 | LIBRARY | todas as músicas da pasta, buscadas por tag e letra |
 | ONLINE | buscar no YouTube e no SoundCloud, baixar e organizar |
 
-Na barra lateral ficam as fontes da fila, o mini player e o VOL (o volume do sistema). Entrar em MÚSICA liga o cliamp; fechar o LW desliga o que ele ligou, em qualquer seção, e guarda a sessão, que volta pausada no mesmo ponto. Um cliamp que já estava ligado só desliga se o LW for fechado em MÚSICA. `Espaço` toca e pausa em qualquer seção.
+Na barra lateral ficam as fontes da fila, o mini player e o VOL (o volume do sistema). Entrar em MÚSICA liga o cliamp; fechar o LW em MÚSICA desliga (mesmo antes de ele responder) e guarda a sessão, que volta pausada no mesmo ponto; fechar de outra seção deixa tocar. `Espaço` toca e pausa em qualquer seção.
 
 ## Dependências
 

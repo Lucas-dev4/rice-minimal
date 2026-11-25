@@ -278,13 +278,13 @@ Singleton {
             root.start(saved, "");
         }
     }
-    // Ao fechar o LW (active: em MÚSICA): salva a sessão e desliga o cliamp que o LW ligou (started),
-    // mesmo antes de ele responder; um que já estava ligado só desliga em MÚSICA.
-    function closeSession(active) {
+    // Ao fechar o LW em MÚSICA: salva a sessão e desliga o cliamp; o que o LW ligou (started),
+    // mesmo antes de ele responder.
+    function closeSession() {
         if (stopped) return;
         stopped = true;
         saveSession();
-        if (started || (active && online && playlist.length)) shutdown(online && active);
+        if (started || (online && playlist.length)) shutdown();
     }
     // The LW window closes with cliamp still playing: only the session is written, so a
     // later start (after a reboot, say) comes back to the same place.
@@ -321,13 +321,13 @@ Singleton {
     }
     // Closing the player switches cliamp off (SIGTERM: it saves its own state too).
     // O que o LW ligou, pelo PID anotado (espera um pouco por ele, se o START acabou de sair); se
-    // esse já morreu e outro responde em MÚSICA, ou se não foi o LW, pelo cliamp.sock.pid.
-    function shutdown(any) {
+    // esse já morreu e outro responde, ou se não foi o LW, pelo cliamp.sock.pid.
+    function shutdown() {
         Quickshell.execDetached(["sh", "-c",
             'if [ -n "$1" ]; then i=0; while [ ! -s "$1" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done; '
             + 'p=$(cat "$1"); rm -f "$1"; grep -q -e --daemon "/proc/$p/cmdline" && kill -TERM "$p" && exit; fi; '
             + '[ -z "$2" ] || kill -TERM "$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cliamp/cliamp.sock.pid")"',
-            "lw-music", started, any ? "1" : ""]);
+            "lw-music", started, online ? "1" : ""]);
         started = "";
     }
     // Relê a fila inteira do cliamp, 200 faixas por pedido.
