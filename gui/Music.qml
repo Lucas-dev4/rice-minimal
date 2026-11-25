@@ -187,15 +187,26 @@ Singleton {
     // given by `lw cliamp sync` (music.dir), without playing. cliamp's own
     // resume.json is not used by its daemon, hence our session.
     property var pendingResume: null
+    // Enquanto o cliamp volta para a sessão salva (null fora disso): o estado dele ainda não é o da
+    // pessoa, e o arquivo já é a sessão certa.
+    property var resuming: null
+    // Uma volta que falhou no meio acaba ali.
+    onFailed: if (!pendingResume) resuming = null
+    // O arquivo com o PID do cliamp que este LW ligou ("" se não foi ele).
+    property string started: ""
+    property int starts: 0
+    // Fechado (closeSession): um START que ainda estava no meio não continua.
+    property bool stopped: false
     // Liga o cliamp sem janela (daemon), com a sessão salva ou abrindo a pasta das músicas.
     function start(saved, folder) {
-        if (online) return;
+        if (online || stopped) return;
         const paths = saved && saved.paths ? saved.paths : [];
         pendingResume = paths.length ? saved : null;
-        if (paths.length)
-            Quickshell.execDetached(["setsid", bin, "--daemon"].concat(paths));
-        else
-            Quickshell.execDetached(["setsid", bin, "--daemon"].concat(folder ? [folder] : []));
+        resuming = pendingResume;
+        // O cliamp só escreve o cliamp.sock.pid quando responde; o exec mantém o PID anotado aqui.
+        started = (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/lw-cliamp-" + Quickshell.processId + "-" + (++starts) + ".pid";
+        Quickshell.execDetached(["setsid", "sh", "-c", 'echo $$ > "$0"; exec "$@"', started, bin, "--daemon"]
+            .concat(paths.length ? paths : folder ? [folder] : []));
         startWatch.restart();
         connecting = true;
         retry.interval = 400;
@@ -221,6 +232,7 @@ Singleton {
     // Liga o cliamp com a sessão salva. O cliamp não abre se um caminho da lista não existe
     // (música movida ou apagada), então os que sumiram ficam de fora antes.
     function startCliamp() {
+        stopped = false;
         const saved = savedSession();
         if (pathCheck.running || folderSync.running) return;
         if (!saved) return syncFolder(null);
@@ -260,17 +272,18 @@ Singleton {
             root.start(saved, "");
         }
     }
-    // Ao fechar o LW em MÚSICA: salva a sessão e desliga o cliamp.
-    function closeSession() {
-        if (online && playlist.length) {
-            saveSession();
-            shutdown();
-        }
+    // Ao fechar o LW (active: em MÚSICA): salva a sessão e desliga o cliamp que o LW ligou (started),
+    // mesmo antes de ele responder; um que já estava ligado só desliga em MÚSICA.
+    function closeSession(active) {
+        if (stopped) return;
+        stopped = true;
+        saveSession();
+        if (started || (active && online && playlist.length)) shutdown(online && active);
     }
     // The LW window closes with cliamp still playing: only the session is written, so a
     // later start (after a reboot, say) comes back to the same place.
     function saveSession() {
-        if (online && playlist.length)
+        if (online && playlist.length && !resuming)
             sessionFile.setText(JSON.stringify(session()) + "\n");
     }
     // Starting cliamp by itself is up to the window: LW sets `wanted` when MÚSICA opens
@@ -298,12 +311,18 @@ Singleton {
         call("volume", { value: volumeMin }, () =>
             call("queue.play", { index: index }, () =>
                 call("seek.absolute", { value: saved.position || 0 }, () =>
-                    call("pause", {}, () => call("volume", { value: saved.volume === undefined ? 0 : saved.volume })))));
+                    call("pause", {}, () => call("volume", { value: saved.volume === undefined ? 0 : saved.volume }, () => { resuming = null; })))));
     }
     // Closing the player switches cliamp off (SIGTERM: it saves its own state too).
-    function shutdown() {
-        if (!online) return;
-        Quickshell.execDetached(["sh", "-c", 'kill -TERM "$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cliamp/cliamp.sock.pid")"']);
+    // O que o LW ligou, pelo PID anotado (espera um pouco por ele, se o START acabou de sair); se
+    // esse já morreu e outro responde em MÚSICA, ou se não foi o LW, pelo cliamp.sock.pid.
+    function shutdown(any) {
+        Quickshell.execDetached(["sh", "-c",
+            'if [ -n "$1" ]; then i=0; while [ ! -s "$1" ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i+1)); done; '
+            + 'p=$(cat "$1"); rm -f "$1"; grep -q -e --daemon "/proc/$p/cmdline" && kill -TERM "$p" && exit; fi; '
+            + '[ -z "$2" ] || kill -TERM "$(cat "${XDG_CONFIG_HOME:-$HOME/.config}/cliamp/cliamp.sock.pid")"',
+            "lw-music", started, any ? "1" : ""]);
+        started = "";
     }
     // Relê a fila inteira do cliamp, 200 faixas por pedido.
     function refreshPlaylist() {
@@ -356,6 +375,7 @@ Singleton {
         const before = track ? track.path : "";
         snapshot = snap;
         online = true;
+        if (!wasOnline) stopped = false;
         connecting = false;
         lastError = "";
         position = snap.position || 0;

@@ -12,7 +12,6 @@ Decisões tomadas sem confirmar, sempre pela opção mais conservadora (manter o
 
 ### Achado e não mexido
 
-- **Fechar o LW em MÚSICA antes de o cliamp responder** (uns 2 s depois de abrir) não desliga o cliamp nem salva: ele fica ligado, sem tocar, até a próxima vez. Aconteceu na sua sessão às 22:59 de 24/11, com o código de antes da sessão 4.
 - **Fechar o LW no meio de um download:** o Quickshell mata o `lw download` sem deixar ele parar o `yt-dlp`, que pode seguir sozinho por um tempo. Já era assim com o `ytdl.py`. A busca de ONLINE passou a ter o mesmo limite, porque o `yt-dlp` agora é filho do `lw online search`; ele termina sozinho em segundos.
 - **`TypeError: Value is undefined` no log ao trocar de seção:** por um instante a tela da seção nova é procurada com a lista antiga (`screens[current]`, no `shell.qml`). Não aparece na tela; já existia.
 - **Avisos do `EmulatorsView.qml`** no log ao abrir EMULADORES; é de JOGOS (sessão 5).

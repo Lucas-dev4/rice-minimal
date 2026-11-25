@@ -1,0 +1,214 @@
+# Testes da janela de verdade: abre o gui/ no Quickshell sem tela (offscreen), num HOME e num
+# XDG_RUNTIME_DIR temporários, com um cliamp falso. Não encosta na sessão, no som nem no cliamp real.
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+# O cliamp falso: o daemon demora `delay` s para responder; cada comando fica em calls.txt.
+CLIAMP = '''#!{python}
+import json, os, signal, sys, time
+from pathlib import Path
+here = Path({folder!r})
+up = here/'up'
+args = sys.argv[1:]
+def number(name): return float((here/name).read_text()) if (here/name).exists() else 0
+if args[:1] == ['--daemon']:
+    (here/'daemon.tmp').write_text(str(os.getpid()))
+    (here/'daemon.tmp').rename(here/'daemon.pid')
+    time.sleep(number('delay'))
+    up.write_text('')
+    config = Path(os.environ['XDG_CONFIG_HOME'])/'cliamp'
+    config.mkdir(parents=True, exist_ok=True)
+    (config/'cliamp.sock.pid').write_text(str(os.getpid()))
+    time.sleep(60)
+elif not up.exists():
+    sys.exit(1)
+elif args[:2] == ['remote', 'events']:
+    print(json.dumps({{'event': 'runtime.state', 'data': {{'state': 'paused', 'playlist_revision': 1, 'duration': 60,
+          'position': 0, 'volume': -50, 'track': {{'path': {song!r}, 'title': 'A'}}}}}}), flush=True)
+    time.sleep(60)
+elif args[:2] == ['remote', 'call']:
+    op, params = args[2], json.loads(args[4])
+    with open(here/'calls.txt', 'a') as out: out.write(op + '\\n')
+    result = {{}}
+    if op == 'queue.list':
+        result = {{'tracks': [{{'path': {song!r}, 'title': 'A'}}], 'total': 1}}
+    elif op == 'queue.play':
+        time.sleep(number('resume'))
+    print(json.dumps({{'ok': True, 'result': result}}))
+'''
+
+
+@unittest.skipUnless(shutil.which('qs'), 'precisa do Quickshell (qs)')
+class Window(unittest.TestCase):
+    """Uma janela do LW por teste."""
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.home = Path(temp.name)
+        self.bin = self.home/'bin'
+        for name in ('bin', 'run', '.config', 'Músicas'):
+            (self.home/name).mkdir()
+        (self.home/'run').chmod(0o700)
+        self.song = self.home/'Músicas/a.mp3'
+        self.song.write_text('')
+        # Nada daqui chega ao som nem ao Noctalia.
+        for name in ('pactl', 'wpctl', 'noctalia', 'cava', 'playerctl', 'ffprobe'):
+            self.program(name, '#!/bin/sh\nexit 1\n')
+        self.program('cliamp', CLIAMP.format(python=sys.executable, folder=str(self.home), song=str(self.song)))
+        self.session = self.home/'.local/state/rice-minimal/gui/music-session.json'
+        self.env = {k: v for k, v in os.environ.items()
+                    if not k.startswith(('LW_', 'RICE_', 'HYPRLAND_', 'XDG_')) and k not in ('WAYLAND_DISPLAY', 'DISPLAY', 'DBUS_SESSION_BUS_ADDRESS')}
+        self.env.update(HOME=str(self.home), XDG_CONFIG_HOME=str(self.home/'.config'), XDG_RUNTIME_DIR=str(self.home/'run'),
+                        PATH=f'{self.bin}:{os.environ["PATH"]}', RICE_CLIAMP=str(self.bin/'cliamp'),
+                        RICE_MUSIC_VOLUME='cliamp', RICE_GUI_MOTION='0', QT_QPA_PLATFORM='offscreen')
+        self.addCleanup(self.stop_daemon)
+
+    def program(self, name, text):
+        """Um programa falso na frente do PATH."""
+        (self.bin/name).write_text(text)
+        (self.bin/name).chmod(0o755)
+
+    def save_session(self):
+        """Uma sessão salva, com uma posição que o cliamp falso nunca dá."""
+        self.session.parent.mkdir(parents=True, exist_ok=True)
+        self.session.write_text(json.dumps({'paths': [str(self.song)], 'index': 0, 'position': 42, 'volume': -3}) + '\n')
+        return self.session.read_text()
+
+    def open(self, section):
+        """Abre a janela numa seção e espera ela responder lá."""
+        log = open(self.home/'log', 'w')
+        self.addCleanup(log.close)
+        self.qs = subprocess.Popen(['qs', '-p', str(ROOT/'gui')], env=dict(self.env, LW_START_GROUP=section),
+                                   stdout=log, stderr=subprocess.STDOUT)
+        self.addCleanup(self.close)
+        self.until(lambda: self.state().get('section') == section)
+
+    def ipc(self, *args):
+        return subprocess.run(['qs', 'ipc', '--pid', str(self.qs.pid), 'call', 'lw', *args], env=self.env,
+                              capture_output=True, text=True, timeout=10).stdout
+
+    def state(self):
+        try:
+            return json.loads(self.ipc('state'))
+        except ValueError:
+            return {}
+
+    def until(self, test, limit=15):
+        """Espera test() dar algo verdadeiro."""
+        end = time.time() + limit
+        while time.time() < end:
+            value = test()
+            if value:
+                return value
+            time.sleep(0.05)
+        self.fail('não aconteceu a tempo:\n' + (self.home/'log').read_text())
+
+    def quit(self):
+        """Fecha pelo mesmo caminho do q e do atalho."""
+        self.ipc('close')
+        self.qs.wait(timeout=10)
+
+    def close(self):
+        if self.qs.poll() is None:
+            self.qs.kill()
+        self.qs.wait()
+
+    def daemon(self):
+        """O PID do cliamp falso (espera ele nascer)."""
+        return int(self.until(lambda: (self.home/'daemon.pid').exists() and (self.home/'daemon.pid').read_text()))
+
+    def alive(self, pid):
+        # O init (ou o subreaper) pode demorar a recolher: zumbi conta como morto.
+        try:
+            return Path(f'/proc/{pid}/stat').read_text().rsplit(')', 1)[1].split()[0] != 'Z'
+        except OSError:
+            return False
+
+    def stop_daemon(self):
+        if (self.home/'daemon.pid').exists() and self.alive(int((self.home/'daemon.pid').read_text())):
+            os.kill(int((self.home/'daemon.pid').read_text()), signal.SIGKILL)
+
+
+class ClosingMusic(Window):
+    """O cliamp que o LW ligou sempre desliga com ele, com a sessão salva."""
+    def closes_before_the_answer(self, section):
+        before = self.save_session()
+        (self.home/'delay').write_text('30')
+        self.open('music')
+        pid = self.daemon()
+        if section != 'music':
+            self.ipc('go', section)
+        self.assertIs(self.state()['online'], False)
+        self.quit()
+        self.until(lambda: not self.alive(pid), 5)
+        self.assertEqual(self.session.read_text(), before)
+
+    def test_before_cliamp_answers(self):
+        self.closes_before_the_answer('music')
+
+    def test_before_cliamp_answers_from_another_section(self):
+        self.closes_before_the_answer('system')
+
+    def test_right_after_opening(self):
+        # Fechar no meio do START (antes de o cliamp nascer) também não deixa nenhum.
+        self.save_session()
+        (self.home/'delay').write_text('30')
+        self.open('music')
+        self.until(lambda: 'online' in self.state())
+        self.quit()
+        time.sleep(1.5)
+        self.assertFalse((self.home/'daemon.pid').exists() and self.alive(self.daemon()))
+
+    def test_the_session_survives_closing_while_cliamp_goes_back_to_it(self):
+        # No meio da volta o cliamp está no começo da fila e mudo: isso não é a sessão.
+        before = self.save_session()
+        (self.home/'resume').write_text('3')
+        self.open('music')
+        pid = self.daemon()
+        self.until(lambda: 'queue.play' in self.calls())
+        self.quit()
+        self.until(lambda: not self.alive(pid), 5)
+        self.assertEqual(self.session.read_text(), before)
+
+    def test_after_the_answer_from_another_section(self):
+        self.save_session()
+        self.open('music')
+        pid = self.daemon()
+        self.until(lambda: self.calls().count('volume') == 2)
+        time.sleep(0.3)
+        self.ipc('go', 'system')
+        self.quit()
+        self.until(lambda: not self.alive(pid), 5)
+        saved = json.loads(self.session.read_text())
+        self.assertEqual((saved['paths'], saved['position']), ([str(self.song)], 0))
+
+    def test_a_cliamp_that_was_already_on_keeps_playing_outside_music(self):
+        mine = subprocess.Popen([str(self.bin/'cliamp'), '--daemon'], env=self.env)
+        self.addCleanup(mine.wait)
+        self.addCleanup(mine.kill)
+        pid = self.daemon()
+        self.until((self.home/'up').exists)
+        self.open('system')
+        self.until(lambda: self.state().get('playlist'))
+        self.quit()
+        time.sleep(1)
+        self.assertTrue(self.alive(pid))
+        self.assertTrue(self.session.exists())
+
+    def calls(self):
+        path = self.home/'calls.txt'
+        return path.read_text().split() if path.exists() else []
+
+
+if __name__ == '__main__':
+    unittest.main()

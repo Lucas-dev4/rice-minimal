@@ -269,7 +269,7 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 O código de hoje não cumpre a regra ao pé da letra. O contrato aceita só estas exceções, sempre com o comando declarado em `[[dependency]]`:
 
 - **Fluxo ao vivo do player e do áudio**: `cliamp`, `cava`, `pactl`, `wpctl`, `noctalia` (volume), `playerctl`, `ffprobe` em `Music.qml`, `Spectrum.qml` e no formato da saída (`MusicModule.qml`). Passar cada evento pelo Python atrasaria a tela.
-- **Ligar e desligar o cliamp** (`sh -c` em `Music.qml`): quais arquivos da sessão ainda existem, e o SIGTERM pelo `cliamp.sock.pid`, que sai enquanto a janela fecha.
+- **Ligar e desligar o cliamp** (`sh -c` em `Music.qml`): quais arquivos da sessão ainda existem, e o SIGTERM (pelo PID anotado ao ligar ou, se não foi o LW, pelo `cliamp.sock.pid`), que sai enquanto a janela fecha.
 - **Diálogo e área de transferência**: `zenity`, `wl-copy`.
 - **Gravar atalho**: o submapa do `hyprctl` em SHORTCUTS.
 - **Preferências só visuais** em `~/.local/state/rice-minimal/gui/`.
