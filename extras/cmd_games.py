@@ -50,6 +50,7 @@ def register(actions,common):
     add(game,'launch',lambda args: games.launch(args.id)).add_argument('id')
     add(game,'stop',lambda args: games.stop(args.id)).add_argument('id')
     add(game,'recover',lambda args: games.recover())
+    add(game,'seen',lambda args: games.seen(args.end)).add_argument('end',type=int)
     column=add(game,'arrange',lambda args: games.arrange(args.status,args.ids))
     column.add_argument('status')
     column.add_argument('ids',nargs='*')

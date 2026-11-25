@@ -17,7 +17,7 @@ A ficha do jogo, INSTALAR e a tela de lançamento abrem por cima da janela. Na b
 
 ## Sessão
 
-Ao lançar, o LW põe `LW_GAME_ID` no ambiente do jogo e inicia um vigia separado (`games.py watch`). A sessão abre quando um processo com essa variável aparece e fecha quando o último some. A contagem segue com o LW fechado; se o vigia morrer, a sessão volta ou fecha na próxima abertura. Uma sessão por vez.
+Ao lançar, o LW põe `LW_GAME_ID` no ambiente do jogo e inicia um vigia separado (`games.py watch`). A sessão abre quando um processo com essa variável aparece e fecha quando o último some. A contagem segue com o LW fechado; se o vigia morrer, a sessão volta ou fecha na próxima abertura. Uma sessão por vez. Não há tempo mínimo; o fim tem até 2 s de erro. Abaixo de 1 h a ficha mostra minutos, e uma sessão que termina com o LW fechado é avisada quando ele abre.
 
 Jogo da Steam é lançado sem o `LW_GAME_ID`, porque uma Steam fechada abre por esse comando, o herdaria e ficaria aberta depois do jogo. A sessão dele vive enquanto existir o `reaper SteamLaunch AppId=<ID>` que a Steam põe na frente do jogo, ou um processo com o `SteamAppId`; o PARAR nunca alcança o cliente.
 
@@ -45,7 +45,7 @@ Todos aceitam `--json`, menos `emu pad-watch`, que imprime uma linha JSON por ev
 | `lw game scan` · `list` · `running` | procura jogos em todas as fontes; a biblioteca; o que está rodando |
 | `lw game add --exe ARQUIVO [--prefix PASTA] [--title NOME] [--args TEXTO]` · `remove ID` | um jogo à mão |
 | `lw game set ID CAMPO=VALOR…` · `arrange STATUS ID…` | muda campos; a ordem de uma coluna do backlog |
-| `lw game launch ID` · `stop ID` · `recover` | inicia, pede para fechar, retoma ou fecha a sessão que ficou aberta |
+| `lw game launch ID` · `stop ID` · `recover` · `seen FIM` | inicia, pede para fechar, retoma ou fecha a sessão que ficou aberta (e diz a que terminou sem ninguém ver), marca como avisada |
 | `lw game installers` · `install SETUP [--name NOME]` · `install-add SETUP EXE` · `install-forget SETUP` | instaladores de Windows |
 | `lw game add-ready EXE --name NOME` | um jogo que veio pronto (download do Hydra) |
 | `lw game meta [--all] [ID…]` · `played-add IGDB` · `rec-hide IGDB\|--clear` | IGDB e recomendações |

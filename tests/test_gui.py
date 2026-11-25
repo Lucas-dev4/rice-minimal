@@ -449,6 +449,35 @@ class GamesSection(Window):
         self.until(lambda: not self.alive(pid), 5)
         self.until(lambda: self.sessions(gid), 15)
 
+    def test_a_session_that_ended_with_lw_closed_is_told_on_opening_once(self):
+        self.env['LW_MODULES'] = json.dumps(json.loads(self.lw('modules', 'list'))['data'])
+        gid = self.game()
+        self.enter()
+        self.play(gid)
+        self.quit()
+        self.until(lambda: self.sessions(gid), 20)
+        self.open('games')
+        self.until(lambda: self.state().get('message') == '+1 min em jogo')
+        self.ipc('openSheet', gid)
+        self.assertEqual(self.state()['sheet'], {'id': gid, 'hours': '1 min'})      # e não "0 h"
+        self.until(lambda: self.doc()['notified'] == self.doc()['last_session']['end'])
+        self.quit()
+        self.open('games')
+        time.sleep(2)
+        self.assertNotIn('em jogo', self.state()['message'])
+
+    def test_a_session_that_ended_with_lw_open_is_not_told_again(self):
+        self.env['LW_MODULES'] = json.dumps(json.loads(self.lw('modules', 'list'))['data'])
+        gid = self.game()
+        self.enter()
+        self.play(gid)
+        self.until(lambda: self.state()['message'] == '+1 min em jogo', 20)
+        self.until(lambda: self.doc()['notified'] == self.doc()['last_session']['end'])
+        self.quit()
+        self.open('games')
+        time.sleep(2)
+        self.assertNotIn('em jogo', self.state()['message'])
+
     def steam(self, seconds=6, hidden=False):
         """Uma Steam falsa na forma da real: fechada, o comando vira o cliente, que fica aberto; ela põe um
         reaper na frente do jogo e o SteamAppId nele. client.pid diz se já estava aberta."""

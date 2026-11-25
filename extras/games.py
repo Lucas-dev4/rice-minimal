@@ -17,6 +17,8 @@
   games.py watch ID             (started by launch) records the session: begins when the game's
                                 process appears, ends when it is gone, even with LW closed
   games.py stop ID              asks the game's processes to quit (SIGTERM)
+  games.py recover              closes or resumes a session left open; tells one nobody saw end
+  games.py seen END             the window told the session that ended at END
   games.py arrange STATUS ID... one backlog column at once: these games get STATUS and
                                 order 1..n in this sequence (drag & drop, Shift+arrows)
   games.py installers           Windows installers in the download folders (setup.exe, *.msi)
@@ -863,6 +865,8 @@ def launch(gid):
     def pending(d):
         """Marca o jogo como "iniciando" no games.json (antes do vigia, que lê a sessão daqui)."""
         d['launching'] = {'id': gid, 'at': int(time.time()), 'command': cmd, **({'session': session} if session else {})}
+        # Only what ends from now on can be news when LW opens (recover).
+        d.setdefault('notified', (d.get('last_session') or {}).get('end', 0))
     update(pending)
     # The watcher is its own session too: closing LW never stops the count.
     subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'watch', gid], stdin=subprocess.DEVNULL,
@@ -932,18 +936,35 @@ def close_session(gid, end):
     return update(finish)
 
 
+def unseen():
+    """{'ended': sessão} se a última sessão fechou sem ninguém avisar (LW fechado), senão {}."""
+    data = load()
+    last = data.get('last_session')
+    return {'ended': last} if last and last['end'] > data.get('notified', last['end']) else {}
+
+
+def seen(end):
+    """A janela avisou a sessão que fechou nesse instante: não avisa de novo."""
+    def note(d):
+        """Anota a mais nova."""
+        d['notified'] = max(end, d.get('notified', 0))
+        return {'notified': d['notified']}
+    return update(note)
+
+
 def recover():
     """LW (re)opened: a session whose game is gone (crash, reboot, killed watcher) ends at its
-    last heartbeat; one whose game still runs gets a watcher again."""
+    last heartbeat; one whose game still runs gets a watcher again. `ended` is a session that
+    closed with LW closed."""
     data = load()
     live = data.get('open_session')
     if not live:
-        return {'session': None}
+        return {'session': None, **unseen()}
     if pids_of(live['id'], session=lw_session(data, live['id'])):
         subprocess.Popen([sys.executable, str(Path(__file__).resolve()), 'watch', live['id']], stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
         return {'session': 'running', 'id': live['id']}
-    return {'session': 'closed', 'id': live['id'], 'added_hours': close_session(live['id'], live.get('seen', live['start']))}
+    return {'session': 'closed', 'id': live['id'], 'added_hours': close_session(live['id'], live.get('seen', live['start'])), **unseen()}
 
 
 def stop(gid):
@@ -1502,6 +1523,7 @@ def main(argv=None):
     for name in ('launch', 'watch', 'stop'):
         sub.add_parser(name).add_argument('id')
     sub.add_parser('recover')
+    sub.add_parser('seen').add_argument('end', type=int)
     ar = sub.add_parser('arrange')
     ar.add_argument('status')
     ar.add_argument('ids', nargs='*')
@@ -1544,6 +1566,8 @@ def main(argv=None):
             data = stop(args.id)
         elif args.action == 'recover':
             data = recover()
+        elif args.action == 'seen':
+            data = seen(args.end)
         elif args.action == 'arrange':
             data = arrange(args.status, args.ids)
         elif args.action == 'meta':

@@ -158,9 +158,16 @@ Singleton {
     }
     // Pede para o jogo fechar.
     function stop(id) { run(["game", "stop", id], (ok, data, error) => ok ? changed("■ parando " + ((byId(id) || {}).title || id)) : failed(error)); }
+    // Avisa que uma sessão terminou, uma vez só: nem ao reabrir (lw game recover) ela volta.
+    function tellEnded(last) {
+        sessionEnded(last.title, last.hours);
+        run(["game", "seen", String(last.end)]);
+    }
     // A session left open (LW closed, reboot): resumed if the game runs, closed otherwise.
+    // One that ended with LW closed is told now.
     function recover() {
         run(["game", "recover"], (ok, data) => {
+            if (ok && data.ended) tellEnded(data.ended);
             if (ok && data.session === "running") changed("● sessão retomada: " + ((byId(data.id) || {}).title || data.id));
         });
     }
@@ -240,7 +247,7 @@ Singleton {
             root.games = d.games || [];
             // A session that just ended, a launch whose process never showed up.
             if (root.loaded && d.last_session && (!before.last_session || before.last_session.end !== d.last_session.end))
-                root.sessionEnded(d.last_session.title, d.last_session.hours);
+                root.tellEnded(d.last_session);
             if (root.launching) {
                 if (d.open_session && d.open_session.id === root.launching.id)
                     root.launching = Object.assign({}, root.launching, { detected: true });

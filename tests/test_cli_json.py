@@ -759,6 +759,7 @@ class Games(unittest.TestCase):
         self.assertEqual(self.data('game','arrange','want'),{'status':'want','ids':[]})
         self.assertEqual(self.data('game','running'),{'running':cmd_games.games.running()})
         self.assertEqual(self.data('game','recover'),{'session':None})
+        self.assertEqual(self.data('game','seen','7'),{'notified':7})
         self.assertEqual(self.data('game','stop',gid),{'signalled':0})
         self.assertEqual(self.data('game','installers'),{'installers':[],'ready':[]})
         self.assertEqual(sorted(self.data('game','tools')),['gamemode','gamescope','mangohud','proton'])

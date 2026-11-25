@@ -41,7 +41,10 @@ LwModule {
     }
 
     // ---- IPC dos testes
-    function state() { return { games: Games.games.length, scanning: Games.scanning, session: Games.session }; }
+    function state() {
+        const sheet = sheets && sheets.sheet.shown ? { id: sheets.sheet.gameId, hours: sheets.sheet.hoursShown } : null;
+        return { games: Games.games.length, scanning: Games.scanning, session: Games.session, sheet: sheet };
+    }
     function act(op, arg) {
         switch (op) {
         // Abre a ficha de um jogo (vazio fecha).

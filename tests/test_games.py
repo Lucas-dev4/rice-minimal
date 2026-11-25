@@ -330,6 +330,31 @@ class Games(unittest.TestCase):
         self.assertNotIn('open_session', db)
         self.assertEqual(db['last_session']['hours'], 1.5)
 
+    def test_a_session_nobody_saw_end_is_told_once(self):
+        def last(end, **extra):
+            games.update(lambda d: d.update(last_session={'id': 'x', 'title': 'X', 'hours': 1, 'end': end}, **extra))
+        self.assertEqual(games.recover(), {'session': None})
+        last(100)                                                   # de antes do aviso existir: não é notícia
+        self.assertEqual(games.recover(), {'session': None})
+        last(200, notified=100)
+        self.assertEqual(games.recover()['ended']['end'], 200)
+        self.assertEqual(games.recover()['ended']['end'], 200)      # até a janela dizer que avisou
+        self.assertEqual(games.seen(200), {'notified': 200})
+        self.assertEqual(games.recover(), {'session': None})
+        self.assertEqual(games.seen(150), {'notified': 200})        # um aviso atrasado não volta atrás
+        # Sessão que o próprio recover fecha também é notícia.
+        games.update(lambda d: d['games'].append(games.blank('rom:a', 'A', 'rom', 'x')))
+        games.update(lambda d: d.update(open_session={'id': 'rom:a', 'start': 300, 'seen': 400}))
+        with patch.object(games, 'pids_of', return_value=[]):
+            self.assertEqual(games.recover()['ended']['title'], 'A')
+
+    def test_launching_marks_what_is_already_old(self):
+        games.update(lambda d: (d['games'].append(games.blank('rom:a', 'A', 'rom', 'x')), d.update(last_session={'end': 50})))
+        with patch.object(games.subprocess, 'Popen') as popen:
+            popen.return_value.pid = os.getpid()
+            games.launch('rom:a')
+        self.assertEqual(games.load()['notified'], 50)
+
     def test_arrange_sets_a_whole_column_in_one_write(self):
         ids = []
         for name in ('a', 'b', 'c'):
