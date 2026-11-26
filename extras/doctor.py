@@ -29,6 +29,89 @@ def located(dep):
     return next((found for found in (shutil.which(name,path=path) for name in names) if found),'')
 
 
+def module_dependencies(module):
+    """As dependências de um módulo (ligado ou não), obrigatórias antes, cada uma com onde está ('' = falta).
+    key é o pacote (pacman ou AUR) que a resolve, ou '' quando ela é manual."""
+    m=modules.load()[0][module]
+    found=[]
+    for dep in sorted(m.get('dependency',[]),key=lambda d: d.get('optional',False)):
+        name=dep.get('command') or dep.get('python') or dep.get('font')
+        found.append({'name':' / '.join(name) if isinstance(name,list) else name,'key':dep.get('package') or dep.get('aur') or '',
+                      'optional':dep.get('optional',False),'why':dep.get('why',''),'found':located(dep),
+                      'package':dep.get('package',''),'aur':dep.get('aur',''),'manual':dep.get('manual','')})
+    return found
+
+
+def helper():
+    """O instalador do AUR que existir (paru antes de yay), ou None."""
+    return next((name for name in ('paru','yay') if shutil.which(name)),None)
+
+
+def install_plan(deps,picks=None,optional=False):
+    """Os comandos exatos para instalar o que falta. picks: só esses pacotes; sem picks, as obrigatórias
+    (e as opcionais com optional=True). AUR sem paru/yay e o que é manual ficam em blocked, sem comando."""
+    missing=[d for d in deps if not d['found']]
+    if picks is None:
+        chosen=[d for d in missing if optional or not d['optional']]
+    else:
+        known={d['key'] for d in deps if d['key']}
+        unknown=[p for p in picks if p not in known]
+        if unknown:
+            raise ValueError('pacote que não é dependência deste módulo: '+', '.join(unknown))
+        chosen=[d for d in missing if d['key'] in picks]
+    pacman=list(dict.fromkeys(d['package'] for d in chosen if d['package']))
+    aur=list(dict.fromkeys(d['aur'] for d in chosen if d['aur']))
+    tool=helper()
+    commands=[['sudo','pacman','-S','--needed',*pacman]] if pacman else []
+    blocked=[]
+    if aur and tool:
+        commands.append([tool,'-S','--needed',*aur])
+    elif aur:
+        blocked.append('AUR, sem paru nem yay: instale '+' '.join(aur)+' com um deles')
+    blocked+=[d['name']+': '+d['manual'] for d in chosen if d['manual']]
+    return {'pacman':pacman,'aur':aur,'helper':tool,'commands':commands,'blocked':blocked}
+
+
+def module_deps(name,picks=None,optional=False):
+    """lw modules deps NOME: as dependências do módulo e o plano para o que falta."""
+    m=modules.find(name)
+    deps=module_dependencies(m['id'])
+    return {'module':m['id'],'name':m['name'],'dependencies':deps,'install':install_plan(deps,picks,optional)}
+
+
+def module_install(name,picks=None,optional=False,yes=False):
+    """lw modules install NOME --yes: roda o plano em primeiro plano (o sudo pede a senha no terminal)."""
+    if not yes:
+        raise ValueError('nada foi instalado: confira antes com lw modules deps '+name+' e repita com --yes')
+    data=module_deps(name,picks,optional)
+    data['ran']=[]
+    for argv in data['install']['commands']:
+        code=subprocess.run(argv).returncode
+        data['ran'].append({'command':argv,'code':code})
+        if code:
+            raise RuntimeError(' '.join(argv)+f' saiu com {code}')
+    return data
+
+
+def deps_text(data):
+    """As dependências de um módulo e o plano, para o terminal."""
+    out=[data['name']]
+    for d in data['dependencies']:
+        out.append(f"[ {'OK' if d['found'] else '--'} ] {d['name']}"+(' (opcional)' if d['optional'] else '')
+                   +' — '+(d['found'] or 'falta · '+d['why']))
+    plan=data['install']
+    out+=['']+[' '.join(c) for c in plan['commands']]+plan['blocked']
+    if not plan['commands'] and not plan['blocked']:
+        out.append('nada a instalar')
+    return '\n'.join(out)
+
+
+def install_text(data):
+    """O resultado da instalação, para o terminal."""
+    return '\n'.join([f"[ {'OK' if r['code'] == 0 else 'FAIL'} ] "+' '.join(r['command']) for r in data['ran']]
+                     +data['install']['blocked']) or 'nada a instalar'
+
+
 def dependencies(add):
     """As dependências de cada módulo ativo, obrigatórias antes, e o pacman do que falta."""
     on=settings.switches()
@@ -36,17 +119,16 @@ def dependencies(add):
     for m in modules.load()[0].values():
         if not on[m['id']]:
             continue
-        for dep in sorted(m.get('dependency',[]),key=lambda d: d.get('optional',False)):
-            optional=dep.get('optional',False)
-            name=dep.get('command') or dep.get('python') or dep.get('font')
-            detail=place=located(dep)
+        for dep in module_dependencies(m['id']):
+            optional=dep['optional']
+            detail=place=dep['found']
             if not place:
                 # Pacote entra na linha do pacman; AUR e manual dizem o caminho aqui.
-                way='AUR: '+dep['aur'] if 'aur' in dep else dep.get('manual','')
+                way='AUR: '+dep['aur'] if dep['aur'] else dep['manual']
                 detail='falta · '+dep['why']+(' · '+way if way else '')
-                if 'package' in dep and dep['package'] not in missing[optional]:
+                if dep['package'] and dep['package'] not in missing[optional]:
                     missing[optional].append(dep['package'])
-            add('OK' if place else 'INFO' if optional else 'FAIL',' / '.join(name) if isinstance(name,list) else name,detail,
+            add('OK' if place else 'INFO' if optional else 'FAIL',dep['name'],detail,
                 module=m['id'],optional=optional)
     extra=[p for p in missing[True] if p not in missing[False]]
     if missing[False]:

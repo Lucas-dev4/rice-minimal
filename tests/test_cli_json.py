@@ -677,6 +677,113 @@ class Modules(unittest.TestCase):
         with patch.object(cmd_system,'profile_get',return_value={'profile':'x'}):
             self.assertEqual(self.call('profile','get')[1]['data'],{'profile':'x'})
 
+    def test_list_brings_the_description(self):
+        data = self.call('modules','list')[1]['data']
+        self.assertTrue(all(m['description'] for m in data))
+        self.assertEqual(data[1]['description'],cli.modules.load()[0]['music']['description'])
+
+
+# Programas falsos: cada um anota os argumentos em calls.txt e sai com o código de exit-<nome>, se houver.
+FAKE = """#!/bin/sh
+echo "${{0##*/}} $*" >> {log}
+test -f {folder}/exit-${{0##*/}} && read code < {folder}/exit-${{0##*/}} && exit $code
+exit 0
+"""
+
+
+class ModuleInstall(unittest.TestCase):
+    """lw modules deps|install, com sudo, pacman, paru e yay falsos; o PATH só tem a pasta deles."""
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.home = Path(temp.name)
+        self.bin = self.home/'bin'
+        self.bin.mkdir()
+        self.log = self.home/'calls.txt'
+        self.fake('sudo','pacman')
+
+    def fake(self, *names):
+        for name in names:
+            (self.bin/name).write_text(FAKE.format(log=self.log,folder=self.bin))
+            (self.bin/name).chmod(0o755)
+
+    def env(self):
+        return {'HOME':str(self.home),'XDG_CONFIG_HOME':str(self.home/'.config'),'XDG_STATE_HOME':str(self.home/'state'),
+                'PATH':str(self.bin)}
+
+    def lw(self, *argv, json_out=True):
+        p = subprocess.run([sys.executable,str(ROOT/'extras/rice.py'),*argv,*(['--json'] if json_out else [])],
+                           capture_output=True,text=True,env=self.env(),timeout=60)
+        return p.returncode, json.loads(p.stdout) if json_out else p.stdout
+
+    def calls(self):
+        return self.log.read_text().splitlines() if self.log.exists() else []
+
+    def test_deps_lists_every_dependency_and_the_exact_command(self):
+        code, result = self.lw('modules','deps','musica')
+        self.assertEqual((code,result['ok'],result['action']),(0,True,'modules deps'))
+        data = result['data']
+        self.assertEqual((data['module'],data['name']),('music','MÚSICA'))
+        self.assertEqual([d['name'] for d in data['dependencies'] if not d['optional']],['cliamp','wpctl','pactl'])
+        self.assertTrue(all(d['found'] == '' for d in data['dependencies']))
+        plan = data['install']
+        self.assertEqual(plan['commands'],[['sudo','pacman','-S','--needed','wireplumber','libpulse']])
+        self.assertEqual(plan['blocked'],['cliamp: fora dos repositórios; ver modules/music/README.md'])
+        self.assertEqual(self.calls(),[])
+
+    def test_optional_and_picks_choose_what_enters(self):
+        everything = self.lw('modules','deps','musica','--optional')[1]['data']['install']['pacman']
+        self.assertEqual(everything,['wireplumber','libpulse','cava','ffmpeg','yt-dlp','playerctl','zenity','glib2'])
+        picked = self.lw('modules','deps','musica','--pick','cava','--pick','ffmpeg')[1]['data']['install']
+        self.assertEqual(picked['commands'],[['sudo','pacman','-S','--needed','cava','ffmpeg']])
+        code, result = self.lw('modules','deps','musica','--pick','nada')
+        self.assertEqual((code,result['error']['code']),(1,'invalid'))
+
+    def test_nothing_missing_means_no_command(self):
+        self.fake('wpctl','pactl','cliamp')
+        plan = self.lw('modules','deps','music')[1]['data']['install']
+        self.assertEqual((plan['commands'],plan['blocked']),([],[]))
+        self.assertEqual(self.lw('modules','install','music','--yes')[1]['data']['ran'],[])
+
+    def test_install_without_yes_runs_nothing(self):
+        code, result = self.lw('modules','install','music')
+        self.assertEqual((code,result['ok'],result['error']['code']),(1,False,'invalid'))
+        self.assertIn('--yes',result['error']['message'])
+        self.assertEqual(self.calls(),[])
+
+    def test_install_runs_exactly_the_plan(self):
+        code, result = self.lw('modules','install','music','--pick','libpulse','--yes')
+        self.assertEqual((code,result['ok']),(0,True))
+        self.assertEqual(result['data']['ran'],[{'command':['sudo','pacman','-S','--needed','libpulse'],'code':0}])
+        self.assertEqual(self.calls(),['sudo pacman -S --needed libpulse'])
+        code, out = self.lw('modules','install','jogos','--pick','wine','--yes',json_out=False)
+        self.assertEqual(out.strip(),'[ OK ] sudo pacman -S --needed wine')
+
+    def test_a_failed_install_says_so(self):
+        (self.bin/'exit-sudo').write_text('1\n')
+        code, result = self.lw('modules','install','music','--yes')
+        self.assertEqual((code,result['ok']),(1,False))
+        self.assertIn('saiu com 1',result['error']['message'])
+
+    def test_aur_uses_paru_then_yay_and_otherwise_only_says_it(self):
+        import doctor
+        deps = [{'name':'x','key':'x-bin','optional':False,'why':'','found':'','package':'','aur':'x-bin','manual':''},
+                {'name':'y','key':'y','optional':False,'why':'','found':'','package':'y','aur':'','manual':''}]
+        with patch.dict(os.environ,{'PATH':str(self.bin)}):
+            plan = doctor.install_plan(deps)
+            self.assertEqual((plan['helper'],plan['commands']),(None,[['sudo','pacman','-S','--needed','y']]))
+            self.assertEqual(plan['blocked'],['AUR, sem paru nem yay: instale x-bin com um deles'])
+            self.fake('yay')
+            self.assertEqual(doctor.install_plan(deps)['commands'][1],['yay','-S','--needed','x-bin'])
+            self.fake('paru')
+            plan = doctor.install_plan(deps)
+            self.assertEqual((plan['helper'],plan['commands'][1],plan['blocked']),('paru',['paru','-S','--needed','x-bin'],[]))
+
+    def test_the_terminal_text(self):
+        out = self.lw('modules','deps','music',json_out=False)[1].splitlines()
+        self.assertEqual(out[:2],['MÚSICA','[ -- ] cliamp — falta · é o player'])
+        self.assertIn('sudo pacman -S --needed wireplumber libpulse',out)
+
 
 class Music(unittest.TestCase):
     """library, organize, radio, online e download: a lógica dos scripts no envelope do lw."""

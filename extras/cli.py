@@ -19,15 +19,15 @@ import settings
 HANDLERS = modules.handlers()
 # Comando → módulo em que ele abre a janela (lw music).
 OPENERS = modules.openers()
-# Do núcleo: gui e modules.
-COMMANDS = {'gui','modules',*OPENERS,*HANDLERS}
+# Do núcleo: gui, modules e setup.
+COMMANDS = {'gui','modules','setup',*OPENERS,*HANDLERS}
 
 
 def modules_list():
     """Todos os módulos na ordem da barra lateral, com telas, gancho e config já resolvida (lw modules list)."""
     found=modules.load()[0]
     on=settings.switches()
-    return [{'id':m['id'],'name':m['name'],'folder':m['gui']['folder'],'hook':m['gui'].get('hook',''),
+    return [{'id':m['id'],'name':m['name'],'description':m.get('description',''),'folder':m['gui']['folder'],'hook':m['gui'].get('hook',''),
              'screens':m['gui'].get('screens',[]),'config':settings.section(m['id']),
              'enabled':on[m['id']],'required':m.get('required',False)}
             for m in found.values() if m.get('gui',{}).get('folder')]
@@ -171,6 +171,19 @@ def main(argv):
         option=switch.add_parser(name,parents=[common])
         option.add_argument('name')
         option.set_defaults(run=lambda args,on=on: settings.set_module(args.name,on),show=switch_text)
+    # Dependências de um módulo e o que instalar; quem instala é sempre o sudo/paru em primeiro plano.
+    import doctor
+    for name in ('deps','install'):
+        option=switch.add_parser(name,parents=[common])
+        option.add_argument('name')
+        option.add_argument('--pick',action='append',help='só este pacote (repita para vários)')
+        option.add_argument('--optional',action='store_true',help='inclui as opcionais que faltam')
+        if name == 'install':
+            option.add_argument('--yes',action='store_true',help='confirma: roda os comandos de lw modules deps')
+    switch.choices['deps'].set_defaults(run=lambda args: doctor.module_deps(args.name,args.pick,args.optional),show=doctor.deps_text)
+    switch.choices['install'].set_defaults(run=lambda args: doctor.module_install(args.name,args.pick,args.optional,args.yes),
+                                           show=doctor.install_text)
+    actions.add_parser('setup')
     # Só o handler dono do comando pedido é importado; o de um módulo desligado, nem isso.
     if argv and argv[0] in HANDLERS:
         owner=modules.owners()[argv[0]]
@@ -183,6 +196,9 @@ def main(argv):
             return 1
         importlib.import_module(HANDLERS[argv[0]]).register(actions,common)
     args=parser.parse_args(argv)
+    if args.action == 'setup':
+        import setup_tui
+        return setup_tui.main()
     if args.action == 'gui':
         return gui()
     if args.action in OPENERS:

@@ -40,9 +40,13 @@ Mesmo que a sessão 3, para JOGOS (biblioteca, backlog, desempenho, emuladores, 
 Implemente `lw modules list|enable|disable NOME` (estado em ~/.config/lw/config.toml) e faça o shell.qml mostrar só os módulos ativos. `lw doctor` passa a checar as dependências de cada módulo ativo e imprime o `sudo pacman -S …` do que falta. Testes novos em tests/, commit.
 ```
 
-## [ ] 7 — Preparar o teste em sistema limpo
+## [ ] 7 — `lw setup` e preparar o teste em sistema limpo
 ```
-Escreva docs/teste-vm.md: passo a passo para eu testar o LW numa VM com CachyOS + Hyprland limpos (o que instalar, como clonar, o que rodar, o que observar). Procure no repo suposições da minha máquina que quebrariam lá (caminhos absolutos, arquivos do CachyOS, programas não declarados) e liste-as com arquivo:linha. Não corrija nesta sessão.
+Parte A — `lw setup`: TUI em curses (biblioteca padrão, mesmo visual e teclas da TUI que já existe) para quem acabou de baixar o LW. Mostra os módulos (nome, descrição, ligado/desligado, SISTEMA fixo), e para o módulo selecionado as dependências obrigatórias e opcionais com o estado de cada uma (instalada/falta). Espaço liga/desliga o módulo, i instala o que falta. Antes de instalar, mostra o comando exato (sudo pacman -S --needed …) e só roda depois de confirmação explícita, em primeiro plano, para a pessoa digitar a senha. Pacotes do AUR: usa paru ou yay se existir; se não, mostra o que instalar e não instala. Toda a lógica fica em lw modules / lw doctor (--json); a TUI só desenha e chama. Testes com pacman/paru falsos no PATH; nunca rode o pacman real nem sudo. Plano primeiro e espere meu ok.
+
+Parte B — docs/teste-vm.md: passo a passo para eu testar numa VM com CachyOS + Hyprland limpos, começando por `lw setup`. Procure no repo suposições da minha máquina que quebrariam lá e liste com arquivo:linha. Confira e inclua estas três: (1) "lucas" fixo no greeter; (2) ~/.local/bin no PATH, de onde o cliamp é chamado; (3) a biblioteca de JOGOS fica vazia numa máquina limpa até reabrir o LW (docs/pendencias.md). Corrija o 3 com teste; os outros só liste.
+
+Testes, commits separados por parte, roteiro manual de 3 min do lw setup.
 ```
 (Depois: rodar a VM você mesmo e trazer os erros numa sessão "corrija o que quebrou na VM: <erros>".)
 

@@ -18,7 +18,7 @@ Não é um sistema de plugins. Todo módulo mora neste repositório, o conjunto 
 
 As telas e a lógica existentes **não mudam de lugar**: `gui/screens`, `gui/player`, `gui/arcade` e `extras/*.py` ficam onde estão. Mover tudo para `modules/<id>/` quebraria os imports `qs.player`/`qs.arcade`, o `sys.path` dos testes e o histórico, sem ganho visível. Módulo novo usa `gui/<id>/`.
 
-O **núcleo** é o que existe com qualquer módulo: `shell.qml`, `Theme.qml`, `Status.qml`, `gui/components/`, `extras/cli.py`, `rice.py`, `doctor.py`, `ui.py`, `theme/`, e os novos `extras/modules.py` (lê os manifestos), `extras/settings.py` (lê a config e grava os módulos ligados) e `gui/Modules.qml` (lista para o QML). `extras/lwbar.py` também é núcleo: só lê arquivos e mostra JOGOS e MÚSICA na Waybar.
+O **núcleo** é o que existe com qualquer módulo: `shell.qml`, `Theme.qml`, `Status.qml`, `gui/components/`, `extras/cli.py`, `rice.py`, `doctor.py`, `ui.py`, `theme/`, e os novos `extras/modules.py` (lê os manifestos), `extras/settings.py` (lê a config e grava os módulos ligados), `gui/Modules.qml` (lista para o QML) e `extras/setup_tui.py` (o `lw setup`). `extras/lwbar.py` também é núcleo: só lê arquivos e mostra JOGOS e MÚSICA na Waybar.
 
 ## O manifesto
 
@@ -103,7 +103,7 @@ def register(actions, common):
 - `cli.py` importa só o handler dono do comando pedido. `cli.COMMANDS` vem dos manifestos: os `names` e o `open`, que também só pode ter um dono.
 - Na GUI, `RiceCommand` roda com `Theme.rice` (`setsid --fork --wait`): a ação termina mesmo se o LW fechar, mas um sinal não chega nela. O que precisa parar (download, buscas) usa `program: Theme.lw`, sem o `setsid`.
 - Comando de módulo desligado: `{"ok": false}`, código `invalid`, mensagem `módulo JOGOS desligado · lw modules enable jogos`. O vigia de sessão (`games.py watch`) roda direto, então não morre se JOGOS for desligado no meio.
-- Do núcleo, sempre disponíveis: `gui`, `doctor`, `modules` e os `lock-*` antigos do `rice.py`.
+- Do núcleo, sempre disponíveis: `gui`, `doctor`, `modules`, `setup` e os `lock-*` antigos do `rice.py`.
 
 ### Config
 
@@ -210,6 +210,9 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 - As obrigatórias vêm antes. Cada item mantém `status`, `name`, `detail` e ganha `module` e `optional`; o que identifica a linha é `module` + `name`, porque dois módulos podem pedir o mesmo programa. A tela DOCTOR agrupa por `module` quando ele vier; `INFO` fica apagado e fora de ATTENTION.
 - No fim, até dois itens, com os pacotes de todos os módulos sem repetição, obrigatórios (`WARN`) e opcionais (`INFO`) separados: `sudo pacman -S --needed …`; pacote que está nos dois fica só no primeiro. AUR e manual dizem o caminho no `detail` da própria dependência. O LW só escreve o comando, nunca roda.
 - Formato de saída inalterado: lista JSON pura, `--stream` linha a linha, código 1 se houver FAIL.
+- `lw modules deps NOME` mostra as dependências de um módulo, ligado ou não, e o plano do que falta: `sudo pacman -S --needed …` e, com `paru` ou `yay` (nessa ordem), a linha do AUR; sem eles, o AUR e o manual ficam em `blocked`, sem comando. Sem `--pick`, entram as obrigatórias (`--optional`: também as opcionais); com `--pick PACOTE`, só os escolhidos.
+- `lw modules install NOME --yes` roda esse plano em primeiro plano, para o `sudo` pedir a senha no terminal; sem `--yes` não roda nada. Só o `lw setup` chama, depois de mostrar os comandos e a pessoa confirmar.
+- `lw setup` (TUI em curses, só biblioteca padrão, roda antes de qualquer pacote): painel dos módulos (Espaço liga/desliga; SISTEMA é fixo), mini painel das dependências do selecionado (Tab entra; Espaço marca; as obrigatórias que faltam já vêm marcadas), o comando exato do que está marcado e o mapa das teclas; `i` instala o marcado.
 - A lista fixa `('matugen','waypaper','kitty','fish','nvim','qs')` que era do `doctor.py` está no manifesto de SISTEMA, que como obrigatório também guarda as dependências do núcleo.
 
 ## Os três módulos de hoje
