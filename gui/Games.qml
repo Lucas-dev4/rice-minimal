@@ -32,6 +32,8 @@ Singleton {
     property var launching: null
     signal sessionEnded(string title, real hours)
     property bool scanning: false
+    // O FileView já leu o games.json alguma vez (sem isso, ele não acompanha o arquivo).
+    property bool fileSeen: false
     property var lastScan: null              // {total, new, missing, errors, played_pending}
     // Desempenho no meu PC (lw compat check): título normalizado → {k: ok|lim|no|na, w: motivo}.
     // Só um aviso nas recomendações; jogo sem requisito conhecido não aparece aqui.
@@ -101,6 +103,8 @@ Singleton {
         run(["game", "scan"], (ok, data, error) => {
             scanning = false;
             if (!ok) { failed(error || "scan falhou"); return; }
+            // Máquina limpa: o games.json nasceu agora, numa pasta que não existia ao abrir; lê e passa a acompanhar.
+            if (!fileSeen) file.reload();
             lastScan = data;
             // Then IGDB data for games never looked up (silent without a key).
             if (games.some(g => !g.igdb) || data.played_pending) meta(true);
@@ -246,6 +250,7 @@ Singleton {
         printErrors: false
         onFileChanged: reload()
         onLoaded: {
+            root.fileSeen = true;
             let d = {};
             try { d = JSON.parse(text()); } catch (error) {}
             const before = root.doc;

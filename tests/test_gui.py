@@ -367,6 +367,17 @@ class GamesSection(Window):
     def sessions(self, gid):
         return next(g['sessions'] for g in self.doc()['games'] if g['id'] == gid)
 
+    def test_a_clean_machine_sees_the_library_without_reopening(self):
+        # Sem ~/.local/share/lw ao abrir, o games.json nasce depois; a janela tem que vê-lo e acompanhá-lo.
+        self.assertFalse(self.db.parent.exists())
+        self.enter()
+        self.until(lambda: self.state().get('games') == 0)
+        self.game('jogo')
+        self.until(lambda: self.state().get('games') == 1)
+        self.program('outro', '#!/bin/sh\nexit 0\n')
+        self.game('outro')
+        self.until(lambda: self.state().get('games') == 2)
+
     def test_the_scan_runs_once_per_window(self):
         self.open('system')
         time.sleep(1)

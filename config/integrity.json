@@ -59,7 +59,7 @@
   "extras/wallpapers/wallpaper_tui.py": "49e039b084340d6164b6c60e595934af5de31513aa64875a0cebef6af7985e28",
   "extras/ytdl.py": "4e9133de5cc20ede1031bbbe9c05a7442107b47e6c07e93d55ab3b046e8d0db8",
   "gui/Downloads.qml": "b9f61e8f323677dfe1806b5c3b5d47532985554447efcd1c6cff81d5303ac9d1",
-  "gui/Games.qml": "3f6690b2d5225945ee62927477d2fe28b02fd433a69858a2fad5caadc0963c14",
+  "gui/Games.qml": "a965c229278156c6312b06a33cd27c99e634fbf7e5bb6e6436d54f52636c9ee5",
   "gui/Modules.qml": "26843cbd80bdfb88aacbe65b08fb4ac97c56b488d0a76e82939552958c18e34b",
   "gui/Music.qml": "fd1d45c224eaa056b120aef3ea9d9293722453af87abc21233fb6868c4ef36bd",
   "gui/Spectrum.qml": "8ed52f271abf839d8360cc23a1069ca3db7af777cd5b0e0cad9ee3be2f8bbbbc",
