@@ -110,7 +110,7 @@ Teclas da seção: `1`–`6` telas, `espaço` play/pause (vale em qualquer seç�
 
 A seção JOGOS (`Super+G`, `lw games`; telas em `gui/arcade/`) é a biblioteca de jogos. Os dados ficam em `~/.local/share/lw/games.json` e só o `extras/games.py` escreve nele (trava + escrita atômica). O scan roda ao entrar em JOGOS, em segundo plano, e pelo `RESCAN`: Steam (todas as bibliotecas do `libraryfolders.vdf`, arte do `appcache/librarycache` nos dois formatos, horas do `userdata/*/config/localconfig.vdf`), Hydra Launcher (entradas que têm executável) e ROMs (`~/ROMs` e `~/Jogos/ROMs`, configurável em `games.rom_dirs`, core do RetroArch pela extensão). Jogos do Wine entram por `+ JOGO` (executável, prefixo e nome). O scan só acrescenta e atualiza o que a fonte sabe; status, horas, notas e o resto nunca mudam, e o que some fica marcado como sumido. `lw game running` acha o jogo em execução pela variável `LW_GAME_ID`, que o LW põe no lançamento e todo processo filho herda (inclusive o `.exe` dentro do Wine), e, nos jogos da Steam, pelo `SteamAppId` e pelo `reaper` que ela põe na frente deles (o LW lança a Steam sem `LW_GAME_ID`). Lançar (`▶ JOGAR`, `⏎`) mostra uma tela com os passos reais e inicia um vigia separado (`games.py watch`), que abre a sessão quando o processo do jogo aparece e a fecha quando ele some, ignorando os processos de sistema do Wine; a contagem continua com a janela fechada, e uma sessão interrompida por reboot fecha no último sinal de vida (a cada 30 s). Uma sessão por vez.
 
-**Módulos**: `lw modules list` mostra as seções e `lw modules enable|disable musica` liga ou desliga uma (id ou nome, sem acento); a escolha fica em `[modules]` no `~/.config/lw/config.toml` e vale na próxima abertura do LW. SISTEMA não desliga. O atalho de um módulo desligado avisa com o comando para ligar.
+**Módulos**: `lw modules list` mostra as seções e `lw modules enable|disable musica` liga ou desliga uma (id ou nome, sem acento); a escolha fica em `[modules]` no `~/.config/lw/config.toml` e vale na próxima abertura do LW. SISTEMA não desliga. O atalho de um módulo desligado avisa com o comando para ligar. `lw modules deps musica` mostra as dependências de um módulo e o `sudo pacman -S --needed …` do que falta (AUR pelo `paru` ou `yay`, se houver); `lw setup` faz tudo isso numa TUI.
 
 **Pastas e listas** (música e jogos): ficam em `~/.config/lw/config.toml` (`[music] dir`, `[games] rom_dirs`…); sem o arquivo ou a chave vale o padrão de `modules/<id>/module.toml`. O antigo `~/.local/share/lw/games-config.json` ainda vale, abaixo do `config.toml`. A pasta das músicas tem uma fonte só, `music.dir`: ao ligar o cliamp o LW a escreve no `initial_directory` dele (`lw cliamp sync`), com backup.
 
@@ -160,9 +160,11 @@ No Fish, `vim` abre o Neovim do rice. `bat` (e o `man`, que usa o bat) segue as 
 
 ## O comando `lw`
 
-`lw` sem argumentos abre a TUI (curses) com aparência, paleta, bloqueio, backups e o doctor. Com subcomandos, cada um tem `--json` (é assim que o app fala com ele): `lw status`, `lw gui|music|games`, `lw wallpaper`, `lw palette`, `lw profile`, `lw greeter`, `lw sync`, `lw shortcuts`, `lw lock`, `lw backups`, `lw modules`, `lw doctor`. `lw bt` abre o gerenciador de Bluetooth no terminal (curses sobre o `bluetoothctl`): `Enter` conecta/desconecta, `s` procura aparelhos por 15 s, `p` pareia, `t` marca como confiável (reconecta sozinho), `d` esquece (com confirmação), `o` liga/desliga o adaptador; a lista acompanha mudanças feitas fora dele. O nome antigo, `rice`, continua funcionando. `supers` é a TUI de atalhos ([extras/supers/README.md](extras/supers/README.md)) e `wallpapers` o seletor de wallpapers no terminal.
+`lw` sem argumentos abre a TUI (curses) com aparência, paleta, bloqueio, backups e o doctor. Com subcomandos, cada um tem `--json` (é assim que o app fala com ele): `lw status`, `lw gui|music|games`, `lw wallpaper`, `lw palette`, `lw profile`, `lw greeter`, `lw sync`, `lw shortcuts`, `lw lock`, `lw backups`, `lw modules`, `lw doctor`. `lw setup` é a TUI de quem acabou de baixar o LW: liga e desliga os módulos (Espaço), mostra as dependências de cada um, marca o que instalar (Tab, Espaço) e instala (`i`) só depois de mostrar o comando exato e você confirmar; o `sudo` pede a senha no próprio terminal. `lw bt` abre o gerenciador de Bluetooth no terminal (curses sobre o `bluetoothctl`): `Enter` conecta/desconecta, `s` procura aparelhos por 15 s, `p` pareia, `t` marca como confiável (reconecta sozinho), `d` esquece (com confirmação), `o` liga/desliga o adaptador; a lista acompanha mudanças feitas fora dele. O nome antigo, `rice`, continua funcionando. `supers` é a TUI de atalhos ([extras/supers/README.md](extras/supers/README.md)) e `wallpapers` o seletor de wallpapers no terminal.
 
 ## Instalar, testar e restaurar
+
+Numa máquina nova: clone o repositório, rode `python3 extras/rice.py setup` (só precisa do Python) para escolher os módulos e instalar os pacotes, e depois `python3 scripts/install.py --apply`. O roteiro completo, com o que ainda é da minha máquina, está em [docs/teste-vm.md](docs/teste-vm.md).
 
 Depois de editar um arquivo gerenciado, rode `scripts/integrity.py` para atualizar `config/integrity.json` (a lista que o `rice doctor` confere); `scripts/integrity.py --check` só mostra o que mudou, e os testes falham se a lista estiver velha.
 
@@ -182,7 +184,8 @@ extras/         cli.py (lw), rice.py (TUI), theme/, games.py, library.py, radio.
 config/         hypr, waybar, kitty, fish, nvim, yazi, cliamp, fastfetch, greeter, integrity.json
 scripts/        install.py, restore.py, integrity.py, session.py, music-check.sh
 tests/          testes de unidade
-docs/           protótipo visual do LW
+modules/        um manifesto (module.toml) e um README por módulo
+docs/           protótipos visuais, contrato de módulo (modulos.md), teste na VM, pendências
 ```
 
 ## Histórico

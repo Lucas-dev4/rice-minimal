@@ -5,12 +5,12 @@ Marque [x] quando terminar. Se uma sessão parar pedindo decisão, responda e de
 
 ---
 
-## [ ] 0 — Baseline (rápida)
+## [x] 0 — Baseline (rápida)
 ```
 Rode a suíte de testes (python3 -m unittest discover -s tests -q) e crie docs/BASELINE.md listando cada teste que falha ou dá erro, com uma linha do motivo. Não conserte nada. Commit: "docs: baseline dos testes antes dos módulos".
 ```
 
-## [ ] 1 — Contrato de módulo (só desenho, sem código)
+## [x] 1 — Contrato de módulo (só desenho, sem código)
 ```
 Leia README.md, extras/cli.py, gui/shell.qml e gui/Theme.qml. Proponha em docs/modulos.md o contrato de um módulo do LW: o que ele declara (nome, descrição, dependências de pacote/comando, telas QML, subcomandos lw, chaves de config, atalhos), onde os arquivos ficam, como o shell.qml descobre os módulos ativos e como `lw doctor` lê as dependências. Mostre como SISTEMA, MÚSICA e JOGOS se encaixam. Mantenha simples: um manifesto TOML por módulo, sem sistema de plugins genérico. Pare e me mostre antes de commitar.
 ```
@@ -35,12 +35,12 @@ Mesmo que a sessão 3, para MÚSICA (cliamp, rádio, online, biblioteca). Compor
 Mesmo que a sessão 3, para JOGOS (biblioteca, backlog, desempenho, emuladores, instalar). Comportamento igual, README do módulo, testes, commit.
 ```
 
-## [ ] 6 — Escolher módulos + doctor
+## [x] 6 — Escolher módulos + doctor
 ```
 Implemente `lw modules list|enable|disable NOME` (estado em ~/.config/lw/config.toml) e faça o shell.qml mostrar só os módulos ativos. `lw doctor` passa a checar as dependências de cada módulo ativo e imprime o `sudo pacman -S …` do que falta. Testes novos em tests/, commit.
 ```
 
-## [ ] 7 — `lw setup` e preparar o teste em sistema limpo
+## [x] 7 — `lw setup` e preparar o teste em sistema limpo
 ```
 Parte A — `lw setup`: TUI em curses (biblioteca padrão, mesmo visual e teclas da TUI que já existe) para quem acabou de baixar o LW. Mostra os módulos (nome, descrição, ligado/desligado, SISTEMA fixo), e para o módulo selecionado as dependências obrigatórias e opcionais com o estado de cada uma (instalada/falta). Espaço liga/desliga o módulo, i instala o que falta. Antes de instalar, mostra o comando exato (sudo pacman -S --needed …) e só roda depois de confirmação explícita, em primeiro plano, para a pessoa digitar a senha. Pacotes do AUR: usa paru ou yay se existir; se não, mostra o que instalar e não instala. Toda a lógica fica em lw modules / lw doctor (--json); a TUI só desenha e chama. Testes com pacman/paru falsos no PATH; nunca rode o pacman real nem sudo. Plano primeiro e espere meu ok.
 

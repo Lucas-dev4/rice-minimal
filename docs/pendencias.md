@@ -40,3 +40,16 @@ Decisões tomadas sem confirmar, sempre pela opção mais conservadora (manter o
 
 - **`waypaper` e `ryujinx`** estão no repositório do CachyOS, não no do Arch: no Arch puro a linha do `pacman` falha (sessão 13).
 - **Tela DOCTOR:** `↑↓` não rola a lista quando a seleção sai da área visível. Já existia.
+
+## Sessão 7 (`lw setup` e teste na VM), 2026-11-25
+
+### Decidido
+
+- **Teclas do `lw setup`:** painel dos módulos e mini painel das dependências (`Tab` troca); `Espaço` liga/desliga ou marca; `i` instala o que está marcado (as obrigatórias que faltam já vêm marcadas). Textos e mapa das teclas em pt-BR, diferente da TUI do `lw`, que é em inglês.
+- **Instalada = o programa existe** (mesma checagem do `lw doctor`), não `pacman -Q`.
+
+### Achado e não mexido
+
+- **Waybar com `/home/lucas` fixo:** o `scripts/session.py` abre a Waybar com `config/waybar/*` do repositório, sem trocar o caminho. Numa máquina com outro usuário, o módulo LW e as cores da barra quebram (`docs/teste-vm.md`).
+- **`extras/theme/README.md`, `extras/supers/README.md` e `extras/wallpapers/README.md`** ainda estão em inglês e descrevem fases antigas.
+- **`CLAUDE.md`** diz que `extras/cli.py` é o comando `lw`; quem o instala é o `extras/rice.py`, que repassa ao `cli.py`.

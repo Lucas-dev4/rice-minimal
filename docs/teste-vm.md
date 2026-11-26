@@ -111,7 +111,7 @@ O que está fixo e pode quebrar numa máquina limpa. Corrigido nesta sessão: s�
 
 ### 4. Outros caminhos e arquivos da minha máquina
 
-- `config/waybar/config.jsonc:34,37,38` e `config/waybar/style.css:1,52`: `/home/lucas/...` fixo. O `install.py` **não instala** a Waybar (não está em `FILES`, `scripts/install.py:32`). Copiada à mão, a barra chama o `lwbar.py` num caminho que não existe.
+- `config/waybar/config.jsonc:34,37,38` e `config/waybar/style.css:1,52`: `/home/lucas/...` fixo, e **ninguém troca**. O `install.py` não instala a Waybar (não está em `FILES`, `scripts/install.py:32`); o `scripts/session.py:34-35` abre a `waybar -c`/`-s` direto com os arquivos do repositório. Na VM, o módulo LW da barra (`lwbar.py`), o clique direito (cliamp) e as cores do tema (`@import` do `colors.css`) quebram. Este é certo, não só provável.
 - `config/waypaper/config.ini:2,4`: pasta `~/Imagens/Wallpapers` e `default-wallpaper.png`. O caminho é trocado pelo do usuário, mas o nome da pasta é o da instalação em português, e a imagem precisa existir. Sem ela, o doctor dá `FAIL` em "Wallpaper reference".
 - `config/autostart/rice-minimal.desktop:5`: o repositório precisa estar em `~/Projetos/rice-minimal` ou ser instalado pelo `install.py`, que troca o caminho.
 - `scripts/install.py:135`: os `require("config.rice-…")` só entram se `~/.config/hypr/hyprland.lua` existir. Se o Hyprland da VM vier com `hyprland.conf` (sem Lua), nada do rice é carregado e o `install.py` não avisa. O doctor mostra `FAIL` em "Lua appearance include".

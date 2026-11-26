@@ -31,6 +31,8 @@ Opcionais: `waybar` (a barra), `wireplumber` (checagem de áudio do doctor), `wl
 
 O `waypaper` está no repositório do CachyOS; no Arch puro ele vem do AUR.
 
+`lw setup` mostra o que falta de cada módulo e instala depois de confirmar; `lw modules deps sistema` mostra o mesmo no terminal.
+
 ## Comandos
 
 Todos aceitam `--json`, menos `bt` e `wallpaper thumbs`.
