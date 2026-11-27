@@ -82,6 +82,7 @@ Cada `[[dependency]]` tem **um** jeito de conferir e **um** jeito de resolver:
 | `package` | pacote do pacman |
 | `aur` | pacote do AUR (não entra no `pacman -S`) |
 | `manual` | frase curta, para o que não é pacote |
+| `conflicts` | pacotes que, instalados, impedem resolver por aqui (`["noctalia-qs"]`): a dependência vira conflito e nunca entra num comando |
 | `optional` | `true`: sem ele só some o que está em `why` |
 | `why` | o que depende disso |
 
@@ -204,6 +205,7 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 |---|---|
 | encontrada | `OK`, com o caminho |
 | obrigatória ausente | `FAIL` |
+| pacote de `conflicts` instalado | `FAIL` (opcional: `INFO`), com `conflito · …`, mesmo que o comando exista: o `qs` do `noctalia-qs` não é o do `quickshell`. Quem confere é `pacman -Qq`, só consulta |
 | opcional ausente | `INFO`, com o `why` (não conta como problema) |
 | manifesto inválido | `FAIL`; o módulo não aparece, o resto do LW abre |
 
@@ -223,7 +225,7 @@ Depois das checagens de sessão, para cada módulo **ativo** e cada `[[dependenc
 - **Telas** (`gui/screens`): WALLPAPERS, SHORTCUTS, PROFILES, PALETTE, DOCTOR, BACKUPS, LOCK, GREETER.
 - **Comandos** (`cmd_system`): `status`, `wallpaper`, `palette`, `profile`, `greeter`, `sync`, `shortcuts`, `backups`, `lock`, `bt` (o `bt` passa para DISPOSITIVOS na sessão 9).
 - **Gancho**: `sidebar` (CURRENT), `footerLeft` (SYNC ALL), `context` (LOG), `idleText`.
-- **Obrigatórias**: `qs` quickshell · `hyprctl` hyprland · `noctalia` · `matugen` · `waypaper` · `kitty` · `fish` · `nvim` neovim · `luac` lua · `PIL` python-pillow · fonte ttf-jetbrains-mono-nerd.
+- **Obrigatórias**: `qs` quickshell (conflita com `noctalia-qs`) · `hyprctl` hyprland · `noctalia` (o do extra, shell próprio sem Quickshell; não junto com `noctalia-shell`) · `matugen` · `waypaper` · `kitty` · `fish` · `nvim` neovim · `luac` lua · `PIL` python-pillow · fonte ttf-jetbrains-mono-nerd.
 - **Opcionais**: `waybar` · `wpctl` wireplumber · `wl-copy` wl-clipboard · `bluetoothctl` bluez-utils.
 - **Config**: `fullscreen` (abre em tela cheia; `false`: janela flutuante).
 - **Atalhos**: `SUPER + BackSpace` (`lw gui`).

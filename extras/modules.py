@@ -12,7 +12,7 @@ FIELDS = {'id': str, 'name': str, 'description': str, 'order': int, 'default': b
 TABLES = {'gui': {'folder': str, 'hook': str, 'screens': list},
           'commands': {'handler': str, 'names': list, 'open': str}}
 ITEMS = {'dependency': {'command': (str, list), 'python': str, 'font': str, 'package': str, 'aur': str,
-                        'manual': str, 'optional': bool, 'why': str},
+                        'manual': str, 'optional': bool, 'why': str, 'conflicts': list},
          'shortcut': {'keys': str, 'command': str, 'description': str}}
 SCREEN = {'name': str, 'file': str}
 

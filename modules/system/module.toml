@@ -25,9 +25,12 @@ screens = [
 handler = "cmd_system"
 names = ["status", "wallpaper", "palette", "profile", "greeter", "sync", "shortcuts", "backups", "lock", "bt"]
 
+# O quickshell do extra. O noctalia-qs (fork que o noctalia-shell usa) também tem um qs, mas conflita
+# com o quickshell no pacman; com ele instalado, o LW não pede o quickshell.
 [[dependency]]
 command = "qs"
 package = "quickshell"
+conflicts = ["noctalia-qs"]
 why = "é a janela do LW"
 
 [[dependency]]
@@ -35,9 +38,12 @@ command = "hyprctl"
 package = "hyprland"
 why = "é a sessão: atalhos, animações e monitores"
 
+# O noctalia do extra (shell próprio, sem Quickshell; é quem responde ao "noctalia msg").
+# O noctalia-shell é outro programa, feito sobre o noctalia-qs: são dois shells, então o LW não instala um por cima do outro.
 [[dependency]]
 command = "noctalia"
 package = "noctalia"
+conflicts = ["noctalia-shell", "noctalia-shell-git"]
 why = "troca o wallpaper, bloqueia a tela e recebe o tema"
 
 [[dependency]]

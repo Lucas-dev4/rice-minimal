@@ -80,8 +80,8 @@ class Setup:
 
     @staticmethod
     def markable(dep):
-        """Só o que falta e tem pacote (pacman ou AUR) pode ser marcado."""
-        return not dep['found'] and bool(dep['key'])
+        """Só o que falta, tem pacote (pacman ou AUR) e não tem conflito pode ser marcado."""
+        return not dep['found'] and bool(dep['key']) and not dep.get('conflict')
 
     def plan(self):
         """O plano do lw para o que está marcado (None se nada marcado)."""
@@ -114,7 +114,9 @@ class Setup:
             return
         dep = deps[self.row]
         marked = self.marks[self.module()['id']]
-        if dep['found']:
+        if dep.get('conflict'):
+            self.message = dep['name'] + ': ' + dep['conflict']
+        elif dep['found']:
             self.message = dep['name'] + ' já está instalada'
         elif not dep['key']:
             self.message = dep['name'] + ': ' + dep['manual']
@@ -186,9 +188,9 @@ class Setup:
             self.offset = self.row - visible + 1
         for pos, d in enumerate(deps[self.offset:self.offset + visible], self.offset):
             box = ('[x]' if d['key'] in marked else '[ ]') if self.markable(d) else '   '
-            state = 'OK   ' if d['found'] else 'falta'
+            state = 'conflito' if d.get('conflict') else 'OK   ' if d['found'] else 'falta'
             extra = ' · opcional' if d['optional'] else ''
-            extra += ' · ' + d['why'] if not d['found'] else ''
+            extra += ' · ' + d['conflict'] if d.get('conflict') else ' · ' + d['why'] if not d['found'] else ''
             extra += ' · ' + d['manual'] if d['manual'] and not d['found'] else ''
             here = pos == self.row and self.focus == 'deps'
             ui.text(self.screen, 5 + pos - self.offset, x, ('> ' if here else '  ') + f'{box} {state} {d["name"]}{extra}',

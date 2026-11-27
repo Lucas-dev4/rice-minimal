@@ -100,6 +100,16 @@ class Contract(unittest.TestCase):
                 self.assertEqual(sum(k in d for k in ('package', 'aur', 'manual')), 1, d)
                 self.assertTrue(d.get('why'), d)
 
+    def test_no_package_asked_conflicts_with_another_asked(self):
+        deps = [d for m in self.found.values() for d in m.get('dependency', [])]
+        asked = {d.get('package') or d.get('aur') for d in deps} - {None}
+        for d in deps:
+            self.assertFalse(set(d.get('conflicts', [])) & asked, d)
+        system = {d['command']: d for d in self.found['system']['dependency'] if 'command' in d}
+        self.assertEqual((system['qs']['package'], system['qs']['conflicts']), ('quickshell', ['noctalia-qs']))
+        self.assertEqual(system['noctalia']['package'], 'noctalia')
+        self.assertIn('noctalia-shell', system['noctalia']['conflicts'])
+
     def test_the_window_starts_with_the_system_of_the_manifest(self):
         # gui/Modules.qml mostra SISTEMA antes de o "lw modules list" responder.
         text = (ROOT/'gui/Modules.qml').read_text()

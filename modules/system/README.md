@@ -31,6 +31,8 @@ Opcionais: `waybar` (a barra), `wireplumber` (checagem de áudio do doctor), `wl
 
 O `waypaper` está no repositório do CachyOS; no Arch puro ele vem do AUR.
 
+**Noctalia e Quickshell:** o LW usa o `noctalia` do extra (shell próprio, sem Quickshell; é quem responde ao `noctalia msg`) e o `quickshell` do extra, para a janela. O `noctalia-shell` (repositório cachyos e AUR) é outro programa: depende do `noctalia-qs`, um fork do Quickshell que conflita com o `quickshell`. Com o `noctalia-qs` ou o `noctalia-shell` instalados, o `lw doctor` mostra o conflito e o `lw setup` não pede nem `quickshell` nem `noctalia`: a troca é à mão.
+
 `lw setup` mostra o que falta de cada módulo e instala depois de confirmar; `lw modules deps sistema` mostra o mesmo no terminal.
 
 ## Comandos

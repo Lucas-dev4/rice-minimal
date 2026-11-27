@@ -136,13 +136,13 @@ class Dependencies(unittest.TestCase):
         env.start()
         self.addCleanup(env.stop)
 
-    def check(self,missing=()):
+    def check(self,missing=(),conflicts=()):
         """As linhas das dependências, com só essas faltando."""
         found=[]
         def located(dep):
             names=dep.get('command') or dep.get('python') or dep.get('font')
             return '' if names in missing else '/x'
-        with patch.object(doctor,'located',side_effect=located):
+        with patch.object(doctor,'located',side_effect=located),patch.object(doctor,'installed',side_effect=lambda names: set(names)&set(conflicts)):
             doctor.dependencies(lambda status,name,detail='',**extra: found.append({'status':status,'name':name,'detail':detail,**extra}))
         return found
 
@@ -178,6 +178,14 @@ class Dependencies(unittest.TestCase):
         self.assertEqual(lines,{'Pacotes obrigatórios':'sudo pacman -S --needed wireplumber',
                                 'Pacotes opcionais':'sudo pacman -S --needed ffmpeg zenity ppsspp'})
         self.assertIn('ppsspp / PPSSPPSDL',[r['name'] for r in found])
+
+    def test_a_conflicting_package_installed_fails_and_is_never_asked(self):
+        # Máquina com o noctalia-shell: o qs existe (do noctalia-qs), mas não é o quickshell.
+        found={r['name']:r for r in self.check(missing=('noctalia',),conflicts=('noctalia-qs','noctalia-shell'))}
+        self.assertEqual(found['qs']['status'],'FAIL')
+        self.assertIn('conflito · noctalia-qs instalado, que conflita com quickshell',found['qs']['detail'])
+        self.assertIn('noctalia-shell instalado',found['noctalia']['detail'])
+        self.assertNotIn('Pacotes obrigatórios',found)
 
     def test_what_is_not_a_package_says_its_own_way(self):
         found=self.check(missing=('cliamp',))

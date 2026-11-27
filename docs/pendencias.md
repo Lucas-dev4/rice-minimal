@@ -51,5 +51,5 @@ Decisões tomadas sem confirmar, sempre pela opção mais conservadora (manter o
 ### Achado e não mexido
 
 - **Waybar com `/home/lucas` fixo:** o `scripts/session.py` abre a Waybar com `config/waybar/*` do repositório, sem trocar o caminho. Numa máquina com outro usuário, o módulo LW e as cores da barra quebram (`docs/teste-vm.md`).
-- **`extras/theme/README.md`, `extras/supers/README.md` e `extras/wallpapers/README.md`** ainda estão em inglês e descrevem fases antigas.
-- **`CLAUDE.md`** diz que `extras/cli.py` é o comando `lw`; quem o instala é o `extras/rice.py`, que repassa ao `cli.py`.
+- **`extras/theme/README.md`, `extras/supers/README.md` e `extras/wallpapers/README.md`** foram traduzidos, mas ainda descrevem fases antigas (Fase 3, `rice`).
+- **Conflito noctalia-shell × quickshell:** a dependência ganhou `conflicts`. Só quem está na lista conta como conflito; se outro fork do Quickshell aparecer, entra no manifesto.

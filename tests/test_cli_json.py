@@ -779,6 +779,41 @@ class ModuleInstall(unittest.TestCase):
             plan = doctor.install_plan(deps)
             self.assertEqual((plan['helper'],plan['commands'][1],plan['blocked']),('paru',['paru','-S','--needed','x-bin'],[]))
 
+    def pacman_with(self, *packages):
+        """O pacman falso responde ao -Qq com estes pacotes instalados (e anota as instalações)."""
+        names = ' '.join(packages)
+        (self.bin/'pacman').write_text(f'''#!/bin/sh
+if [ "$1" = "-Qq" ]; then
+  shift; for a in "$@"; do for p in {names}; do [ "$a" = "$p" ] && echo "$p"; done; done; exit 0
+fi
+echo "pacman $*" >> {self.log}
+''')
+
+    def test_a_conflicting_package_installed_is_never_asked(self):
+        # Máquina com o noctalia-shell: noctalia-qs no lugar do quickshell.
+        self.pacman_with('noctalia-qs','noctalia-shell')
+        data = self.lw('modules','deps','sistema')[1]['data']
+        deps = {d['name']: d for d in data['dependencies']}
+        self.assertIn('noctalia-qs instalado, que conflita com quickshell',deps['qs']['conflict'])
+        self.assertIn('noctalia-shell instalado',deps['noctalia']['conflict'])
+        command = data['install']['commands'][0]
+        self.assertNotIn('quickshell',command)
+        self.assertNotIn('noctalia',command)
+        self.assertIn('hyprland',command)
+        self.assertEqual([b.split(':')[0] for b in data['install']['blocked'][:2]],['quickshell','noctalia'])
+        picked = self.lw('modules','deps','sistema','--pick','quickshell')[1]['data']['install']
+        self.assertEqual(picked['commands'],[])
+        self.lw('modules','install','sistema','--yes')
+        self.assertFalse([c for c in self.calls() if 'quickshell' in c or ' noctalia' in c])
+        out = self.lw('modules','deps','sistema',json_out=False)[1]
+        self.assertIn('[ !! ] qs — conflito · noctalia-qs instalado',out)
+
+    def test_without_the_conflict_quickshell_and_noctalia_are_asked(self):
+        self.pacman_with()
+        command = self.lw('modules','deps','sistema')[1]['data']['install']['commands'][0]
+        self.assertEqual(command[:6],['sudo','pacman','-S','--needed','quickshell','hyprland'])
+        self.assertIn('noctalia',command)
+
     def test_the_terminal_text(self):
         out = self.lw('modules','deps','music',json_out=False)[1].splitlines()
         self.assertEqual(out[:2],['MÚSICA','[ -- ] cliamp — falta · é o player'])

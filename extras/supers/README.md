@@ -1,7 +1,7 @@
 # Super
 
-This directory contains the existing functional local implementation, moved here without changing its editor or safety helpers. `Supers`, `safe_io.py` and `test_safety.py` match the pre-Phase-3 local version.
+Esta pasta tem a implementação local que já funcionava, trazida para cá sem mudar o editor nem os ajudantes de segurança. `Supers`, `safe_io.py` e `test_safety.py` são iguais à versão local de antes da Fase 3.
 
-`~/.local/bin/supers` now launches this copy. Compatibility wrappers in the original project `super/` keep previous entrypoints working. The GitHub clone under `referencias/` was not modified or pushed.
+O `~/.local/bin/supers` agora abre esta cópia. Os wrappers de compatibilidade na pasta `super/` original do projeto mantêm os pontos de entrada antigos funcionando. O clone do GitHub em `referencias/` não foi modificado nem enviado.
 
-Atomic writes, unique backups, Lua validation, conflict/concurrent-edit checks and `supers --restore PATH` are preserved. Dynamic Lua expressions remain outside static editing. Run `supers --check` or `python3 extras/supers/test_safety.py` for validation.
+Escrita atômica, backups únicos, validação do Lua, checagem de conflito e de edição simultânea e `supers --restore CAMINHO` continuam. Expressões Lua dinâmicas ficam fora da edição estática. Rode `supers --check` ou `python3 extras/supers/test_safety.py` para validar.

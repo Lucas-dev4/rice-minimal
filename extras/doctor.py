@@ -29,6 +29,26 @@ def located(dep):
     return next((found for found in (shutil.which(name,path=path) for name in names) if found),'')
 
 
+def installed(names):
+    """Quais destes pacotes estão instalados (pacman -Qq, só consulta). Sem pacman, nenhum."""
+    if not names:
+        return set()
+    try:
+        out=subprocess.run(['pacman','-Qq',*names],capture_output=True,text=True,timeout=8).stdout
+    except (OSError,subprocess.SubprocessError):
+        return set()
+    return set(out.split())&set(names)
+
+
+def conflict(dep):
+    """Por que a dependência não pode ser resolvida aqui: um pacote que conflita com ela está instalado ('' se nenhum)."""
+    found=installed(dep.get('conflicts',[]))
+    if not found:
+        return ''
+    names=' e '.join(sorted(found))
+    return f"{names} instalado, que conflita com {dep.get('package') or dep.get('aur')}; o LW não troca: faça à mão, se quiser"
+
+
 def module_dependencies(module):
     """As dependências de um módulo (ligado ou não), obrigatórias antes, cada uma com onde está ('' = falta).
     key é o pacote (pacman ou AUR) que a resolve, ou '' quando ela é manual."""
@@ -38,7 +58,8 @@ def module_dependencies(module):
         name=dep.get('command') or dep.get('python') or dep.get('font')
         found.append({'name':' / '.join(name) if isinstance(name,list) else name,'key':dep.get('package') or dep.get('aur') or '',
                       'optional':dep.get('optional',False),'why':dep.get('why',''),'found':located(dep),
-                      'package':dep.get('package',''),'aur':dep.get('aur',''),'manual':dep.get('manual','')})
+                      'package':dep.get('package',''),'aur':dep.get('aur',''),'manual':dep.get('manual',''),
+                      'conflict':conflict(dep)})
     return found
 
 
@@ -50,7 +71,10 @@ def helper():
 def install_plan(deps,picks=None,optional=False):
     """Os comandos exatos para instalar o que falta. picks: só esses pacotes; sem picks, as obrigatórias
     (e as opcionais com optional=True). AUR sem paru/yay e o que é manual ficam em blocked, sem comando."""
-    missing=[d for d in deps if not d['found']]
+    # Com conflito, nunca entra num comando: nem se faltar, nem se marcada.
+    missing=[d for d in deps if not d['found'] and not d.get('conflict')]
+    clash=list(dict.fromkeys(d['key']+': '+d['conflict'] for d in deps if d.get('conflict')
+                             and (picks is None and (optional or not d['optional']) or picks is not None and d['key'] in picks)))
     if picks is None:
         chosen=[d for d in missing if optional or not d['optional']]
     else:
@@ -63,7 +87,7 @@ def install_plan(deps,picks=None,optional=False):
     aur=list(dict.fromkeys(d['aur'] for d in chosen if d['aur']))
     tool=helper()
     commands=[['sudo','pacman','-S','--needed',*pacman]] if pacman else []
-    blocked=[]
+    blocked=clash
     if aur and tool:
         commands.append([tool,'-S','--needed',*aur])
     elif aur:
@@ -97,6 +121,9 @@ def deps_text(data):
     """As dependências de um módulo e o plano, para o terminal."""
     out=[data['name']]
     for d in data['dependencies']:
+        if d['conflict']:
+            out.append(f"[ !! ] {d['name']} — conflito · {d['conflict']}")
+            continue
         out.append(f"[ {'OK' if d['found'] else '--'} ] {d['name']}"+(' (opcional)' if d['optional'] else '')
                    +' — '+(d['found'] or 'falta · '+d['why']))
     plan=data['install']
@@ -122,6 +149,10 @@ def dependencies(add):
         for dep in module_dependencies(m['id']):
             optional=dep['optional']
             detail=place=dep['found']
+            if dep['conflict']:
+                # Achar o comando não basta: ele pode ser o do pacote que conflita (o qs do noctalia-qs).
+                add('INFO' if optional else 'FAIL',dep['name'],'conflito · '+dep['conflict'],module=m['id'],optional=optional)
+                continue
             if not place:
                 # Pacote entra na linha do pacman; AUR e manual dizem o caminho aqui.
                 way='AUR: '+dep['aur'] if dep['aur'] else dep['manual']

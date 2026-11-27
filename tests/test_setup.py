@@ -117,6 +117,14 @@ class Tui(unittest.TestCase):
         self.assertIn('gio já está instalada', self.run_keys(DOWN, TAB, DOWN, DOWN, DOWN, SPACE))
         self.assertEqual(self.setup.marks['music'], {'libpulse'})
 
+    def test_a_conflict_is_shown_and_never_marked(self):
+        self.lw.deps['music'].append(dict(dep('qs', 'quickshell'), conflict='noctalia-qs instalado, que conflita com quickshell'))
+        text = self.run_keys(DOWN, TAB, DOWN, DOWN, DOWN, DOWN, SPACE)
+        self.assertIn('conflito qs · noctalia-qs instalado', text)
+        self.assertNotIn('[ ] conflito', text)
+        self.assertIn('qs: noctalia-qs instalado', text)
+        self.assertNotIn('quickshell', self.setup.marks['music'])
+
     def test_install_shows_the_command_and_cancel_is_the_default(self):
         self.run_keys(DOWN, ord('i'), ENTER)
         self.assertEqual(self.launched, [])

@@ -1,15 +1,15 @@
 # Wallpapers
 
-`wallpapers` opens the standard-library curses selector. No thumbnails, graphical toolkit or daemon is needed to browse. Applying requires the existing Wayland/Noctalia session.
+`wallpapers` abre o seletor em curses, só com a biblioteca padrão. Para navegar não precisa de miniaturas, toolkit gráfico nem daemon. Para aplicar, precisa da sessão Wayland/Noctalia aberta.
 
-- `j`/Down and `k`/Up move; `/` filters names, Enter finishes the search.
-- Enter outside search applies; `r` selects a random item; `q`/Esc exits.
-- `*` marks the effective wallpaper, comparing resolved paths so existing symbolic links work.
-- `wallpapers --list` prints the folder, current selection and image paths without changing anything.
-- `wallpapers --apply '/path/with spaces/image.png'` uses the same application function as Enter.
+- `j`/Baixo e `k`/Cima movem; `/` filtra pelo nome, Enter termina a busca.
+- Enter fora da busca aplica; `r` escolhe um ao acaso; `q`/Esc sai.
+- `*` marca o wallpaper em uso, comparando os caminhos resolvidos, para os links simbólicos que já existem funcionarem.
+- `wallpapers --list` imprime a pasta, a escolha atual e os caminhos das imagens, sem mudar nada.
+- `wallpapers --apply '/caminho/com espaços/imagem.png'` usa a mesma função de aplicar do Enter.
 
-The folder is read from `~/.config/waypaper/config.ini`: currently `~/Imagens/Wallpapers`. Existing links resolve into `~/Pictures/Wallpapers`; an existing JPG also resides directly in the configured folder. No image library was created or copied. Recursive discovery follows Waypaper's existing subfolder settings.
+A pasta vem do `~/.config/waypaper/config.ini`: hoje, `~/Imagens/Wallpapers`. Os links que já existem apontam para `~/Pictures/Wallpapers`; um JPG que já existia também fica direto na pasta configurada. Nenhuma biblioteca de imagens foi criada ou copiada. A busca em subpastas segue as opções do Waypaper.
 
-The selector calls Waypaper with an argument list and `--no-post-command`, then runs the shared theme hook synchronously. Waypaper saves the choice in its own configuration; there is no separate selector state. The GUI calls that same hook asynchronously. The configured hook reads Waypaper's saved selection rather than interpolating file names into a shell string. Spaces, quotes, semicolons and dollar expressions were exercised through the real Waypaper command.
+O seletor chama o Waypaper com uma lista de argumentos e `--no-post-command`, depois roda o gancho comum do tema na hora. O Waypaper grava a escolha na própria configuração; o seletor não tem estado à parte. A janela chama o mesmo gancho, sem esperar. O gancho configurado lê a escolha gravada no Waypaper em vez de pôr nomes de arquivo num texto de shell. Espaços, aspas, ponto e vírgula e expressões com cifrão foram exercitados pelo comando real do Waypaper.
 
-Noctalia remains the only wallpaper renderer (`backend = none` in Waypaper). Hyprpaper stays installed but is not started. See [theme behavior and recovery](../theme/README.md).
+O Noctalia continua sendo o único que desenha o wallpaper (`backend = none` no Waypaper). O Hyprpaper continua instalado, mas não é aberto. Veja [o comportamento e a recuperação do tema](../theme/README.md).

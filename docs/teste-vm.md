@@ -129,9 +129,10 @@ O que está fixo e pode quebrar numa máquina limpa. Corrigido nesta sessão: s�
 - `pcsx2-qt`: `extras/emulators.py:139` e `extras/games.py:330`. Fica fora de JOGOS como os AppImages, mas é procurado também no PATH.
 - `fc-list` (fontconfig), `pgrep`/`pkill` (procps-ng), `setsid` (util-linux): vêm com a base. Ficam listados para o caso de um Arch mínimo.
 
-### 6. Pacotes que talvez não existam com esse nome
+### 6. Pacotes e repositórios
 
-Não confirmei; o `lw setup` mostra na hora, porque o `pacman` falha e não instala nada.
+Conferido com `pacman -Si` (só consulta). Se um nome faltar no repositório da VM, o `lw setup` mostra na hora: o `pacman` falha e não instala nada.
 
-- `noctalia`, `quickshell`, `matugen` e `waypaper` (`modules/system/module.toml`): confira se estão no repositório do CachyOS ou só no AUR. Se estiverem só no AUR, o manifesto precisa de `aur =` no lugar de `package =`.
+- `noctalia` e `quickshell`: conferidos no pacman (2026-11-26), os dois estão no `extra` e no `cachyos-extra-v3`, e são o que a minha máquina usa. O `noctalia` do extra é um shell próprio, sem Quickshell. **Se a VM vier com o `noctalia-shell`** (repositório cachyos), ele traz o `noctalia-qs`, que conflita com o `quickshell`. O `lw setup` mostra `conflito` em `qs` e `noctalia` e não pede nenhum dos dois. Anote se for o caso: decidir a troca é à mão.
+- `matugen`: está no `extra` (conferido). `waypaper`: só no repositório `cachyos`, então no CachyOS funciona.
 - `waypaper` e `ryujinx` estão no CachyOS mas não no Arch (`docs/pendencias.md`, sessão 6).

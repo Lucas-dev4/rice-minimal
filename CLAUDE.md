@@ -4,7 +4,7 @@ Responda em português do Brasil. Seja direto; se eu estiver errado, diga.
 
 ## O que é
 Ambiente CachyOS + Hyprland com um app de controle, o **LW**:
-- `extras/` — Python. `extras/cli.py` é o comando `lw` (TUI sem argumentos; subcomandos com `--json`).
+- `extras/` — Python. O comando `lw` instalado é o `extras/rice.py` (TUI sem argumentos); os subcomandos com `--json` ficam em `extras/cli.py`, para onde o `rice.py` repassa.
 - `gui/` — Quickshell/QML. `gui/shell.qml` é a janela; telas em `gui/screens/` (SISTEMA), `gui/player/` (MÚSICA), `gui/arcade/` (JOGOS); cores, fontes e tempos só em `gui/Theme.qml`.
 - `config/` — configs gerenciadas (hypr, kitty, fish, waybar, nvim…). `scripts/` — install, restore, integridade.
 - `docs/` — protótipos HTML (`lw-prototype.html`, `lw-jogos-prototype.html`, `prototipos/lw-*.html`). São a referência visual de toda tela nova.
